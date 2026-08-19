@@ -467,6 +467,51 @@ html, body {
   color: var(--text-main);
 }
 
+/* Floating Basemap Toggle Bar (Default Map vs Satellite View) */
+.basemap-toggle-panel {
+  top: 14px;
+  left: 98px;
+  padding: 3px;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  z-index: 500;
+}
+
+.basemap-btn {
+  font-family: var(--font-sans);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  padding: 5px 11px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.basemap-btn svg {
+  color: inherit;
+  flex-shrink: 0;
+}
+
+.basemap-btn:hover {
+  color: var(--text-main);
+  background: rgba(241, 245, 249, 0.9);
+}
+
+.basemap-btn.active {
+  color: #0f172a;
+  background: #ffffff;
+  box-shadow: var(--shadow-sm);
+  font-weight: 700;
+}
+
 /* Map Legend (Bottom Left) */
 .map-legend-card {
   bottom: 18px;

@@ -38,6 +38,11 @@ const DEFAULT_ZOOM = 15;
 
 // Global Application State
 let map;
+let defaultBasemapLayer = null;
+let satelliteBasemapLayer = null;
+let satelliteLabelsLayer = null;
+let currentBasemap = "default";
+
 let primaryData = null;
 let primaryFeatureMap = new Map();
 let currentLayer = null;
@@ -60,13 +65,8 @@ function initApp() {
   // Position zoom controls in bottom-right
   L.control.zoom({ position: "bottomright" }).addTo(map);
 
-  // Clean CartoDB Positron Basemap
-  L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
-    attribution:
-      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; CARTO',
-    subdomains: "abcd",
-    maxZoom: 19,
-  }).addTo(map);
+  // Initialize Basemap Surface Layers (Default Carto Light & ESRI High-Res Satellite)
+  initBasemaps();
 
   // Map background click closes drawer & dropdowns
   map.on("click", (e) => {
@@ -79,6 +79,76 @@ function initApp() {
   setupEventListeners();
   loadPrimaryData();
   updateLegend("hvi");
+}
+
+function initBasemaps() {
+  // Clean CartoDB Positron Basemap (Default Street / Light)
+  defaultBasemapLayer = L.tileLayer(
+    "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
+    {
+      attribution:
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; CARTO',
+      subdomains: "abcd",
+      maxZoom: 19,
+    }
+  );
+
+  // ESRI World Imagery (High-Resolution Satellite)
+  satelliteBasemapLayer = L.tileLayer(
+    "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+    {
+      attribution:
+        "Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics, GIS User Community",
+      maxZoom: 19,
+    }
+  );
+
+  // Optional Satellite Reference & Place Labels Overlay
+  satelliteLabelsLayer = L.tileLayer(
+    "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",
+    {
+      attribution: "&copy; Esri",
+      maxZoom: 19,
+      opacity: 0.85,
+    }
+  );
+
+  defaultBasemapLayer.addTo(map);
+}
+
+function setBasemap(type) {
+  if (type === currentBasemap) return;
+  currentBasemap = type;
+
+  if (type === "satellite") {
+    if (map.hasLayer(defaultBasemapLayer)) {
+      map.removeLayer(defaultBasemapLayer);
+    }
+    satelliteBasemapLayer.addTo(map);
+    satelliteLabelsLayer.addTo(map);
+  } else {
+    if (map.hasLayer(satelliteBasemapLayer)) {
+      map.removeLayer(satelliteBasemapLayer);
+    }
+    if (map.hasLayer(satelliteLabelsLayer)) {
+      map.removeLayer(satelliteLabelsLayer);
+    }
+    defaultBasemapLayer.addTo(map);
+  }
+
+  // Ensure the vector polygon layer stays on top of the basemap
+  if (currentLayer) {
+    currentLayer.bringToFront();
+  }
+
+  // Update button active states in UI toggle bar
+  document.querySelectorAll(".basemap-btn").forEach((btn) => {
+    if (btn.getAttribute("data-basemap") === type) {
+      btn.classList.add("active");
+    } else {
+      btn.classList.remove("active");
+    }
+  });
 }
 
 // 2. Data Loading Engine
@@ -568,6 +638,15 @@ function closeLayerDropdown() {
 
 // 6. Event Listeners
 function setupEventListeners() {
+  // Basemap Toggle Buttons (Default Street / Satellite)
+  const basemapBtns = document.querySelectorAll(".basemap-btn");
+  basemapBtns.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const type = btn.getAttribute("data-basemap");
+      setBasemap(type);
+    });
+  });
+
   // Segmented Risk Filter Buttons
   const segmentBtns = document.querySelectorAll(".segment-btn");
   segmentBtns.forEach((btn) => {
