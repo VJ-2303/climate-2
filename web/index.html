@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HeatViz — Hyperlocal Heat Vulnerability Map</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+    <header class="header">
+        <div class="header-left">
+            <h1>🔥 HeatViz <span class="subtitle">Kibera, Nairobi</span></h1>
+        </div>
+        <div class="header-center">
+            <span class="kpi-pill">Total Blocks: <strong id="kpi-total">—</strong></span>
+            <span class="kpi-pill kpi-critical">Critical: <strong id="kpi-critical">—</strong></span>
+            <span class="kpi-pill kpi-high">High: <strong id="kpi-high">—</strong></span>
+        </div>
+        <div class="header-right">
+            <input type="text" id="search-input" placeholder="Search Block ID...">
+            <select id="risk-filter">
+                <option value="All">All</option>
+                <option value="Critical">Critical</option>
+                <option value="High">High</option>
+                <option value="Medium">Medium</option>
+                <option value="Low">Low</option>
+            </select>
+            <button id="export-btn">⬇ Export</button>
+        </div>
+    </header>
+
+    <main class="main-content">
+        <div id="map"></div>
+        <aside id="sidebar">
+            <button class="close-btn" id="sidebar-close">✕</button>
+            <div class="sidebar-content-wrapper">
+                <div id="sidebar-default">
+                    <p>Click any 50m block on the map to inspect its heat vulnerability profile.</p>
+                </div>
+                <div id="sidebar-detail" style="display: none;">
+                    <div class="sidebar-header">
+                        <h2 id="detail-block-id"></h2>
+                        <span class="risk-badge" id="detail-risk-badge"></span>
+                    </div>
+
+                    <div class="hvi-score-section">
+                        <span class="score-label">HVI Score</span>
+                        <div id="detail-hvi-score" class="score-value"></div>
+                    </div>
+
+                    <div class="metrics-bars">
+                        <div class="metric-row">
+                            <span class="metric-label">AI Heat Exposure</span>
+                            <div class="metric-bar"><div class="metric-bar-fill" id="bar-heat"></div></div>
+                            <span class="metric-value" id="val-heat"></span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-label">Social Sensitivity</span>
+                            <div class="metric-bar"><div class="metric-bar-fill" id="bar-social"></div></div>
+                            <span class="metric-value" id="val-social"></span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-label">Cooling Deficit</span>
+                            <div class="metric-bar"><div class="metric-bar-fill" id="bar-cooling"></div></div>
+                            <span class="metric-value" id="val-cooling"></span>
+                        </div>
+                    </div>
+
+                    <div class="population-section">
+                        Estimated Population: <strong id="detail-population"></strong>
+                    </div>
+
+                    <div class="drivers-section">
+                        <h3>Top Drivers</h3>
+                        <div id="detail-drivers"></div>
+                    </div>
+
+                    <div class="intervention-box">
+                        <span class="intervention-icon">💡</span>
+                        <span id="detail-intervention"></span>
+                    </div>
+
+                    <div class="metrics-table-section">
+                        <h3>Environmental Metrics</h3>
+                        <table class="metrics-table">
+                            <tbody>
+                                <tr><td>NDVI</td><td id="detail-ndvi">—</td></tr>
+                                <tr><td>NDWI</td><td id="detail-ndwi">—</td></tr>
+                                <tr><td>NDBI</td><td id="detail-ndbi">—</td></tr>
+                                <tr><td>Distance to Green</td><td id="detail-green">—</td></tr>
+                                <tr><td>Distance to Water</td><td id="detail-water">—</td></tr>
+                                <tr><td>Building Density</td><td id="detail-building">—</td></tr>
+                                <tr><td>Population Density</td><td id="detail-popdensity">—</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </aside>
+    </main>
+
+    <div id="layer-control">
+        <h3>Layers</h3>
+        <label><input type="radio" name="layer" value="hvi" checked> Heat Vulnerability (HVI)</label>
+        <label><input type="radio" name="layer" value="ai_heat_exposure_blocks"> AI Heat Exposure</label>
+        <label><input type="radio" name="layer" value="social_sensitivity_blocks"> Social Sensitivity</label>
+        <label><input type="radio" name="layer" value="cooling_deficit_blocks"> Cooling Deficit</label>
+        <label><input type="radio" name="layer" value="ndvi_blocks"> Vegetation (NDVI)</label>
+        <label><input type="radio" name="layer" value="ndbi_blocks"> Built-up (NDBI)</label>
+        <label><input type="radio" name="layer" value="building_density_blocks"> Building Density</label>
+        <label><input type="radio" name="layer" value="population_density_blocks"> Population Density</label>
+    </div>
+
+    <div id="legend">
+        <div id="legend-content"></div>
+    </div>
+
+    <div id="loading-overlay">
+        <div class="spinner"></div>
+        <p>Loading vulnerability data...</p>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="/static/app.js"></script>
+</body>
+</html>
