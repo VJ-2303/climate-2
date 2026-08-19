@@ -3,21 +3,34 @@
  */
 
 const RISK_COLORS = {
-  Critical: "#991b1b",
-  High: "#c2410c",
-  Medium: "#d97706",
-  Low: "#047857",
+  Critical: "#dc2626", // Deep High-Contrast Crimson Red
+  High: "#ea580c",     // Deep High-Contrast Amber Orange
+  Medium: "#d97706",   // Deep High-Contrast Warm Gold
+  Low: "#059669",      // Deep High-Contrast Emerald Green
 };
 
-const BLUE_SCALE = ["#eff6ff", "#bfdbfe", "#60a5fa", "#2563eb", "#1e3a8a"];
+// High-contrast, domain-specific 5-step color ramps (every baseline has a visible tint)
+const THEMATIC_PALETTES = {
+  ndvi_blocks: ["#cbd5e1", "#86efac", "#22c55e", "#15803d", "#14532d"],
+  ai_heat_exposure_blocks: ["#fef08a", "#facc15", "#f97316", "#dc2626", "#7f1d1d"],
+  ndbi_blocks: ["#cbd5e1", "#94a3b8", "#64748b", "#334155", "#0f172a"],
+  building_density_blocks: ["#fed7aa", "#fb923c", "#ea580c", "#c2410c", "#7c2d12"],
+  population_density_blocks: ["#c7d2fe", "#818cf8", "#4f46e5", "#3730a3", "#1e1b4b"],
+  cooling_deficit_blocks: ["#bae6fd", "#38bdf8", "#0284c7", "#0369a1", "#0c4a6e"],
+  social_sensitivity_blocks: ["#f5d0fe", "#e879f9", "#c026d3", "#86198f", "#4a044e"],
+};
+
+const DEFAULT_THEMATIC_PALETTE = ["#cbd5e1", "#93c5fd", "#3b82f6", "#1d4ed8", "#1e3a8a"];
 
 const LAYER_TITLES = {
   hvi: "Heat Vulnerability Index (HVI)",
   ai_heat_exposure_blocks: "Surface Heat Exposure",
   ndvi_blocks: "Tree Canopy & Greenery (NDVI)",
   ndbi_blocks: "Tin Roofs & Impervious (NDBI)",
+  building_density_blocks: "Building Footprint Density",
   population_density_blocks: "Population Density",
   cooling_deficit_blocks: "Cooling Access Deficit",
+  social_sensitivity_blocks: "Social Vulnerability & Sensitivity",
 };
 
 const CENTER = [-1.317, 36.789];
@@ -26,6 +39,7 @@ const DEFAULT_ZOOM = 15;
 // Global Application State
 let map;
 let primaryData = null;
+let primaryFeatureMap = new Map();
 let currentLayer = null;
 let selectedFeatureLayer = null;
 let currentActiveLayerName = "hvi";
@@ -74,6 +88,15 @@ async function loadPrimaryData() {
     const response = await fetch("/data/vulnerability_blocks.geojson");
     if (!response.ok) throw new Error("Failed to fetch primary dataset");
     primaryData = await response.json();
+    primaryFeatureMap = new Map();
+    if (primaryData && primaryData.features) {
+      for (let i = 0; i < primaryData.features.length; i++) {
+        const feat = primaryData.features[i];
+        if (feat.properties && feat.properties.block_id) {
+          primaryFeatureMap.set(feat.properties.block_id, feat.properties);
+        }
+      }
+    }
     renderPrimaryLayer();
   } catch (error) {
     console.error("Failed to load primary data:", error);
@@ -88,6 +111,37 @@ function showLoading(show) {
   if (overlay) {
     overlay.style.opacity = show ? "1" : "0";
     overlay.style.pointerEvents = show ? "all" : "none";
+  }
+}
+
+function getThematicColor(layerName, val) {
+  if (val === undefined || val === null || isNaN(val)) return "#cbd5e1";
+  const palette = THEMATIC_PALETTES[layerName] || DEFAULT_THEMATIC_PALETTE;
+  if (val <= 20) return palette[0];
+  if (val <= 40) return palette[1];
+  if (val <= 60) return palette[2];
+  if (val <= 80) return palette[3];
+  return palette[4];
+}
+
+function getLayerFillColor(layer) {
+  if (!layer || !layer.feature) return "#94a3b8";
+  const props = layer.feature.properties;
+  if (currentActiveLayerName === "hvi") {
+    let layerRisk = props.risk_class;
+    if (!layerRisk && primaryFeatureMap) {
+      const pf = primaryFeatureMap.get(props.block_id);
+      if (pf) layerRisk = pf.risk_class;
+    }
+    return RISK_COLORS[layerRisk] || "#94a3b8";
+  } else {
+    const propName = currentActiveLayerName.replace("_blocks", "");
+    let score = props[propName];
+    if (score === undefined && primaryFeatureMap) {
+      const pf = primaryFeatureMap.get(props.block_id);
+      if (pf) score = pf[propName];
+    }
+    return getThematicColor(currentActiveLayerName, Number(score));
   }
 }
 
@@ -108,7 +162,7 @@ function renderPrimaryLayer() {
 function getPrimaryStyle(feature) {
   return {
     stroke: false,
-    fillOpacity: 0.65,
+    fillOpacity: 0.60,
     fillColor: RISK_COLORS[feature.properties.risk_class] || "#94a3b8",
   };
 }
@@ -138,11 +192,14 @@ function highlightFeature(layer) {
   if (layer === selectedFeatureLayer) return;
   if (layer.options.fillOpacity === 0) return;
 
+  const color = getLayerFillColor(layer);
   layer.setStyle({
     stroke: true,
     weight: 2,
     color: "#0f172a",
     opacity: 1,
+    fillColor: color,
+    fillOpacity: 0.85,
   });
 
   if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) {
@@ -154,9 +211,12 @@ function resetHighlight(layer, force = false) {
   if (layer === selectedFeatureLayer && !force) return;
   if (layer.options.fillOpacity === 0) return;
 
-  if (currentLayer) {
-    currentLayer.resetStyle(layer);
-  }
+  const color = getLayerFillColor(layer);
+  layer.setStyle({
+    stroke: false,
+    fillColor: color,
+    fillOpacity: 0.60,
+  });
 }
 
 function selectFeature(layer, properties) {
@@ -168,11 +228,14 @@ function selectFeature(layer, properties) {
 
   selectedFeatureLayer = layer;
 
+  const color = getLayerFillColor(layer);
   layer.setStyle({
     stroke: true,
     weight: 2.5,
-    color: "#000000",
+    color: "#0f172a",
     opacity: 1,
+    fillColor: color,
+    fillOpacity: 0.90,
   });
 
   if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) {
@@ -209,7 +272,7 @@ async function switchLayer(layerName) {
     } else {
       const data = await fetchThematicData(layerName);
       renderThematicLayer(layerName, data);
-      updateLegend("blue", LAYER_TITLES[layerName]);
+      updateLegend(layerName);
     }
   } catch (err) {
     console.error("Error switching layer:", err);
@@ -239,13 +302,14 @@ function renderThematicLayer(layerName, data) {
       const val = feature.properties[propName];
       return {
         stroke: false,
-        fillOpacity: 0.65,
-        fillColor: getBlueColor(val),
+        fillOpacity: 0.60,
+        fillColor: getThematicColor(layerName, Number(val)),
       };
     },
     onEachFeature: (feature, layer) => {
+      const val = feature.properties[propName];
       layer.bindTooltip(
-        `<strong>${feature.properties.block_id}</strong> &bull; ${LAYER_TITLES[layerName] || propName}: ${feature.properties[propName]}`,
+        `<strong>${feature.properties.block_id}</strong> &bull; ${LAYER_TITLES[layerName] || propName}: ${val !== undefined && val !== null ? Number(val).toFixed(1) : "N/A"}`,
         { sticky: true, className: "custom-map-tooltip" }
       );
 
@@ -254,14 +318,11 @@ function renderThematicLayer(layerName, data) {
         mouseout: (e) => resetHighlight(e.target),
         click: (e) => {
           e.originalEvent._stoppedByFeature = true;
-          if (primaryData) {
-            const primaryFeature = primaryData.features.find(
-              (f) => f.properties.block_id === feature.properties.block_id
-            );
-            if (primaryFeature) {
-              selectFeature(layer, primaryFeature.properties);
-            }
+          let props = feature.properties;
+          if (primaryFeatureMap && primaryFeatureMap.has(feature.properties.block_id)) {
+            props = primaryFeatureMap.get(feature.properties.block_id);
           }
+          selectFeature(layer, props);
         },
       });
     },
@@ -671,16 +732,16 @@ function applyFilters() {
     const props = layer.feature.properties;
 
     let score = props[propName];
-    if (score === undefined && primaryData) {
-      const pf = primaryData.features.find((f) => f.properties.block_id === props.block_id);
-      if (pf) score = pf.properties[propName];
+    if (score === undefined && primaryFeatureMap) {
+      const pf = primaryFeatureMap.get(props.block_id);
+      if (pf) score = pf[propName];
     }
     const numScore = score !== undefined && score !== null ? Number(score) : 0;
 
     let layerRisk = props.risk_class;
-    if (!layerRisk && primaryData) {
-      const pf = primaryData.features.find((f) => f.properties.block_id === props.block_id);
-      if (pf) layerRisk = pf.properties.risk_class;
+    if (!layerRisk && primaryFeatureMap) {
+      const pf = primaryFeatureMap.get(props.block_id);
+      if (pf) layerRisk = pf.risk_class;
     }
 
     const matchesRisk = currentRiskFilter === "All" || layerRisk === currentRiskFilter;
@@ -691,12 +752,12 @@ function applyFilters() {
       if (currentActiveLayerName === "hvi") {
         fillColor = RISK_COLORS[layerRisk] || "#94a3b8";
       } else {
-        fillColor = getBlueColor(numScore);
+        fillColor = getThematicColor(currentActiveLayerName, numScore);
       }
       layer.setStyle({
         stroke: false,
         opacity: 1,
-        fillOpacity: 0.65,
+        fillOpacity: 0.60,
         fillColor: fillColor,
       });
     } else {
@@ -710,7 +771,7 @@ function applyFilters() {
 }
 
 // 7. Dynamic Map Legend Controller
-function updateLegend(type, layerTitle) {
+function updateLegend(layerName) {
   const legendContent = document.getElementById("legend-content");
   const legendTitle = document.getElementById("legend-title");
   const legendUnit = document.getElementById("legend-unit");
@@ -718,7 +779,7 @@ function updateLegend(type, layerTitle) {
 
   legendContent.innerHTML = "";
 
-  if (type === "hvi") {
+  if (layerName === "hvi") {
     if (legendTitle) legendTitle.textContent = "Risk Scale";
     if (legendUnit) legendUnit.textContent = "HVI Score (0–100)";
 
@@ -738,16 +799,18 @@ function updateLegend(type, layerTitle) {
       `;
       legendContent.appendChild(row);
     });
-  } else if (type === "blue") {
-    if (legendTitle) legendTitle.textContent = layerTitle || "Intensity";
+  } else {
+    const title = LAYER_TITLES[layerName] || "Thematic Intensity";
+    if (legendTitle) legendTitle.textContent = title;
     if (legendUnit) legendUnit.textContent = "Normalized (0–100)";
 
+    const palette = THEMATIC_PALETTES[layerName] || DEFAULT_THEMATIC_PALETTE;
     const items = [
-      { label: "80 – 100 (Very High)", color: BLUE_SCALE[4] },
-      { label: "60 – 80 (High)", color: BLUE_SCALE[3] },
-      { label: "40 – 60 (Moderate)", color: BLUE_SCALE[2] },
-      { label: "20 – 40 (Low)", color: BLUE_SCALE[1] },
-      { label: "0 – 20 (Minimal)", color: BLUE_SCALE[0] },
+      { label: "80 – 100 (Very High)", color: palette[4] },
+      { label: "60 – 80 (High)", color: palette[3] },
+      { label: "40 – 60 (Moderate)", color: palette[2] },
+      { label: "20 – 40 (Low)", color: palette[1] },
+      { label: "0 – 20 (Minimal)", color: palette[0] },
     ];
 
     items.forEach((item) => {
