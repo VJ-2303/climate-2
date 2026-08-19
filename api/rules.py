@@ -20,11 +20,14 @@ def calculate_percentile(score: int, all_scores: List[int]) -> int:
 def classify_land_cover(props: Dict[str, Any]) -> Tuple[str, str]:
     """
     Classifies the actual physical ground terrain and land-cover archetype of the 50m parcel:
-    1. Dense Metal-Roofed Settlement (bld >= 45 or ndbi >= 60)
-    2. Vegetated Canopy Buffer & Open Space (ndvi >= 55 and bld <= 35)
-    3. Riparian Drainage Corridor (dist_water <= 80)
-    4. Exposed Open Ground & Pathways (ndvi < 35 and bld < 45)
-    5. Mixed Low-Rise Residential Parcel (Default mixed)
+    - Dense Metal-Roofed Settlement (high building footprint / NDBI)
+    - High-Density Commercial & Residential Cluster (elevated population + built density)
+    - Riparian Wetland & Alluvial Green Corridor (close to valley water with vegetation)
+    - Riparian Informal Edge Settlement (close to water with tin dwellings)
+    - High-Canopy Agroforestry & Green Buffer (mature tree canopy)
+    - Vegetated Canopy Buffer & Open Space (moderate greenery, low density)
+    - Exposed Open Ground & Pathways (bare earth, low canopy, low structures)
+    - Mixed Low-Rise Residential Parcel (balanced mixed dwellings)
     """
     ndvi = props.get("ndvi", 50)
     ndbi = props.get("ndbi", 50)
@@ -32,25 +35,40 @@ def classify_land_cover(props: Dict[str, Any]) -> Tuple[str, str]:
     dist_water = props.get("distance_to_water", 500)
     pop = props.get("estimated_population", 0)
 
-    if bld >= 45 or ndbi >= 60:
+    if pop >= 60 and bld >= 40:
+        return (
+            "High-Density Commercial & Residential Cluster",
+            f"High-occupancy residential and informal market node with dense tin roofs ({bld}% footprint) housing ~{pop} residents.",
+        )
+    elif bld >= 50 or ndbi >= 65:
         return (
             "Dense Metal-Roofed Settlement",
             f"High-density informal settlement with contiguous corrugated iron roofs ({bld}% building footprint) housing ~{pop} residents.",
         )
-    elif ndvi >= 55 and bld <= 35:
+    elif dist_water <= 80 and ndvi >= 45:
+        return (
+            "Riparian Wetland & Alluvial Green Corridor",
+            f"Natural riparian drainage corridor approximately {int(dist_water)}m from valley water course with active wetland vegetation ({ndvi}/100).",
+        )
+    elif dist_water <= 60 and bld >= 35:
+        return (
+            "Riparian Informal Edge Settlement",
+            f"Low-lying riparian settlement edge approximately {int(dist_water)}m from valley drainage channel with {bld}% building cover.",
+        )
+    elif ndvi >= 70 and bld <= 20:
+        return (
+            "High-Canopy Agroforestry & Green Buffer",
+            f"Protected high-canopy vegetated buffer ({ndvi}/100 canopy density) providing substantial natural microclimatic cooling.",
+        )
+    elif ndvi >= 50 and bld <= 35:
         return (
             "Vegetated Canopy Buffer & Open Space",
             f"Predominantly vegetated parcel with active tree canopy ({ndvi}/100) and sparse built structures ({bld}%).",
         )
-    elif dist_water <= 80:
-        return (
-            "Riparian Drainage Corridor",
-            f"Natural drainage corridor approximately {int(dist_water)}m from valley water course with permeable alluvial soils.",
-        )
-    elif ndvi < 35 and bld < 45:
+    elif ndvi < 35 and bld < 40:
         return (
             "Exposed Open Ground & Pathways",
-            f"Unshaded terrain and open pedestrian pathways with low vegetative canopy ({ndvi}/100) and bare soil.",
+            f"Unshaded terrain and open pedestrian pathways with low vegetative canopy ({ndvi}/100) and exposed bare soil.",
         )
     else:
         return (
@@ -74,6 +92,7 @@ def evaluate_neighborhood_context(
     gi, gj = coord
     neighbor_hvis = []
     neighbor_ndvis = []
+    neighbor_heats = []
 
     for di in [-1, 0, 1]:
         for dj in [-1, 0, 1]:
@@ -84,17 +103,19 @@ def evaluate_neighborhood_context(
                 nb_props = blocks_db[nb_id]
                 neighbor_hvis.append(nb_props.get("hvi_score", 0))
                 neighbor_ndvis.append(nb_props.get("ndvi", 0))
+                neighbor_heats.append(nb_props.get("ai_heat_exposure", 0))
 
     if not neighbor_hvis:
-        return "Isolated sector on settlement boundary."
+        return "Settlement Boundary Parcel: Located on the perimeter with open air circulation from adjacent railway/road corridor."
 
     avg_nb_hvi = sum(neighbor_hvis) / len(neighbor_hvis)
-    high_heat_nbs = sum(1 for h in neighbor_hvis if h >= 65)
+    high_heat_nbs = sum(1 for h in neighbor_heats if h >= 60)
     green_nbs = sum(1 for v in neighbor_ndvis if v >= 45)
-
     is_hot = props.get("ai_heat_exposure", 0) >= 50
 
     if not is_hot:
+        if high_heat_nbs >= 3:
+            return f"Microclimate Cooling Oasis: Surrounded by {high_heat_nbs} high-heat sectors, serving as a vital thermal refuge for adjacent residents."
         return "Acts as an active microclimate buffer, dissipating radiant heat for adjacent residential pathways."
     elif high_heat_nbs >= 5:
         return "Thermal Canyon Corridor: Surrounded by 5+ contiguous high-density heat sectors, restricting cross-ventilation and trapping stagnant hot air."
@@ -141,26 +162,26 @@ def select_ecological_species(props: Dict[str, Any]) -> Dict[str, str]:
 
     if dist_water <= 150:
         return {
-            "primary_species": "Acacia xanthophloea (Fever Tree) & Syzygium cordatum (Water Berry)",
+            "primary_species": "Acacia xanthophloea (Yellow-Barked Fever Tree) & Syzygium cordatum (Water Berry)",
             "botanical_rationale": "High moisture tolerance, rapid transpiration cooling, and stabilization of riparian runoff corridors.",
-            "planting_zone": "Along drainage corridors and moist public pathways",
+            "planting_zone": "Along drainage swales and moist alluvial pathways",
         }
     elif bld_dens >= 40:
         return {
             "primary_species": "Markhamia lutea (Siala) & Croton megalocarpus",
-            "botanical_rationale": "Deep non-invasive taproots safe for narrow alleys near foundations; dense canopy with low leaf litter.",
+            "botanical_rationale": "Deep non-invasive taproots safe for narrow alleys near foundations; dense evergreen shade with low leaf litter.",
             "planting_zone": "Narrow pedestrian alleys and pocket courtyards",
         }
     else:
         return {
-            "primary_species": "Azadirachta indica (Neem) & Tipuana tipu",
-            "botanical_rationale": "Broad umbrella canopy providing up to 80% shade reduction and strong drought tolerance.",
-            "planting_zone": "Open thoroughfares and communal gathering points",
+            "primary_species": "Azadirachta indica (Mwarobaini / Neem) & Tipuana tipu (Rosewood)",
+            "botanical_rationale": "Broad umbrella canopy providing up to 80% solar irradiance reduction and exceptional drought resilience.",
+            "planting_zone": "Open thoroughfares and communal gathering nodes",
         }
 
 
 def evaluate_heat_health_advisory(props: Dict[str, Any]) -> Dict[str, str]:
-    """Evaluates diurnal physiological heat stress and provides targeted community advisories."""
+    """Evaluates diurnal physiological heat stress and provides targeted community advisories for Nairobi latitude."""
     heat = props.get("ai_heat_exposure", 0)
     pop = props.get("estimated_population", 0)
     is_hot = heat >= 50
@@ -175,11 +196,11 @@ def evaluate_heat_health_advisory(props: Dict[str, Any]) -> Dict[str, str]:
         return {
             "peak_stress_window": "11:00 AM – 3:30 PM (Severe Radiant Peak)",
             "health_alert": f"High risk of heat exhaustion and dehydration for ~{pop} residents, informal outdoor traders, and elderly citizens.",
-            "hydration_guideline": "Ensure active operation of distributed water kiosks and deploy shaded rest points.",
+            "hydration_guideline": "Ensure continuous access to distributed potable water kiosks and deploy shaded rest points.",
         }
     else:
         return {
-            "peak_stress_window": "12:00 PM – 3:00 PM (Moderate Midday Heat)",
+            "peak_stress_window": "12:00 PM – 3:00 PM (Midday Solar Window)",
             "health_alert": "Elevated radiant heat from tin roofs during midday sun; caution for strenuous outdoor manual work.",
             "hydration_guideline": "Maintain regular drinking water intake during peak afternoon hours.",
         }
@@ -211,58 +232,64 @@ def evaluate_microclimate_diagnosis(props: Dict[str, Any], block_id: str = "") -
 
     if not is_thermally_hot:
         thermal_status = "Naturally Temperate / Safe Baseline"
-        thermal_summary = f"This sector is not experiencing elevated surface heat (Thermal Index: {heat}/100). Vegetative shading and permeable ground surfaces naturally maintain safe, comfortable temperatures for its ~{pop} residents."
+        thermal_summary = f"This sector maintains a safe, comfortable microclimate (Surface Heat Index: {heat}/100). Tree canopy shading ({ndvi}/100) and permeable soils actively prevent heat accumulation for its ~{pop} residents."
     else:
         thermal_status = f"Elevated Thermal Load ({heat}/100)"
         thermal_summary = f"This sector experiences elevated surface heat affecting its ~{pop} residents during daytime peak solar hours."
 
         # Detect precise physical mechanisms
-        if bld >= 45 or ndbi >= 55:
+        if bld >= 40 or ndbi >= 55:
             heat_causes.append(
-                f"Metal Roof Radiation: Corrugated iron roofs ({bld}% footprint) heat up to 45–55°C under direct solar radiation, re-radiating heat into living spaces."
+                f"Galvanized Metal Roof Heating: Corrugated iron roofs ({bld}% footprint) heat up to 45–55°C under direct solar radiation, re-radiating heat into living spaces."
             )
         if ndvi <= 35:
             heat_causes.append(
-                f"Tree Canopy Deficit: Lack of shade ({ndvi}/100) exposes pedestrian paths and unpaved soil to direct solar irradiance."
+                f"Severe Walking Path Insolation: Lack of tree canopy ({ndvi}/100) exposes pedestrian walkways and unpaved soil to direct solar irradiance."
             )
-        elif ndvi >= 50 and bld < 40:
+        elif ndvi >= 45 and bld < 40:
             heat_causes.append(
-                f"Ambient Heat Spillover: Despite having local tree cover ({ndvi}/100), this block absorbs radiant thermal advection from adjacent dense tin-roof clusters."
+                f"Lateral Thermal Advection: Despite having local tree cover ({ndvi}/100), this block absorbs radiant thermal energy from adjacent dense tin-roof clusters."
             )
         if bld >= 60:
             heat_causes.append(
-                "Restricted Natural Ventilation: Dense structural layout impedes lateral breezes, trapping stagnant warm air in alleys."
+                "Ventilation Obstruction: Dense structural alignment creates narrow alleys (<1.5m) that restrict horizontal breeze circulation and trap stagnant warm air."
+            )
+        if dist_water <= 80 and heat >= 55:
+            heat_causes.append(
+                "Valley Basin Micro-Humidity Trap: Low elevation and restricted airflow along the drainage corridor elevate perceived heat index by +2–3°C during afternoon hours."
             )
         if dist_green > 200:
             heat_causes.append(
-                f"Distance to Cooling Assets: Located ~{int(dist_green)}m from the nearest open green buffer, limiting passive cooling."
+                f"Buffer Isolation: Located ~{int(dist_green)}m from the nearest open green buffer, limiting passive cooling."
             )
 
         if not heat_causes:
-            heat_causes.append("Solar absorption across mixed dry ground and unshaded surface infrastructure.")
+            heat_causes.append("Solar radiation absorption across mixed dry ground and unshaded surface infrastructure.")
 
     # 3. Required Things to Control It
     controls = []
     if is_thermally_hot:
-        if bld >= 35 or ndbi >= 50:
+        if bld >= 30 or ndbi >= 50:
             roof_sqm = int(round(2500 * (bld / 100)))
             paint_l = int(round(roof_sqm * 0.11))
             controls.append(
-                f"Cool Roof Retrofit: Apply solar-reflective white elastomeric coating to ~{roof_sqm} m² of metal roofs (~{paint_l}L paint needed) to reflect 80%+ of incoming radiant heat."
+                f"Cool Roof Retrofit: Apply solar-reflective white elastomeric coating to ~{roof_sqm} m² of metal roofs (~{paint_l}L paint needed) to reflect 80%+ of incoming radiant heat and reduce indoor temperatures by 3–5°C."
             )
         if ndvi < 50:
             deficit_sqm = max(0, 625 - int(round(2500 * (ndvi / 100) * 0.4)))
             trees_needed = max(3, min(12, int(round(deficit_sqm / 45.0))))
+            species_dict = select_ecological_species(props)
+            primary_sp = species_dict["primary_species"].split("(")[0].strip()
             controls.append(
-                f"Canopy Shading: Plant ~{trees_needed} native shade trees (Acacia xanthophloea, Markhamia lutea) along primary pedestrian routes."
+                f"Canopy Shading: Plant ~{trees_needed} native shade trees ({primary_sp}) along primary pedestrian routes."
             )
-        if pop >= 30 and heat >= 65:
+        if pop >= 30 or heat >= 65:
             controls.append(
                 "Hydration & Community Relief: Deploy shaded community rest stations with potable water kiosks for outdoor workers during peak hours (11:30 AM – 3:30 PM)."
             )
         if dist_water <= 150:
             controls.append(
-                "Drainage Preservation: Maintain permeable drainage swales to enhance natural soil moisture and localized evaporative cooling."
+                "Drainage Swale Preservation: Maintain permeable bioswales to sustain continuous soil moisture and maximize natural evaporative cooling."
             )
     else:
         controls.append("Canopy Conservation: Protect and maintain existing mature trees and permeable open surfaces from encroachment.")
