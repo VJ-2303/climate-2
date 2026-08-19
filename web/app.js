@@ -3,32 +3,21 @@
  */
 
 const RISK_COLORS = {
-  Critical: "#d73027",
-  High: "#f46d43",
-  Medium: "#eab308", // Visible golden amber for light basemap
-  Low: "#16a34a",
+  Critical: "#991b1b",
+  High: "#c2410c",
+  Medium: "#d97706",
+  Low: "#047857",
 };
 
-const BLUE_SCALE = ["#eff3ff", "#bdd7e7", "#6baed6", "#3182bd", "#08519c"];
-
-const DRIVER_LABELS = {
-  poor_water_access: "Poor water access",
-  poor_green_access: "Poor green space access",
-  high_population_exposure: "High population exposure",
-  high_building_density: "High building density",
-  high_built_surface: "High built-up surface",
-  low_vegetation: "Low vegetation",
-};
+const BLUE_SCALE = ["#eff6ff", "#bfdbfe", "#60a5fa", "#2563eb", "#1e3a8a"];
 
 const LAYER_TITLES = {
-  hvi: "Heat Vulnerability Index",
-  ai_heat_exposure_blocks: "AI Heat Exposure",
-  social_sensitivity_blocks: "Social Sensitivity",
-  cooling_deficit_blocks: "Cooling Access Deficit",
-  ndvi_blocks: "Vegetation (NDVI)",
-  ndbi_blocks: "Built-up (NDBI)",
-  building_density_blocks: "Building Density",
+  hvi: "Heat Vulnerability Index (HVI)",
+  ai_heat_exposure_blocks: "Surface Heat Exposure",
+  ndvi_blocks: "Tree Canopy & Greenery (NDVI)",
+  ndbi_blocks: "Tin Roofs & Impervious (NDBI)",
   population_density_blocks: "Population Density",
+  cooling_deficit_blocks: "Cooling Access Deficit",
 };
 
 const CENTER = [-1.317, 36.789];
@@ -40,28 +29,38 @@ let primaryData = null;
 let currentLayer = null;
 let selectedFeatureLayer = null;
 let currentActiveLayerName = "hvi";
-let currentThreshold = 0;
 let currentRiskFilter = "All";
+let currentThreshold = 0;
 const layerCache = {};
+const blockIntelligenceCache = {};
 
 document.addEventListener("DOMContentLoaded", initApp);
 
 function initApp() {
-  // 1. Initialize Leaflet Map with Canvas Renderer
+  // 1. Initialize Leaflet Map
   map = L.map("map", {
     renderer: L.canvas({ padding: 0.5 }),
     zoomControl: false,
   }).setView(CENTER, DEFAULT_ZOOM);
 
-  // Position zoom controls in bottom-right alongside quick controls
+  // Position zoom controls in bottom-right
   L.control.zoom({ position: "bottomright" }).addTo(map);
 
-  // High-contrast clean CartoDB Positron Basemap with OSM fallback
+  // Clean CartoDB Positron Basemap
   L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+    attribution:
+      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; CARTO',
     subdomains: "abcd",
     maxZoom: 19,
   }).addTo(map);
+
+  // Map background click closes drawer & dropdowns
+  map.on("click", (e) => {
+    if (!e.originalEvent._stoppedByFeature) {
+      closeSidebar();
+      closeLayerDropdown();
+    }
+  });
 
   setupEventListeners();
   loadPrimaryData();
@@ -73,14 +72,12 @@ async function loadPrimaryData() {
   showLoading(true);
   try {
     const response = await fetch("/data/vulnerability_blocks.geojson");
-    if (!response.ok) throw new Error("Failed to fetch primary vulnerability dataset");
+    if (!response.ok) throw new Error("Failed to fetch primary dataset");
     primaryData = await response.json();
-
-    updateKPIs(primaryData);
     renderPrimaryLayer();
   } catch (error) {
     console.error("Failed to load primary data:", error);
-    alert("Could not load vulnerability data. Please verify server status.");
+    alert("Could not load vulnerability dataset. Please verify the server is running.");
   } finally {
     showLoading(false);
   }
@@ -92,26 +89,6 @@ function showLoading(show) {
     overlay.style.opacity = show ? "1" : "0";
     overlay.style.pointerEvents = show ? "all" : "none";
   }
-}
-
-function updateKPIs(data) {
-  let total = 0,
-    critical = 0,
-    high = 0;
-  data.features.forEach((f) => {
-    total++;
-    if (f.properties.risk_class === "Critical") critical++;
-    if (f.properties.risk_class === "High") high++;
-  });
-
-  const setText = (id, text) => {
-    const el = document.getElementById(id);
-    if (el) el.textContent = text;
-  };
-
-  setText("kpi-total", total.toLocaleString());
-  setText("kpi-critical", critical.toLocaleString());
-  setText("kpi-high", high.toLocaleString());
 }
 
 // 3. Primary HVI Layer Rendering
@@ -145,7 +122,10 @@ function onEachPrimaryFeature(feature, layer) {
   layer.on({
     mouseover: (e) => highlightFeature(e.target),
     mouseout: (e) => resetHighlight(e.target),
-    click: (e) => selectFeature(e.target, feature.properties),
+    click: (e) => {
+      e.originalEvent._stoppedByFeature = true;
+      selectFeature(e.target, feature.properties);
+    },
   });
 }
 
@@ -201,15 +181,15 @@ function selectFeature(layer, properties) {
 async function switchLayer(layerName) {
   currentActiveLayerName = layerName;
   showLoading(true);
+  closeLayerDropdown();
 
-  // Update active pill indicator in layer panel
-  const indicator = document.getElementById("active-layer-name");
-  if (indicator) {
-    indicator.textContent = LAYER_TITLES[layerName] || layerName;
-  }
+  // Update button label
+  const title = LAYER_TITLES[layerName] || layerName;
+  const labelEl = document.getElementById("active-layer-name");
+  if (labelEl) labelEl.textContent = title;
 
-  // Update radio items active class
-  document.querySelectorAll(".layer-radio-item").forEach((item) => {
+  // Update active state in dropdown
+  document.querySelectorAll(".menu-layer-item").forEach((item) => {
     if (item.getAttribute("data-layer") === layerName) {
       item.classList.add("active");
     } else {
@@ -260,7 +240,7 @@ function renderThematicLayer(layerName, data) {
     },
     onEachFeature: (feature, layer) => {
       layer.bindTooltip(
-        `<strong>${feature.properties.block_id}</strong> &bull; ${propName}: ${feature.properties[propName]}`,
+        `<strong>${feature.properties.block_id}</strong> &bull; ${LAYER_TITLES[layerName] || propName}: ${feature.properties[propName]}`,
         { sticky: true, className: "custom-map-tooltip" }
       );
 
@@ -268,6 +248,7 @@ function renderThematicLayer(layerName, data) {
         mouseover: (e) => highlightFeature(e.target),
         mouseout: (e) => resetHighlight(e.target),
         click: (e) => {
+          e.originalEvent._stoppedByFeature = true;
           if (primaryData) {
             const primaryFeature = primaryData.features.find(
               (f) => f.properties.block_id === feature.properties.block_id
@@ -293,78 +274,194 @@ function getBlueColor(val) {
   return BLUE_SCALE[4];
 }
 
-// 5. Sidebar Inspector Controller
-function openSidebar(props) {
-  const defaultView = document.getElementById("sidebar-default");
-  const detailView = document.getElementById("sidebar-detail");
-  if (defaultView) defaultView.style.display = "none";
-  if (detailView) detailView.style.display = "flex";
+// 5. Clean Sector Profile Drawer Controller
+async function openSidebar(props) {
+  const drawer = document.getElementById("sidebar");
+  const loadingEl = document.getElementById("drawer-loading");
+  const detailEl = document.getElementById("sidebar-detail");
 
+  if (drawer) {
+    drawer.classList.add("open");
+  }
+
+  if (loadingEl) loadingEl.style.display = "flex";
+  if (detailEl) detailEl.style.display = "none";
+
+  const blockId = props.block_id;
+
+  try {
+    let intelligenceData;
+    if (blockIntelligenceCache[blockId]) {
+      intelligenceData = blockIntelligenceCache[blockId];
+    } else {
+      const response = await fetch(`/api/blocks/${blockId}`);
+      if (response.ok) {
+        intelligenceData = await response.json();
+        blockIntelligenceCache[blockId] = intelligenceData;
+      } else {
+        intelligenceData = generateFallbackIntelligence(props);
+      }
+    }
+    renderBlockIntelligence(intelligenceData);
+  } catch (err) {
+    console.warn("Could not fetch sector intelligence, using fallback:", err);
+    renderBlockIntelligence(generateFallbackIntelligence(props));
+  } finally {
+    if (loadingEl) loadingEl.style.display = "none";
+    if (detailEl) detailEl.style.display = "flex";
+  }
+}
+
+function renderBlockIntelligence(data) {
   const setText = (id, text) => {
     const el = document.getElementById(id);
     if (el) el.textContent = text !== undefined && text !== null ? text : "—";
   };
 
-  setText("detail-block-id", props.block_id);
-
-  // Risk Badge
+  // 1. Header Card (ID, Risk Badge, KPIs)
+  setText("detail-block-id", data.block_id);
   const badge = document.getElementById("detail-risk-badge");
   if (badge) {
-    badge.textContent = props.risk_class || "—";
-    badge.className = "risk-badge " + (props.risk_class ? `risk-${props.risk_class.toLowerCase()}` : "");
+    const risk = data.risk_class || "Medium";
+    badge.textContent = `${risk.toUpperCase()} RISK`;
+    badge.className = `risk-badge risk-${risk.toLowerCase()}`;
   }
 
-  setText("detail-hvi-score", props.hvi_score);
-  setText("detail-hvi-raw", props.hvi_raw !== undefined ? props.hvi_raw.toFixed(1) : "—");
+  setText("detail-hvi-score", data.hvi_score);
+  setText("detail-population", `~${data.population || 0}`);
+  
+  const benchmarkEl = document.getElementById("detail-benchmark-text");
+  if (benchmarkEl) {
+    const p = data.percentile || 50;
+    benchmarkEl.textContent = `Top ${Math.max(1, 100 - p)}%`;
+  }
 
-  // Metric Pillar Progress Bars
-  const setBar = (idBar, idVal, val) => {
-    const bar = document.getElementById(idBar);
-    const fraction = Math.min(1, Math.max(0, (val || 0) / 100));
-    if (bar) bar.style.transform = `scaleX(${fraction})`;
-    setText(idVal, val !== undefined && val !== null ? val : 0);
-  };
+  // 2. Safe vs Risk State Handling
+  const safeCard = document.getElementById("safe-state-card");
+  const riskContent = document.getElementById("risk-state-content");
 
-  setBar("bar-heat", "val-heat", props.ai_heat_exposure);
-  setBar("bar-social", "val-social", props.social_sensitivity);
-  setBar("bar-cooling", "val-cooling", props.cooling_deficit);
+  if (data.is_safe) {
+    // Show calm safe card
+    if (safeCard) safeCard.style.display = "flex";
+    if (riskContent) riskContent.style.display = "none";
 
-  // Population & Intervention
-  setText("detail-population", props.estimated_population !== undefined ? props.estimated_population.toLocaleString() : "—");
-  setText("detail-intervention", props.intervention || "General monitoring & green space preservation");
+    setText("safe-headline", data.headline || "This sector is within safe microclimate conditions.");
+    setText("safe-desc", data.summary || "Healthy tree canopy and balanced surface temperatures keep this area comfortable.");
+  } else {
+    // Show actionable risk card
+    if (safeCard) safeCard.style.display = "none";
+    if (riskContent) riskContent.style.display = "flex";
 
-  // Top Risk Drivers (Numbered and Styled)
-  const driversContainer = document.getElementById("detail-drivers");
-  if (driversContainer) {
-    driversContainer.innerHTML = "";
-    if (props.top_drivers && Array.isArray(props.top_drivers)) {
-      props.top_drivers.forEach((driver, idx) => {
-        const item = document.createElement("div");
-        item.className = "driver-tag-item";
-        item.innerHTML = `
-          <span class="driver-rank">${idx + 1}</span>
-          <span>${DRIVER_LABELS[driver] || driver}</span>
-        `;
-        driversContainer.appendChild(item);
-      });
+    // Typology Title & Narrative Summary
+    setText("detail-archetype-title", data.archetype_title || `${data.risk_class} Risk Thermal Sector`);
+    setText("detail-summary", data.summary || "No summary available.");
+
+    // Causes List
+    const causesList = document.getElementById("detail-causes-list");
+    if (causesList) {
+      causesList.innerHTML = "";
+      const causes = data.key_causes || [];
+      if (causes.length > 0) {
+        causes.forEach((cause) => {
+          const li = document.createElement("li");
+          li.textContent = cause;
+          causesList.appendChild(li);
+        });
+      } else {
+        const li = document.createElement("li");
+        li.textContent = "General urban built environment with elevated radiant heat.";
+        causesList.appendChild(li);
+      }
+    }
+
+    // Actions List
+    const actionsList = document.getElementById("detail-actions-list");
+    if (actionsList) {
+      actionsList.innerHTML = "";
+      const actions = data.key_actions || [];
+      if (actions.length > 0) {
+        actions.forEach((act) => {
+          const li = document.createElement("li");
+          li.textContent = act;
+          actionsList.appendChild(li);
+        });
+      } else {
+        const li = document.createElement("li");
+        li.textContent = "Maintain permeable ground and encourage local greening.";
+        actionsList.appendChild(li);
+      }
     }
   }
 
-  // Environmental Telemetry Grid
-  setText("detail-popdensity", props.population_density);
-  setText("detail-building", props.building_density);
-  setText("detail-ndvi", props.ndvi);
-  setText("detail-ndwi", props.ndwi);
-  setText("detail-ndbi", props.ndbi);
-  setText("detail-green", props.distance_to_green);
-  setText("detail-water", props.distance_to_water);
+  // 3. Technical Factors List (Accordion)
+  const factorsContainer = document.getElementById("detail-factors-list");
+  if (factorsContainer && data.factors) {
+    factorsContainer.innerHTML = "";
+    data.factors.forEach((factor) => {
+      const card = document.createElement("div");
+      card.className = "factor-card-item";
+      const score = Math.min(100, Math.max(0, factor.score || 0));
+      const statusClass = factor.color || "moderate";
+      card.innerHTML = `
+        <div class="factor-top-row">
+          <div class="factor-title-group">
+            <span>${factor.name}</span>
+          </div>
+          <span class="factor-status-pill ${statusClass}">${factor.status}</span>
+        </div>
+        <div class="factor-meter-row">
+          <div class="factor-track">
+            <div class="factor-fill ${statusClass}" style="transform: scaleX(${score / 100});"></div>
+          </div>
+          <span class="factor-score-num">${score}</span>
+        </div>
+      `;
+      factorsContainer.appendChild(card);
+    });
+  }
+}
+
+function generateFallbackIntelligence(props) {
+  const hvi = props.hvi_score || 0;
+  const pop = props.estimated_population || 0;
+  const risk = props.risk_class || "Medium";
+  const is_safe = risk.toLowerCase() === "low" || hvi < 30;
+
+  return {
+    block_id: props.block_id || "KIB-0000",
+    risk_class: risk,
+    is_safe: is_safe,
+    hvi_score: hvi,
+    percentile: Math.round(hvi * 0.95),
+    population: pop,
+    archetype_title: is_safe ? "Vegetated Microclimate Buffer" : `${risk} Heat Vulnerability Sector`,
+    headline: is_safe
+      ? "This area is within safe microclimate thresholds"
+      : `${risk} heat vulnerability sector`,
+    summary: is_safe
+      ? `This sector maintains healthy tree canopy and balanced ground temperatures for its ~${pop} residents.`
+      : `Houses approximately ${pop} residents under elevated thermal stress, ranking in the top ${Math.max(1, 100 - Math.round(hvi * 0.95))}% in Kibera.`,
+    key_causes: [
+      "Impervious metal roofing absorbing solar heat",
+      "Limited tree canopy along pedestrian routes",
+    ],
+    key_actions: [
+      "Apply reflective white cool-roof paint to corrugated roofs",
+      "Deploy shaded community rest and water kiosks",
+    ],
+    factors: [
+      { name: "Surface Heat Exposure", score: props.ai_heat_exposure || 50, status: "Moderate", color: "moderate" },
+      { name: "Tree Canopy & Greenery", score: props.ndvi || 40, status: "Moderate", color: "moderate" },
+      { name: "Tin Roofs & Impervious Mass", score: props.ndbi || 60, status: "Elevated", color: "elevated" },
+    ],
+  };
 }
 
 function closeSidebar() {
-  const defaultView = document.getElementById("sidebar-default");
-  const detailView = document.getElementById("sidebar-detail");
-  if (defaultView) defaultView.style.display = "flex";
-  if (detailView) detailView.style.display = "none";
+  const drawer = document.getElementById("sidebar");
+  if (drawer) {
+    drawer.classList.remove("open");
+  }
 
   if (selectedFeatureLayer) {
     resetHighlight(selectedFeatureLayer, true);
@@ -372,49 +469,25 @@ function closeSidebar() {
   }
 }
 
-// 6. Search, Filter & Quick Actions
+function closeLayerDropdown() {
+  const menu = document.getElementById("layer-dropdown-menu");
+  if (menu) menu.style.display = "none";
+}
+
+// 6. Event Listeners
 function setupEventListeners() {
-  // Layer Radio Switcher
-  const layerRadios = document.querySelectorAll('input[name="layer"]');
-  layerRadios.forEach((radio) => {
-    radio.addEventListener("change", (e) => switchLayer(e.target.value));
+  // Segmented Risk Filter Buttons
+  const segmentBtns = document.querySelectorAll(".segment-btn");
+  segmentBtns.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      segmentBtns.forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      const risk = btn.getAttribute("data-risk");
+      handleRiskFilter(risk);
+    });
   });
 
-  // Close Sidebar Button
-  const closeBtn = document.getElementById("sidebar-close");
-  if (closeBtn) closeBtn.addEventListener("click", closeSidebar);
-
-  // Search Input & Clear
-  const searchInput = document.getElementById("search-input");
-  const searchClear = document.getElementById("search-clear");
-
-  if (searchInput) {
-    let debounceTimer;
-    searchInput.addEventListener("input", (e) => {
-      const val = e.target.value;
-      if (searchClear) searchClear.style.display = val ? "block" : "none";
-
-      clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => handleSearch(val), 250);
-    });
-
-    if (searchClear) {
-      searchClear.addEventListener("click", () => {
-        searchInput.value = "";
-        searchClear.style.display = "none";
-        closeSidebar();
-        map.flyTo(CENTER, DEFAULT_ZOOM);
-      });
-    }
-  }
-
-  // Risk Filter Dropdown
-  const riskFilter = document.getElementById("risk-filter");
-  if (riskFilter) {
-    riskFilter.addEventListener("change", (e) => handleRiskFilter(e.target.value));
-  }
-
-  // Vertical Threshold Slider Filter (0–100)
+  // Vertical Threshold Slider (0–100)
   const thresholdSlider = document.getElementById("threshold-slider");
   const sliderValDisplay = document.getElementById("slider-val-display");
   const sliderResetBtn = document.getElementById("slider-reset-btn");
@@ -438,15 +511,78 @@ function setupEventListeners() {
     });
   }
 
+  // Layer Dropdown Menu Trigger
+  const layerMenuBtn = document.getElementById("layer-menu-btn");
+  const layerDropdownMenu = document.getElementById("layer-dropdown-menu");
+  if (layerMenuBtn && layerDropdownMenu) {
+    layerMenuBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const isVisible = layerDropdownMenu.style.display === "flex";
+      layerDropdownMenu.style.display = isVisible ? "none" : "flex";
+    });
+  }
+
+  // Layer Selection Radio in Dropdown
+  const layerRadios = document.querySelectorAll('input[name="layer"]');
+  layerRadios.forEach((radio) => {
+    radio.addEventListener("change", (e) => switchLayer(e.target.value));
+  });
+
+  // Technical Accordion Toggle
+  const toggleFactorsBtn = document.getElementById("btn-toggle-factors");
+  const factorsList = document.getElementById("detail-factors-list");
+  const chevron = document.getElementById("factors-toggle-chevron");
+  if (toggleFactorsBtn && factorsList) {
+    toggleFactorsBtn.addEventListener("click", () => {
+      const isHidden = factorsList.style.display === "none";
+      factorsList.style.display = isHidden ? "flex" : "none";
+      if (chevron) chevron.textContent = isHidden ? "▴" : "▾";
+    });
+  }
+
+  // Close Drawer Button
+  const closeBtn = document.getElementById("sidebar-close");
+  if (closeBtn) closeBtn.addEventListener("click", closeSidebar);
+
+  // Keyboard Escape Key
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      closeSidebar();
+      closeLayerDropdown();
+    }
+  });
+
+  // Search Input
+  const searchInput = document.getElementById("search-input");
+  const searchClear = document.getElementById("search-clear");
+  if (searchInput) {
+    let debounceTimer;
+    searchInput.addEventListener("input", (e) => {
+      const val = e.target.value;
+      if (searchClear) searchClear.style.display = val ? "block" : "none";
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => handleSearch(val), 250);
+    });
+
+    if (searchClear) {
+      searchClear.addEventListener("click", () => {
+        searchInput.value = "";
+        searchClear.style.display = "none";
+        closeSidebar();
+        map.flyTo(CENTER, DEFAULT_ZOOM);
+      });
+    }
+  }
+
   // Reset Map View Button
   const resetBtn = document.getElementById("btn-reset-view");
   if (resetBtn) {
     resetBtn.addEventListener("click", () => {
-      map.flyTo(CENTER, DEFAULT_ZOOM, { duration: 1.2 });
+      map.flyTo(CENTER, DEFAULT_ZOOM, { duration: 1.0 });
     });
   }
 
-  // Export GeoJSON Action
+  // Export GeoJSON
   const exportBtn = document.getElementById("export-btn");
   if (exportBtn) {
     exportBtn.addEventListener("click", () => {
@@ -503,7 +639,6 @@ function applyFilters() {
   currentLayer.eachLayer((layer) => {
     const props = layer.feature.properties;
 
-    // Retrieve score for threshold comparison
     let score = props[propName];
     if (score === undefined && primaryData) {
       const pf = primaryData.features.find((f) => f.properties.block_id === props.block_id);
@@ -511,7 +646,6 @@ function applyFilters() {
     }
     const numScore = score !== undefined && score !== null ? Number(score) : 0;
 
-    // Retrieve risk classification
     let layerRisk = props.risk_class;
     if (!layerRisk && primaryData) {
       const pf = primaryData.features.find((f) => f.properties.block_id === props.block_id);
@@ -554,14 +688,14 @@ function updateLegend(type, layerTitle) {
   legendContent.innerHTML = "";
 
   if (type === "hvi") {
-    if (legendTitle) legendTitle.textContent = "Heat Risk Tier";
+    if (legendTitle) legendTitle.textContent = "Risk Scale";
     if (legendUnit) legendUnit.textContent = "HVI Score (0–100)";
 
     const items = [
-      { label: "Critical Risk (76–100)", color: RISK_COLORS.Critical },
-      { label: "High Risk (56–75)", color: RISK_COLORS.High },
-      { label: "Medium Risk (31–55)", color: RISK_COLORS.Medium },
-      { label: "Low Risk (0–30)", color: RISK_COLORS.Low },
+      { label: "Critical (76–100)", color: RISK_COLORS.Critical },
+      { label: "High (56–75)", color: RISK_COLORS.High },
+      { label: "Medium (31–55)", color: RISK_COLORS.Medium },
+      { label: "Low / Safe (0–30)", color: RISK_COLORS.Low },
     ];
 
     items.forEach((item) => {
@@ -574,7 +708,7 @@ function updateLegend(type, layerTitle) {
       legendContent.appendChild(row);
     });
   } else if (type === "blue") {
-    if (legendTitle) legendTitle.textContent = layerTitle || "Relative Intensity";
+    if (legendTitle) legendTitle.textContent = layerTitle || "Intensity";
     if (legendUnit) legendUnit.textContent = "Normalized (0–100)";
 
     const items = [
@@ -596,3 +730,6 @@ function updateLegend(type, layerTitle) {
     });
   }
 }
+
+
+

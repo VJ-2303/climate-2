@@ -49,3 +49,5 @@ none
 - Stage 08 api backend implemented in api/main.py with SPEC routes: /, /static, /data/vulnerability_blocks.geojson, /data/layers/{name}.geojson. Syntax check passed. Data files were not modified. Runtime data serving requires existing data/output GeoJSON artifacts. 2026-08-19T19:02:12+05:30
 - Full ML Pipeline (Stages 01-07) executed on CPU: all gates G1-G7 passed, XGBoost and HeatGAT models saved, all 50m GeoJSON layer exports generated in EPSG:4326. 2026-08-19T19:35:00+05:30
 - Full-extent 45.1 km² OSM datasets downloaded (36,438 buildings, 5,952 roads, 70 water bodies, 509 green spaces). Rasters regenerated, all 7 ML pipeline stages retrained and re-evaluated with all gates G1-G7 PASSED. 2026-08-19T22:37:15+05:30
+- Stage 08/09 UI & Intelligence overhaul: Integrated vertical 0-100 threshold filter slider, institutional styling without childish emojis or side-tab borders, smart dual-state risk handling (clean reassuring calm view for low-risk/safe blocks, comprehensive 3-phase action plan and physical root-cause analysis for elevated/critical sectors). 2026-08-20T01:00:00+05:30
+
