@@ -17,6 +17,7 @@ from rasterio.warp import calculate_default_transform, reproject, Resampling
 from rasterio.features import rasterize
 from shapely.geometry import mapping
 from scipy.ndimage import distance_transform_edt
+from xgboost import XGBRegressor
 
 warnings.filterwarnings("ignore")
 
@@ -397,8 +398,106 @@ def build_master_grid_and_process():
     else:
         raise FileNotFoundError("Neither raw WorldPop nor processed population density raster exists.")
 
+    # 8. Context-Guided ML Inpainting for Cloud-Masked and Missing Pixels
+    print("\n[8/8] Executing Context-Guided ML Cloud Inpainting & Gap-Filling...")
+    raster_files = {
+        "ndvi": os.path.join(PROCESSED_DIR, "ndvi.tif"),
+        "ndwi": os.path.join(PROCESSED_DIR, "ndwi.tif"),
+        "ndbi": os.path.join(PROCESSED_DIR, "ndbi.tif"),
+        "building_density": os.path.join(PROCESSED_DIR, "building_density.tif"),
+        "road_density": os.path.join(PROCESSED_DIR, "road_density.tif"),
+        "distance_to_green": os.path.join(PROCESSED_DIR, "distance_to_green.tif"),
+        "distance_to_water": os.path.join(PROCESSED_DIR, "distance_to_water.tif"),
+        "population_density": os.path.join(PROCESSED_DIR, "population_density_20m.tif"),
+        "landsat_st_celsius": os.path.join(PROCESSED_DIR, "landsat_st_celsius.tif"),
+    }
+
+    loaded_rasters = {}
+    for name, path in raster_files.items():
+        with rasterio.open(path) as src:
+            loaded_rasters[name] = src.read(1).astype(np.float32)
+
+    yy, xx = np.mgrid[0:master_height, 0:master_width]
+    x_norm = (xx / max(1, master_width)).astype(np.float32)
+    y_norm = (yy / max(1, master_height)).astype(np.float32)
+
+    # 8.1 Gap-fill population density edge nodata if present
+    pop_arr = loaded_rasters["population_density"]
+    pop_missing = (pop_arr == NODATA_VAL) | np.isnan(pop_arr) | (pop_arr < 0)
+    if np.any(pop_missing):
+        print(f"  Gap-filling {np.sum(pop_missing):,} margin nodata pixels in population density...")
+        indices = distance_transform_edt(pop_missing, return_distances=False, return_indices=True)
+        loaded_rasters["population_density"] = pop_arr[tuple(indices)]
+        save_master_raster(loaded_rasters["population_density"], "population_density_20m.tif", nodata=NODATA_VAL)
+
+    # 100% complete auxiliary feature set
+    aux_features = [
+        loaded_rasters["building_density"],
+        loaded_rasters["road_density"],
+        loaded_rasters["distance_to_green"],
+        loaded_rasters["distance_to_water"],
+        loaded_rasters["population_density"],
+        x_norm,
+        y_norm,
+    ]
+
+    # 8.2 Gap-fill optical spectral indices (NDVI, NDWI, NDBI) if any cloud gaps exist
+    for opt_name, filename in [("ndvi", "ndvi.tif"), ("ndwi", "ndwi.tif"), ("ndbi", "ndbi.tif")]:
+        opt_arr = loaded_rasters[opt_name]
+        opt_missing = (opt_arr == NODATA_VAL) | np.isnan(opt_arr) | (opt_arr < -1.0) | (opt_arr > 1.0)
+        if np.any(opt_missing):
+            print(f"  Training ML inpainting for {np.sum(opt_missing):,} cloud pixels in {filename}...")
+            X_opt = np.column_stack([feat.ravel() for feat in aux_features])
+            y_opt = opt_arr.ravel()
+            valid_mask = ~opt_missing.ravel()
+            
+            opt_model = XGBRegressor(
+                n_estimators=100, max_depth=6, learning_rate=0.1,
+                random_state=42, n_jobs=-1
+            )
+            opt_model.fit(X_opt[valid_mask], y_opt[valid_mask])
+            opt_arr[opt_missing] = opt_model.predict(X_opt[opt_missing.ravel()])
+            loaded_rasters[opt_name] = opt_arr
+            save_master_raster(opt_arr, filename, nodata=NODATA_VAL)
+
+    # 8.3 Context-Guided ML Inpainting for Landsat Surface Temperature
+    st_arr = loaded_rasters["landsat_st_celsius"]
+    st_missing = (st_arr <= 0) | (st_arr == NODATA_VAL) | np.isnan(st_arr)
+    if np.any(st_missing):
+        print(f"  Training XGBoost thermal inpainting on {np.sum(~st_missing):,} clear pixels to reconstruct {np.sum(st_missing):,} cloud-masked pixels...")
+        full_features = [
+            loaded_rasters["ndvi"],
+            loaded_rasters["ndwi"],
+            loaded_rasters["ndbi"],
+            loaded_rasters["building_density"],
+            loaded_rasters["road_density"],
+            loaded_rasters["distance_to_green"],
+            loaded_rasters["distance_to_water"],
+            loaded_rasters["population_density"],
+            x_norm,
+            y_norm,
+        ]
+        X_st = np.column_stack([feat.ravel() for feat in full_features])
+        y_st = st_arr.ravel()
+        valid_st = ~st_missing.ravel()
+
+        st_model = XGBRegressor(
+            n_estimators=150,
+            max_depth=6,
+            learning_rate=0.08,
+            subsample=0.85,
+            colsample_bytree=0.85,
+            random_state=42,
+            n_jobs=-1
+        )
+        st_model.fit(X_st[valid_st], y_st[valid_st])
+        st_arr[st_missing] = st_model.predict(X_st[st_missing.ravel()])
+        loaded_rasters["landsat_st_celsius"] = st_arr
+        save_master_raster(st_arr, "landsat_st_celsius.tif", nodata=NODATA_VAL)
+        print(f"  ✓ Reconstructed {np.sum(st_missing):,} cloud-masked pixels in landsat_st_celsius.tif")
+
     print("\n" + "=" * 60)
-    print("✅ All 10 Preprocessing Steps Completed Successfully!")
+    print("✅ All Preprocessing & Cloud Inpainting Steps Completed Successfully!")
     print("=" * 60)
 
 

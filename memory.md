@@ -1,54 +1,31 @@
-# HeatViz Memory
-## Status: 08 api
-## Completed Stages
-- [x] 01 blocks  [x] 02 m1-train  [x] 03 m1-infer  [x] 04 graph
-- [x] 05 m2-train  [x] 06 m2-infer  [x] 07 score-export  [x] 08 api  [x] 09 web
-## Metrics Log
-- Stage 01, G1 (block count >= 500): 17589, PASS, 2026-08-19T16:52:10+05:30
-- Stage 02, G2 (sample count >= 1000): 2412, PASS, 2026-08-19T17:00:10+05:30
-- Stage 02, G3 (val R2 >= 0.25, val MAE <= 1.5): R2=0.7417, MAE=1.0706, PASS, 2026-08-19T17:00:10+05:30
-- Stage 03, G4 (max abs diff <= 0.01): max_diff=0.000003, PASS, 2026-08-19T17:14:18+05:30
-- Stage 04 (graph build): train_nodes=9977, train_edges=88523, kibera_nodes=17589, kibera_edges=155685, PASS, 2026-08-19T17:25:55+05:30
-- Stage 05, G5 (val Pearson corr >= 0.90): corr=0.9500, val_loss=0.005098, PASS, 2026-08-19T17:20:25+05:30
-- Stage 06, G6 (contextual heat std >= 5.0): std=24.3156, PASS, 2026-08-19T18:24:49+05:30
-- Stage 07, G7 (top-decile NDVI < overall, Bldg > overall): top_ndvi=17.54 < 42.90, top_bldg=36.82 > 11.68, PASS, 2026-08-19T18:33:24+05:30
-- Stage 01, G1 (block count >= 500): 17589, PASS, 2026-08-19T19:31:33+05:30
-- Stage 02, G2 (sample count >= 1000): 2412, PASS, 2026-08-19T19:31:43+05:30
-- Stage 02, G3 (val R2 >= 0.25, val MAE <= 1.5): R2=0.7507, MAE=1.0482, PASS, 2026-08-19T19:31:43+05:30
-- Stage 03, G4 (max abs diff <= 0.01): max_diff=0.000002, PASS, 2026-08-19T19:31:54+05:30
-- Stage 04 (graph build): train_nodes=9977, train_edges=88523, kibera_nodes=17589, kibera_edges=155685, PASS, 2026-08-19T19:32:07+05:30
-- Stage 05, G5 (val Pearson corr >= 0.90): corr=0.9494, val_loss=0.005156, PASS, 2026-08-19T19:34:08+05:30
-- Stage 06, G6 (contextual heat std >= 5.0): std=24.3031, PASS, 2026-08-19T19:34:25+05:30
-- Stage 01, G1 (block count >= 500): 17589, PASS, 2026-08-19T22:33:31+05:30
-- Stage 02, G2 (sample count >= 1000): 2412, PASS, 2026-08-19T22:33:43+05:30
-- Stage 02, G3 (val R2 >= 0.25, val MAE <= 1.5): R2=0.7622, MAE=1.0303, PASS, 2026-08-19T22:33:43+05:30
-- Stage 03, G4 (max abs diff <= 0.01): max_diff=0.000003, PASS, 2026-08-19T22:33:54+05:30
-- Stage 04 (graph build): train_nodes=9977, train_edges=88523, kibera_nodes=17589, kibera_edges=155685, PASS, 2026-08-19T22:34:10+05:30
-- Stage 05, G5 (val Pearson corr >= 0.90): corr=0.9509, val_loss=0.005061, PASS, 2026-08-19T22:36:29+05:30
-- Stage 06, G6 (contextual heat std >= 5.0): std=24.3059, PASS, 2026-08-19T22:36:45+05:30
-- Stage 07, G7 (top-decile NDVI < overall, Bldg > overall): top_ndvi=16.03 < 42.90, top_bldg=50.91 > 17.86, PASS, 2026-08-19T22:36:59+05:30
-## Artifacts
-- data/processed/kibera_blocks_50m.geojson
-- models/module1_xgb.json
-- data/processed/ai_heat_base_20m.tif
-- models/graph_train.pt
-- models/graph_kibera.pt
-- models/module2_gat.pt
-- data/output/vulnerability_blocks.geojson
-- data/output/layers/ai_heat_exposure_blocks.geojson
-- data/output/layers/social_sensitivity_blocks.geojson
-- data/output/layers/cooling_deficit_blocks.geojson
-- data/output/layers/ndvi_blocks.geojson
-- data/output/layers/ndbi_blocks.geojson
-- data/output/layers/building_density_blocks.geojson
-- data/output/layers/population_density_blocks.geojson
-## Blockers
-none
-
-## Session Log
-- Stage 08 api backend implemented in api/main.py with SPEC routes: /, /static, /data/vulnerability_blocks.geojson, /data/layers/{name}.geojson. Syntax check passed. Data files were not modified. Runtime data serving requires existing data/output GeoJSON artifacts. 2026-08-19T19:02:12+05:30
-- Full ML Pipeline (Stages 01-07) executed on CPU: all gates G1-G7 passed, XGBoost and HeatGAT models saved, all 50m GeoJSON layer exports generated in EPSG:4326. 2026-08-19T19:35:00+05:30
-- Full-extent 45.1 km² OSM datasets downloaded (36,438 buildings, 5,952 roads, 70 water bodies, 509 green spaces). Rasters regenerated, all 7 ML pipeline stages retrained and re-evaluated with all gates G1-G7 PASSED. 2026-08-19T22:37:15+05:30
-- Stage 08/09 UI & Intelligence overhaul: Integrated vertical 0-100 threshold filter slider, institutional styling without childish emojis or side-tab borders, smart dual-state risk handling (clean reassuring calm view for low-risk/safe blocks, comprehensive 3-phase action plan and physical root-cause analysis for elevated/critical sectors). 2026-08-20T01:00:00+05:30
-- Modularized sidebar rule-based expert intelligence engine into api/rules.py: Separated domain heuristics, physical land-cover classification, why-it-is-hot root causes, and material sizing from api/main.py controller for clean separation of concerns and easier maintenance. 2026-08-20T01:51:00+05:30
-
+   # HeatViz Memory
+    ## Status: 09 web (All stages complete & verified)
+    ## Completed Stages
+    - [x] 01 blocks  [x] 02 m1-train  [x] 03 m1-infer  [x] 04 graph
+    - [x] 05 m2-train  [x] 06 m2-infer  [x] 07 score-export  [x] 08 api  [x] 09 web
+    ## Metrics Log
+    - Stage 01, G1 (block count >= 500): 18040, PASS, 2026-08-20T02:22:44+05:30
+    - Stage 02, G2 (sample count >= 1000): 2500, PASS, 2026-08-20T02:22:58+05:30
+    - Stage 02, G3 (val R2 >= 0.25, val MAE <= 1.5): R2=0.7899, MAE=0.9471, PASS, 2026-08-20T02:22:58+05:30
+    - Stage 03, G4 (max abs diff <= 0.01): max_diff=0.000003, PASS, 2026-08-20T02:23:09+05:30
+    - Stage 04 (graph build): train_nodes=10000, train_edges=88804, kibera_nodes=18040, kibera_edges=160720, PASS, 2026-08-20T02:23:22+05:30
+    - Stage 05, G5 (val Pearson corr >= 0.90): corr=0.9438, val_loss=0.005495, PASS, 2026-08-20T02:25:06+05:30
+    - Stage 06, G6 (contextual heat std >= 5.0): std=24.2705, PASS, 2026-08-20T02:25:25+05:30
+    - Stage 07, G7 (top-decile NDVI < overall, Bldg > overall): top_ndvi=16.45 < 42.98, top_bldg=50.53 > 17.66, PASS, 2026-08-20T02:25:42+05:30
+    ## Artifacts
+    - data/processed/kibera_blocks_50m.geojson
+    - models/module1_xgb.json
+    - data/processed/ai_heat_base_20m.tif
+    - models/graph_train.pt
+    - models/graph_kibera.pt
+    - models/module2_gat.pt
+    - data/output/vulnerability_blocks.geojson
+    - data/output/layers/ai_heat_exposure_blocks.geojson
+    - data/output/layers/social_sensitivity_blocks.geojson
+    - data/output/layers/cooling_deficit_blocks.geojson
+    - data/output/layers/ndvi_blocks.geojson
+    - data/output/layers/ndbi_blocks.geojson
+    - data/output/layers/building_density_blocks.geojson
+    - data/output/layers/population_density_blocks.geojson
+    ## Blockers
+    none
