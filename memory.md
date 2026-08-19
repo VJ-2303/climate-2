@@ -29,3 +29,6 @@
 - data/output/layers/population_density_blocks.geojson
 ## Blockers
 none
+
+## Session Log
+- Stage 08 api backend implemented in api/main.py with SPEC routes: /, /static, /data/vulnerability_blocks.geojson, /data/layers/{name}.geojson. Syntax check passed. Data files were not modified. Runtime data serving requires existing data/output GeoJSON artifacts. 2026-08-19T19:02:12+05:30
