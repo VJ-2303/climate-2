@@ -19,7 +19,14 @@
 - Stage 04 (graph build): train_nodes=9977, train_edges=88523, kibera_nodes=17589, kibera_edges=155685, PASS, 2026-08-19T19:32:07+05:30
 - Stage 05, G5 (val Pearson corr >= 0.90): corr=0.9494, val_loss=0.005156, PASS, 2026-08-19T19:34:08+05:30
 - Stage 06, G6 (contextual heat std >= 5.0): std=24.3031, PASS, 2026-08-19T19:34:25+05:30
-- Stage 07, G7 (top-decile NDVI < overall, Bldg > overall): top_ndvi=17.55 < 42.90, top_bldg=36.70 > 11.68, PASS, 2026-08-19T19:34:49+05:30
+- Stage 01, G1 (block count >= 500): 17589, PASS, 2026-08-19T22:33:31+05:30
+- Stage 02, G2 (sample count >= 1000): 2412, PASS, 2026-08-19T22:33:43+05:30
+- Stage 02, G3 (val R2 >= 0.25, val MAE <= 1.5): R2=0.7622, MAE=1.0303, PASS, 2026-08-19T22:33:43+05:30
+- Stage 03, G4 (max abs diff <= 0.01): max_diff=0.000003, PASS, 2026-08-19T22:33:54+05:30
+- Stage 04 (graph build): train_nodes=9977, train_edges=88523, kibera_nodes=17589, kibera_edges=155685, PASS, 2026-08-19T22:34:10+05:30
+- Stage 05, G5 (val Pearson corr >= 0.90): corr=0.9509, val_loss=0.005061, PASS, 2026-08-19T22:36:29+05:30
+- Stage 06, G6 (contextual heat std >= 5.0): std=24.3059, PASS, 2026-08-19T22:36:45+05:30
+- Stage 07, G7 (top-decile NDVI < overall, Bldg > overall): top_ndvi=16.03 < 42.90, top_bldg=50.91 > 17.86, PASS, 2026-08-19T22:36:59+05:30
 ## Artifacts
 - data/processed/kibera_blocks_50m.geojson
 - models/module1_xgb.json
@@ -41,3 +48,4 @@ none
 ## Session Log
 - Stage 08 api backend implemented in api/main.py with SPEC routes: /, /static, /data/vulnerability_blocks.geojson, /data/layers/{name}.geojson. Syntax check passed. Data files were not modified. Runtime data serving requires existing data/output GeoJSON artifacts. 2026-08-19T19:02:12+05:30
 - Full ML Pipeline (Stages 01-07) executed on CPU: all gates G1-G7 passed, XGBoost and HeatGAT models saved, all 50m GeoJSON layer exports generated in EPSG:4326. 2026-08-19T19:35:00+05:30
+- Full-extent 45.1 km² OSM datasets downloaded (36,438 buildings, 5,952 roads, 70 water bodies, 509 green spaces). Rasters regenerated, all 7 ML pipeline stages retrained and re-evaluated with all gates G1-G7 PASSED. 2026-08-19T22:37:15+05:30

@@ -264,45 +264,57 @@ def build_master_grid_and_process():
 
     # 2. Resample Sentinel-2 bands and compute NDVI, NDWI, NDBI
     print("\n[2/7] Computing Sentinel-2 Spectral Indices...")
-    b02 = reproject_to_master(os.path.join(RAW_DIR, "sentinel_b02.tif"))
-    b03 = reproject_to_master(os.path.join(RAW_DIR, "sentinel_b03.tif"))
-    b04 = reproject_to_master(os.path.join(RAW_DIR, "sentinel_b04.tif"))
-    b08 = reproject_to_master(os.path.join(RAW_DIR, "sentinel_b08.tif"))
-    b11 = reproject_to_master(os.path.join(RAW_DIR, "sentinel_b11.tif"))
-    b12 = reproject_to_master(os.path.join(RAW_DIR, "sentinel_b12.tif"))
+    s2_raw_exists = os.path.exists(os.path.join(RAW_DIR, "sentinel_b02.tif"))
+    if s2_raw_exists:
+        b02 = reproject_to_master(os.path.join(RAW_DIR, "sentinel_b02.tif"))
+        b03 = reproject_to_master(os.path.join(RAW_DIR, "sentinel_b03.tif"))
+        b04 = reproject_to_master(os.path.join(RAW_DIR, "sentinel_b04.tif"))
+        b08 = reproject_to_master(os.path.join(RAW_DIR, "sentinel_b08.tif"))
+        b11 = reproject_to_master(os.path.join(RAW_DIR, "sentinel_b11.tif"))
+        b12 = reproject_to_master(os.path.join(RAW_DIR, "sentinel_b12.tif"))
 
-    valid_mask = (b02 != NODATA_VAL) & (b03 != NODATA_VAL) & (b04 != NODATA_VAL) & (b08 != NODATA_VAL) & (b11 != NODATA_VAL)
+        valid_mask = (b02 != NODATA_VAL) & (b03 != NODATA_VAL) & (b04 != NODATA_VAL) & (b08 != NODATA_VAL) & (b11 != NODATA_VAL)
 
-    # NDVI = (B08 - B04) / (B08 + B04 + EPSILON)
-    ndvi = np.full((master_height, master_width), NODATA_VAL, dtype=np.float32)
-    ndvi[valid_mask] = (b08[valid_mask] - b04[valid_mask]) / (b08[valid_mask] + b04[valid_mask] + EPSILON)
-    save_master_raster(ndvi, "ndvi.tif")
+        # NDVI = (B08 - B04) / (B08 + B04 + EPSILON)
+        ndvi = np.full((master_height, master_width), NODATA_VAL, dtype=np.float32)
+        ndvi[valid_mask] = (b08[valid_mask] - b04[valid_mask]) / (b08[valid_mask] + b04[valid_mask] + EPSILON)
+        save_master_raster(ndvi, "ndvi.tif")
 
-    # NDWI = (B03 - B08) / (B03 + B08 + EPSILON)
-    ndwi = np.full((master_height, master_width), NODATA_VAL, dtype=np.float32)
-    ndwi[valid_mask] = (b03[valid_mask] - b08[valid_mask]) / (b03[valid_mask] + b08[valid_mask] + EPSILON)
-    save_master_raster(ndwi, "ndwi.tif")
+        # NDWI = (B03 - B08) / (B03 + B08 + EPSILON)
+        ndwi = np.full((master_height, master_width), NODATA_VAL, dtype=np.float32)
+        ndwi[valid_mask] = (b03[valid_mask] - b08[valid_mask]) / (b03[valid_mask] + b08[valid_mask] + EPSILON)
+        save_master_raster(ndwi, "ndwi.tif")
 
-    # NDBI = (B11 - B08) / (B11 + B08 + EPSILON)
-    ndbi = np.full((master_height, master_width), NODATA_VAL, dtype=np.float32)
-    ndbi[valid_mask] = (b11[valid_mask] - b08[valid_mask]) / (b11[valid_mask] + b08[valid_mask] + EPSILON)
-    save_master_raster(ndbi, "ndbi.tif")
+        # NDBI = (B11 - B08) / (B11 + B08 + EPSILON)
+        ndbi = np.full((master_height, master_width), NODATA_VAL, dtype=np.float32)
+        ndbi[valid_mask] = (b11[valid_mask] - b08[valid_mask]) / (b11[valid_mask] + b08[valid_mask] + EPSILON)
+        save_master_raster(ndbi, "ndbi.tif")
+    elif os.path.exists(os.path.join(PROCESSED_DIR, "ndvi.tif")):
+        print("✓ Reusing existing processed NDVI, NDWI, NDBI master rasters.")
+    else:
+        raise FileNotFoundError("Neither raw Sentinel-2 bands nor processed indices exist.")
 
     # 3. Process Landsat Surface Temperature with QA Cloud Masking
     print("\n[3/7] Processing Landsat Surface Temperature (°C)...")
-    st_raw = reproject_to_master(os.path.join(RAW_DIR, "landsat_st_b10.tif"), resampling_method=Resampling.bilinear)
-    qa_raw = reproject_to_master(os.path.join(RAW_DIR, "landsat_qa_pixel.tif"), resampling_method=Resampling.nearest)
+    landsat_raw_exists = os.path.exists(os.path.join(RAW_DIR, "landsat_st_b10.tif"))
+    if landsat_raw_exists:
+        st_raw = reproject_to_master(os.path.join(RAW_DIR, "landsat_st_b10.tif"), resampling_method=Resampling.bilinear)
+        qa_raw = reproject_to_master(os.path.join(RAW_DIR, "landsat_qa_pixel.tif"), resampling_method=Resampling.nearest)
 
-    st_celsius = np.full((master_height, master_width), NODATA_VAL, dtype=np.float32)
-    valid_st_mask = (st_raw > 0) & (st_raw != NODATA_VAL)
+        st_celsius = np.full((master_height, master_width), NODATA_VAL, dtype=np.float32)
+        valid_st_mask = (st_raw > 0) & (st_raw != NODATA_VAL)
 
-    # QA bitmask: Bit 0: Fill, Bit 3: Cloud shadow, Bit 4: Cloud
-    qa_int = qa_raw.astype(np.uint16)
-    cloud_mask = ((qa_int & (1 << 0)) != 0) | ((qa_int & (1 << 3)) != 0) | ((qa_int & (1 << 4)) != 0)
+        # QA bitmask: Bit 0: Fill, Bit 3: Cloud shadow, Bit 4: Cloud
+        qa_int = qa_raw.astype(np.uint16)
+        cloud_mask = ((qa_int & (1 << 0)) != 0) | ((qa_int & (1 << 3)) != 0) | ((qa_int & (1 << 4)) != 0)
 
-    valid_st = valid_st_mask & (~cloud_mask)
-    st_celsius[valid_st] = (st_raw[valid_st] * 0.00341802 + 149.0) - 273.15
-    save_master_raster(st_celsius, "landsat_st_celsius.tif")
+        valid_st = valid_st_mask & (~cloud_mask)
+        st_celsius[valid_st] = (st_raw[valid_st] * 0.00341802 + 149.0) - 273.15
+        save_master_raster(st_celsius, "landsat_st_celsius.tif")
+    elif os.path.exists(os.path.join(PROCESSED_DIR, "landsat_st_celsius.tif")):
+        print("✓ Reusing existing processed Landsat surface temperature master raster.")
+    else:
+        raise FileNotFoundError("Neither raw Landsat bands nor processed temperature raster exists.")
 
     # 4. OSM Building Density (Sub-pixel fractional area)
     print("\n[4/7] Generating Fractional Building Density Raster (sub-pixel rasterization)...")
@@ -375,9 +387,15 @@ def build_master_grid_and_process():
 
     # 7. WorldPop Population Density (20m)
     print("\n[7/7] Processing WorldPop Population Density...")
-    pop_raw = reproject_to_master(os.path.join(RAW_DIR, "worldpop_population.tif"), resampling_method=Resampling.bilinear)
-    pop_density = np.where(pop_raw != NODATA_VAL, np.clip(pop_raw, 0.0, None), NODATA_VAL).astype(np.float32)
-    save_master_raster(pop_density, "population_density_20m.tif", nodata=NODATA_VAL)
+    pop_raw_exists = os.path.exists(os.path.join(RAW_DIR, "worldpop_population.tif"))
+    if pop_raw_exists:
+        pop_raw = reproject_to_master(os.path.join(RAW_DIR, "worldpop_population.tif"), resampling_method=Resampling.bilinear)
+        pop_density = np.where(pop_raw != NODATA_VAL, np.clip(pop_raw, 0.0, None), NODATA_VAL).astype(np.float32)
+        save_master_raster(pop_density, "population_density_20m.tif", nodata=NODATA_VAL)
+    elif os.path.exists(os.path.join(PROCESSED_DIR, "population_density_20m.tif")):
+        print("✓ Reusing existing processed population density master raster.")
+    else:
+        raise FileNotFoundError("Neither raw WorldPop nor processed population density raster exists.")
 
     print("\n" + "=" * 60)
     print("✅ All 10 Preprocessing Steps Completed Successfully!")

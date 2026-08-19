@@ -1,127 +1,425 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HeatViz — Hyperlocal Heat Vulnerability Map</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="/static/style.css" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HeatViz — Hyperlocal Urban Heat Vulnerability Platform</title>
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  
+  <!-- Custom Styles -->
+  <link rel="stylesheet" href="/static/style.css" />
 </head>
 <body>
-    <header class="header">
-        <div class="header-left">
-            <h1>🔥 HeatViz <span class="subtitle">Kibera, Nairobi</span></h1>
+  <div class="app-layout">
+    <!-- Top Global App Bar -->
+    <header class="topbar">
+      <div class="topbar-brand">
+        <div class="brand-logo">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 4v10.54a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0Z"/>
+          </svg>
         </div>
-        <div class="header-center">
-            <span class="kpi-pill">Total Blocks: <strong id="kpi-total">—</strong></span>
-            <span class="kpi-pill kpi-critical">Critical: <strong id="kpi-critical">—</strong></span>
-            <span class="kpi-pill kpi-high">High: <strong id="kpi-high">—</strong></span>
+        <div class="brand-meta">
+          <div class="brand-title">HeatViz <span class="brand-badge">Kibera</span></div>
+          <div class="brand-subtitle">Hyperlocal Climate Vulnerability Intelligence</div>
         </div>
-        <div class="header-right">
-            <input type="text" id="search-input" placeholder="Search Block ID...">
-            <select id="risk-filter">
-                <option value="All">All</option>
-                <option value="Critical">Critical</option>
-                <option value="High">High</option>
-                <option value="Medium">Medium</option>
-                <option value="Low">Low</option>
-            </select>
-            <button id="export-btn">⬇ Export</button>
+      </div>
+
+      <!-- Quick Metrics Summary -->
+      <div class="topbar-stats" id="topbar-stats">
+        <div class="stat-item">
+          <span class="stat-label">Total Blocks</span>
+          <span class="stat-val" id="kpi-total">17,589</span>
         </div>
+        <div class="stat-divider"></div>
+        <div class="stat-item stat-critical">
+          <span class="stat-label"><span class="dot dot-critical"></span>Critical Risk</span>
+          <span class="stat-val" id="kpi-critical">0</span>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat-item stat-high">
+          <span class="stat-label"><span class="dot dot-high"></span>High Risk</span>
+          <span class="stat-val" id="kpi-high">0</span>
+        </div>
+      </div>
+
+      <!-- Actions & Filters -->
+      <div class="topbar-actions">
+        <!-- Search -->
+        <div class="search-box">
+          <svg class="search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/>
+            <path d="m21 21-4.35-4.35"/>
+          </svg>
+          <input type="text" id="search-input" placeholder="Search block (e.g. KIB-0234)..." autocomplete="off" spellcheck="false" />
+          <button class="search-clear-btn" id="search-clear" title="Clear search" style="display: none;">✕</button>
+        </div>
+
+        <!-- Risk Filter -->
+        <div class="filter-dropdown-wrapper">
+          <label for="risk-filter" class="filter-label">Filter:</label>
+          <select id="risk-filter" class="custom-select">
+            <option value="All">All Risk Classes</option>
+            <option value="Critical">Critical Only</option>
+            <option value="High">High Only</option>
+            <option value="Medium">Medium Only</option>
+            <option value="Low">Low Only</option>
+          </select>
+        </div>
+
+        <!-- Export -->
+        <button id="export-btn" class="btn btn-primary" title="Export full GeoJSON dataset">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          <span>Export GeoJSON</span>
+        </button>
+      </div>
     </header>
 
-    <main class="main-content">
+    <!-- Workspace Main Container -->
+    <main class="workspace">
+      <!-- Interactive Leaflet Map Area -->
+      <div class="map-viewport">
         <div id="map"></div>
-        <aside id="sidebar">
-            <button class="close-btn" id="sidebar-close">✕</button>
-            <div class="sidebar-content-wrapper">
-                <div id="sidebar-default">
-                    <p>Click any 50m block on the map to inspect its heat vulnerability profile.</p>
-                </div>
-                <div id="sidebar-detail" style="display: none;">
-                    <div class="sidebar-header">
-                        <h2 id="detail-block-id"></h2>
-                        <span class="risk-badge" id="detail-risk-badge"></span>
-                    </div>
 
-                    <div class="hvi-score-section">
-                        <span class="score-label">HVI Score</span>
-                        <div id="detail-hvi-score" class="score-value"></div>
-                    </div>
-
-                    <div class="metrics-bars">
-                        <div class="metric-row">
-                            <span class="metric-label">AI Heat Exposure</span>
-                            <div class="metric-bar"><div class="metric-bar-fill" id="bar-heat"></div></div>
-                            <span class="metric-value" id="val-heat"></span>
-                        </div>
-                        <div class="metric-row">
-                            <span class="metric-label">Social Sensitivity</span>
-                            <div class="metric-bar"><div class="metric-bar-fill" id="bar-social"></div></div>
-                            <span class="metric-value" id="val-social"></span>
-                        </div>
-                        <div class="metric-row">
-                            <span class="metric-label">Cooling Deficit</span>
-                            <div class="metric-bar"><div class="metric-bar-fill" id="bar-cooling"></div></div>
-                            <span class="metric-value" id="val-cooling"></span>
-                        </div>
-                    </div>
-
-                    <div class="population-section">
-                        Estimated Population: <strong id="detail-population"></strong>
-                    </div>
-
-                    <div class="drivers-section">
-                        <h3>Top Drivers</h3>
-                        <div id="detail-drivers"></div>
-                    </div>
-
-                    <div class="intervention-box">
-                        <span class="intervention-icon">💡</span>
-                        <span id="detail-intervention"></span>
-                    </div>
-
-                    <div class="metrics-table-section">
-                        <h3>Environmental Metrics</h3>
-                        <table class="metrics-table">
-                            <tbody>
-                                <tr><td>NDVI</td><td id="detail-ndvi">—</td></tr>
-                                <tr><td>NDWI</td><td id="detail-ndwi">—</td></tr>
-                                <tr><td>NDBI</td><td id="detail-ndbi">—</td></tr>
-                                <tr><td>Distance to Green</td><td id="detail-green">—</td></tr>
-                                <tr><td>Distance to Water</td><td id="detail-water">—</td></tr>
-                                <tr><td>Building Density</td><td id="detail-building">—</td></tr>
-                                <tr><td>Population Density</td><td id="detail-popdensity">—</td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+        <!-- Floating Layer Control Deck -->
+        <aside class="floating-panel layer-deck" id="layer-control">
+          <div class="panel-header">
+            <div class="panel-title-group">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="12 2 2 7 12 12 22 7 12 2"/>
+                <polyline points="2 17 12 22 22 17"/>
+                <polyline points="2 12 12 17 22 12"/>
+              </svg>
+              <span>Data Layers</span>
             </div>
+            <span class="active-layer-indicator" id="active-layer-name">HVI Composite</span>
+          </div>
+
+          <div class="layer-selector-group">
+            <div class="layer-category-label">Primary Assessment</div>
+            <label class="layer-radio-item active" data-layer="hvi">
+              <input type="radio" name="layer" value="hvi" checked />
+              <div class="layer-radio-content">
+                <span class="layer-radio-title">Heat Vulnerability Index (HVI)</span>
+                <span class="layer-radio-desc">Multi-criteria climate risk synthesis</span>
+              </div>
+              <span class="layer-pill-tag">Final</span>
+            </label>
+
+            <div class="layer-category-label">AI & Sensitivity Drivers</div>
+            <label class="layer-radio-item" data-layer="ai_heat_exposure_blocks">
+              <input type="radio" name="layer" value="ai_heat_exposure_blocks" />
+              <div class="layer-radio-content">
+                <span class="layer-radio-title">AI Heat Exposure</span>
+                <span class="layer-radio-desc">GAT-refined 50m thermal downscaling</span>
+              </div>
+            </label>
+
+            <label class="layer-radio-item" data-layer="social_sensitivity_blocks">
+              <input type="radio" name="layer" value="social_sensitivity_blocks" />
+              <div class="layer-radio-content">
+                <span class="layer-radio-title">Social Sensitivity</span>
+                <span class="layer-radio-desc">Population exposure & building density</span>
+              </div>
+            </label>
+
+            <label class="layer-radio-item" data-layer="cooling_deficit_blocks">
+              <input type="radio" name="layer" value="cooling_deficit_blocks" />
+              <div class="layer-radio-content">
+                <span class="layer-radio-title">Cooling Access Deficit</span>
+                <span class="layer-radio-desc">Distance to green canopy & water buffers</span>
+              </div>
+            </label>
+
+            <div class="layer-category-label">Satellite & Environmental Metrics</div>
+            <div class="layer-grid-mini">
+              <label class="layer-radio-item mini" data-layer="ndvi_blocks">
+                <input type="radio" name="layer" value="ndvi_blocks" />
+                <span class="layer-radio-title">NDVI (Vegetation)</span>
+              </label>
+              <label class="layer-radio-item mini" data-layer="ndbi_blocks">
+                <input type="radio" name="layer" value="ndbi_blocks" />
+                <span class="layer-radio-title">NDBI (Built-up)</span>
+              </label>
+              <label class="layer-radio-item mini" data-layer="building_density_blocks">
+                <input type="radio" name="layer" value="building_density_blocks" />
+                <span class="layer-radio-title">Building Density</span>
+              </label>
+              <label class="layer-radio-item mini" data-layer="population_density_blocks">
+                <input type="radio" name="layer" value="population_density_blocks" />
+                <span class="layer-radio-title">Population Density</span>
+              </label>
+            </div>
+          </div>
         </aside>
+
+        <!-- Floating Vertical Threshold Filter Slider (Left Side) -->
+        <div class="floating-panel vertical-slider-panel" id="threshold-panel">
+          <div class="slider-panel-header">
+            <div class="slider-title-row">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+              </svg>
+              <span class="slider-title">Filter</span>
+            </div>
+            <span class="slider-val-badge" id="slider-val-display">&ge; 0</span>
+          </div>
+          
+          <div class="slider-track-wrapper">
+            <span class="slider-bound-label">100</span>
+            <div class="slider-input-container">
+              <input 
+                type="range" 
+                id="threshold-slider" 
+                min="0" 
+                max="100" 
+                value="0" 
+                step="1"
+                orient="vertical"
+                class="vertical-slider-input"
+                aria-label="Score threshold filter"
+              />
+            </div>
+            <span class="slider-bound-label">0</span>
+          </div>
+
+          <button class="slider-reset-btn" id="slider-reset-btn" title="Reset filter to 0">Reset</button>
+        </div>
+
+        <!-- Floating Map Legend Card -->
+        <div class="floating-panel map-legend-card" id="legend">
+          <div class="legend-header">
+            <span class="legend-title" id="legend-title">Risk Classification</span>
+            <span class="legend-unit" id="legend-unit">Score (0–100)</span>
+          </div>
+          <div id="legend-content" class="legend-bar-container"></div>
+        </div>
+
+        <!-- Floating Zoom / View Controls -->
+        <div class="map-quick-controls">
+          <button class="map-btn" id="btn-reset-view" title="Reset View to Kibera">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+              <path d="M3 3v5h5"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Inspector Sidebar -->
+      <aside class="inspector-sidebar" id="sidebar">
+        <!-- Sidebar Header -->
+        <div class="sidebar-top">
+          <div class="sidebar-heading">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+              <line x1="9" y1="3" x2="9" y2="21"/>
+            </svg>
+            <span>Block Inspector</span>
+          </div>
+          <button class="icon-btn close-sidebar-btn" id="sidebar-close" title="Close Panel">✕</button>
+        </div>
+
+        <!-- Sidebar Content Body -->
+        <div class="sidebar-body">
+          <!-- Empty State (No Block Selected) -->
+          <div id="sidebar-default" class="sidebar-empty-state">
+            <div class="empty-icon-wrap">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="2" y1="12" x2="22" y2="12"/>
+                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+              </svg>
+            </div>
+            <h3>Select a 50m Grid Block</h3>
+            <p>Click any block on the map or use the search bar above to inspect local thermal downscaling, social vulnerability factors, and recommended interventions.</p>
+            
+            <div class="settlement-summary-card">
+              <div class="card-title">Kibera Study Area Overview</div>
+              <div class="summary-grid">
+                <div class="summary-cell">
+                  <span class="cell-label">Resolution</span>
+                  <span class="cell-val">50m × 50m</span>
+                </div>
+                <div class="summary-cell">
+                  <span class="cell-label">Coverage</span>
+                  <span class="cell-val">45.1 km²</span>
+                </div>
+                <div class="summary-cell">
+                  <span class="cell-label">AI Baseline</span>
+                  <span class="cell-val">XGBoost + GAT</span>
+                </div>
+                <div class="summary-cell">
+                  <span class="cell-label">Validation</span>
+                  <span class="cell-val">Gate G1–G7 Passed</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Active Block Details (Populated on Click) -->
+          <div id="sidebar-detail" class="sidebar-detail-state" style="display: none;">
+            <!-- Block ID & Risk Banner -->
+            <div class="block-hero-card">
+              <div class="block-meta-row">
+                <div class="block-id-badge">
+                  <span class="block-tag">BLOCK</span>
+                  <span id="detail-block-id" class="block-id-val">KIB-0000</span>
+                </div>
+                <span id="detail-risk-badge" class="risk-badge risk-critical">Critical</span>
+              </div>
+
+              <!-- Main HVI Score Gauge -->
+              <div class="hvi-score-display">
+                <div class="score-number-group">
+                  <div class="score-main" id="detail-hvi-score">0</div>
+                  <div class="score-max">/ 100</div>
+                </div>
+                <div class="score-context">
+                  <div class="score-context-title">Heat Vulnerability Index</div>
+                  <div class="score-context-raw">Raw score: <strong id="detail-hvi-raw">0.0</strong></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Priority Action Recommendation -->
+            <div class="action-card" id="detail-action-card">
+              <div class="action-card-header">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                </svg>
+                <span>Targeted Intervention</span>
+              </div>
+              <div class="action-card-body" id="detail-intervention">
+                Water point / hydration support
+              </div>
+            </div>
+
+            <!-- Primary Vulnerability Pillars -->
+            <div class="section-container">
+              <div class="section-header">Vulnerability Component Breakdown</div>
+              
+              <div class="pillar-group">
+                <!-- Pillar 1: AI Heat -->
+                <div class="pillar-item">
+                  <div class="pillar-info">
+                    <div class="pillar-name">
+                      <span class="pillar-color-dot dot-heat"></span>
+                      <span>AI Heat Exposure (45%)</span>
+                    </div>
+                    <span class="pillar-val" id="val-heat">0</span>
+                  </div>
+                  <div class="progress-track">
+                    <div class="progress-fill fill-heat" id="bar-heat" style="width: 0%;"></div>
+                  </div>
+                </div>
+
+                <!-- Pillar 2: Social Sensitivity -->
+                <div class="pillar-item">
+                  <div class="pillar-info">
+                    <div class="pillar-name">
+                      <span class="pillar-color-dot dot-social"></span>
+                      <span>Social Sensitivity (35%)</span>
+                    </div>
+                    <span class="pillar-val" id="val-social">0</span>
+                  </div>
+                  <div class="progress-track">
+                    <div class="progress-fill fill-social" id="bar-social" style="width: 0%;"></div>
+                  </div>
+                </div>
+
+                <!-- Pillar 3: Cooling Deficit -->
+                <div class="pillar-item">
+                  <div class="pillar-info">
+                    <div class="pillar-name">
+                      <span class="pillar-color-dot dot-cooling"></span>
+                      <span>Cooling Deficit (20%)</span>
+                    </div>
+                    <span class="pillar-val" id="val-cooling">0</span>
+                  </div>
+                  <div class="progress-track">
+                    <div class="progress-fill fill-cooling" id="bar-cooling" style="width: 0%;"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Top Risk Drivers -->
+            <div class="section-container">
+              <div class="section-header">Key Attribution Drivers</div>
+              <div class="drivers-tag-list" id="detail-drivers">
+                <!-- Populated via JS -->
+              </div>
+            </div>
+
+            <!-- Granular Environmental Telemetry Grid -->
+            <div class="section-container">
+              <div class="section-header">Environmental & Urban Telemetry</div>
+              <div class="telemetry-grid">
+                <div class="telemetry-card">
+                  <span class="telemetry-label">Estimated Pop.</span>
+                  <span class="telemetry-value highlight" id="detail-population">0</span>
+                </div>
+                <div class="telemetry-card">
+                  <span class="telemetry-label">Pop. Density</span>
+                  <span class="telemetry-value" id="detail-popdensity">0</span>
+                </div>
+                <div class="telemetry-card">
+                  <span class="telemetry-label">Building Density</span>
+                  <span class="telemetry-value" id="detail-building">0</span>
+                </div>
+                <div class="telemetry-card">
+                  <span class="telemetry-label">NDVI (Vegetation)</span>
+                  <span class="telemetry-value" id="detail-ndvi">0</span>
+                </div>
+                <div class="telemetry-card">
+                  <span class="telemetry-label">NDWI (Moisture)</span>
+                  <span class="telemetry-value" id="detail-ndwi">0</span>
+                </div>
+                <div class="telemetry-card">
+                  <span class="telemetry-label">NDBI (Built-up)</span>
+                  <span class="telemetry-value" id="detail-ndbi">0</span>
+                </div>
+                <div class="telemetry-card">
+                  <span class="telemetry-label">Dist. to Green</span>
+                  <span class="telemetry-value" id="detail-green">0</span>
+                </div>
+                <div class="telemetry-card">
+                  <span class="telemetry-label">Dist. to Water</span>
+                  <span class="telemetry-value" id="detail-water">0</span>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </aside>
     </main>
 
-    <div id="layer-control">
-        <h3>Layers</h3>
-        <label><input type="radio" name="layer" value="hvi" checked> Heat Vulnerability (HVI)</label>
-        <label><input type="radio" name="layer" value="ai_heat_exposure_blocks"> AI Heat Exposure</label>
-        <label><input type="radio" name="layer" value="social_sensitivity_blocks"> Social Sensitivity</label>
-        <label><input type="radio" name="layer" value="cooling_deficit_blocks"> Cooling Deficit</label>
-        <label><input type="radio" name="layer" value="ndvi_blocks"> Vegetation (NDVI)</label>
-        <label><input type="radio" name="layer" value="ndbi_blocks"> Built-up (NDBI)</label>
-        <label><input type="radio" name="layer" value="building_density_blocks"> Building Density</label>
-        <label><input type="radio" name="layer" value="population_density_blocks"> Population Density</label>
+    <!-- Global Loading Overlay -->
+    <div id="loading-overlay" class="loading-curtain">
+      <div class="loading-dialog">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Loading Geospatial Analysis Layers...</div>
+        <div class="loading-subtext">Rendering 17,589 50m blocks over Kibera</div>
+      </div>
     </div>
+  </div>
 
-    <div id="legend">
-        <div id="legend-content"></div>
-    </div>
-
-    <div id="loading-overlay">
-        <div class="spinner"></div>
-        <p>Loading vulnerability data...</p>
-    </div>
-
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="/static/app.js"></script>
+  <!-- Leaflet JS CDN -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- Application JS -->
+  <script src="/static/app.js"></script>
 </body>
 </html>
