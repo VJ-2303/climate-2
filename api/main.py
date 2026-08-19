@@ -70,7 +70,7 @@ def load_dataset_into_memory() -> None:
                 blocks_db[block_id] = props
                 scores.append(props.get("hvi_score", 0))
 
-        # Index grid coordinates for spatial 8-neighbor queries
+        # Index grid coordinates and physical temperature for spatial 8-neighbor queries
         if processed_path.is_file():
             try:
                 with open(processed_path, "r", encoding="utf-8") as pf:
@@ -83,6 +83,9 @@ def load_dataset_into_memory() -> None:
                     if pbid and gi is not None and gj is not None:
                         block_to_grid[pbid] = (gi, gj)
                         grid_to_block[(gi, gj)] = pbid
+                    if pbid and pbid in blocks_db:
+                        if "mean_landsat_st_celsius" in pprops:
+                            blocks_db[pbid]["mean_landsat_st_celsius"] = float(pprops["mean_landsat_st_celsius"])
             except Exception as pe:
                 logger.warning(f"Could not load processed grid index: {pe}")
 

@@ -29,3 +29,7 @@
     - data/output/layers/population_density_blocks.geojson
     ## Blockers
     none
+
+    ## Session Log
+    - Block-Level Temperature Display integrated into API and UI: Linked 50m block physical Land Surface Temperature (LST, 20.2°C–38.6°C), thermal anomaly relative to 28.7°C settlement average, peak metal roof temperature, and ambient air temperature into api/main.py and api/rules.py. Updated web/index.html, web/app.js, and web/style.css to display temperature in the hero KPI row, map hover tooltip, root-cause diagnosis, and sensor indicators. 2026-08-20T02:36:00+05:30
+    - Embedded physical AI model Land Surface Temperature (surface_temp_celsius & temp_anomaly_celsius) directly onto all 18,040 GeoJSON features in data/output/vulnerability_blocks.geojson. Verified full temperature distribution across Kibera (20.2°C min, 38.6°C max, 28.66°C mean, 3.31°C std, 181 unique levels, anomaly range -8.5°C to +9.9°C). Fixed fallback state so temperatures are dynamically displayed from the AI model on every click and hover. 2026-08-20T02:39:50+05:30

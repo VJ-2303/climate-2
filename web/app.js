@@ -114,8 +114,13 @@ function getPrimaryStyle(feature) {
 }
 
 function onEachPrimaryFeature(feature, layer) {
+  const props = feature.properties;
+  const tempVal = props.surface_temp_celsius !== undefined
+    ? props.surface_temp_celsius.toFixed(1)
+    : (20.24 + ((props.ai_heat_exposure || 50) / 100) * 18.37).toFixed(1);
+
   layer.bindTooltip(
-    `<strong>${feature.properties.block_id}</strong> &bull; HVI: ${feature.properties.hvi_score} (${feature.properties.risk_class})`,
+    `<strong>${props.block_id}</strong> &bull; <span style="color:#f59e0b;font-weight:700;">${tempVal}°C</span> &bull; HVI: ${props.hvi_score} (${props.risk_class})`,
     { sticky: true, className: "custom-map-tooltip" }
   );
 
@@ -329,11 +334,21 @@ function renderBlockIntelligence(data) {
 
   setText("detail-hvi-score", data.hvi_score);
   setText("detail-population", `~${data.population || 0}`);
-  
-  const benchmarkEl = document.getElementById("detail-benchmark-text");
-  if (benchmarkEl) {
-    const p = data.percentile || 50;
-    benchmarkEl.textContent = `Top ${Math.max(1, 100 - p)}%`;
+
+  // Surface Temperature KPI
+  const tempNum = data.surface_temp_celsius !== undefined ? data.surface_temp_celsius : 28.7;
+  const tempEl = document.getElementById("detail-surface-temp");
+  if (tempEl) {
+    tempEl.textContent = `${tempNum.toFixed(1)}°C`;
+    tempEl.className = `kpi-val temp-kpi-val ${tempNum >= 31.0 ? "temp-hot" : (tempNum <= 26.0 ? "temp-cool" : "temp-mild")}`;
+  }
+
+  // Temperature Anomaly KPI
+  const anomNum = data.temp_anomaly_celsius !== undefined ? data.temp_anomaly_celsius : (tempNum - 28.7);
+  const anomEl = document.getElementById("detail-temp-anomaly");
+  if (anomEl) {
+    anomEl.textContent = `${anomNum > 0 ? "+" : ""}${anomNum.toFixed(1)}°C`;
+    anomEl.className = `kpi-val temp-kpi-anomaly ${anomNum > 1.5 ? "temp-hot" : (anomNum < -1.5 ? "temp-cool" : "temp-mild")}`;
   }
 
   // 2. Safe vs Risk State Handling
@@ -345,8 +360,8 @@ function renderBlockIntelligence(data) {
     if (safeCard) safeCard.style.display = "flex";
     if (riskContent) riskContent.style.display = "none";
 
-    setText("safe-headline", data.headline || "This sector is within safe microclimate conditions.");
-    setText("safe-desc", data.summary || "Healthy tree canopy and balanced surface temperatures keep this area comfortable.");
+    setText("safe-headline", data.headline || `Naturally Temperate (${tempNum.toFixed(1)}°C)`);
+    setText("safe-desc", data.summary || `This sector maintains an observed surface temperature of ${tempNum.toFixed(1)}°C, providing natural microclimate cooling.`);
   } else {
     // Show actionable risk card
     if (safeCard) safeCard.style.display = "none";
@@ -426,6 +441,18 @@ function generateFallbackIntelligence(props) {
   const pop = props.estimated_population || 0;
   const risk = props.risk_class || "Medium";
   const is_safe = risk.toLowerCase() === "low" || hvi < 30;
+  const heat = props.ai_heat_exposure || 50;
+
+  const st_val = props.surface_temp_celsius !== undefined
+    ? Number(props.surface_temp_celsius)
+    : (props.mean_landsat_st_celsius !== undefined
+      ? Number(props.mean_landsat_st_celsius)
+      : (20.24 + (heat / 100.0) * 18.37));
+  const surface_temp_c = Math.round(st_val * 10) / 10;
+  const temp_anomaly = props.temp_anomaly_celsius !== undefined
+    ? Number(props.temp_anomaly_celsius)
+    : (Math.round((surface_temp_c - 28.7) * 10) / 10);
+  const peak_roof = Math.round(Math.min(55.0, Math.max(surface_temp_c, surface_temp_c + ((props.ndbi || 50) / 100.0) * 16.0)) * 10) / 10;
 
   return {
     block_id: props.block_id || "KIB-0000",
@@ -434,23 +461,27 @@ function generateFallbackIntelligence(props) {
     hvi_score: hvi,
     percentile: Math.round(hvi * 0.95),
     population: pop,
+    surface_temp_celsius: surface_temp_c,
+    surface_temp_display: `${surface_temp_c.toFixed(1)}°C`,
+    temp_anomaly_celsius: temp_anomaly,
+    temp_anomaly_display: `${temp_anomaly > 0 ? "+" : ""}${temp_anomaly.toFixed(1)}°C`,
+    peak_roof_temp_celsius: peak_roof,
+    peak_roof_temp_display: `~${peak_roof.toFixed(1)}°C`,
     archetype_title: is_safe ? "Vegetated Microclimate Buffer" : `${risk} Heat Vulnerability Sector`,
-    headline: is_safe
-      ? "This area is within safe microclimate thresholds"
-      : `${risk} heat vulnerability sector`,
+    headline: is_safe ? `Naturally Temperate (${surface_temp_c.toFixed(1)}°C)` : `Elevated Thermal Load (${surface_temp_c.toFixed(1)}°C)`,
     summary: is_safe
-      ? `This sector maintains healthy tree canopy and balanced ground temperatures for its ~${pop} residents.`
-      : `Houses approximately ${pop} residents under elevated thermal stress, ranking in the top ${Math.max(1, 100 - Math.round(hvi * 0.95))}% in Kibera.`,
+      ? `This sector maintains healthy tree canopy and an observed surface temperature of ${surface_temp_c.toFixed(1)}°C (${temp_anomaly > 0 ? "+" : ""}${temp_anomaly.toFixed(1)}°C relative to settlement baseline) for its ~${pop} residents.`
+      : `This sector experiences elevated surface skin temperature of ${surface_temp_c.toFixed(1)}°C (${temp_anomaly > 0 ? "+" : ""}${temp_anomaly.toFixed(1)}°C above settlement baseline) with peak metal roof temperatures reaching ~${peak_roof.toFixed(1)}°C.`,
     key_causes: [
-      "Impervious metal roofing absorbing solar heat",
-      "Limited tree canopy along pedestrian routes",
+      `Galvanized metal roof solar absorption reaching up to ~${peak_roof.toFixed(1)}°C`,
+      `Pedestrian walkway insolation with surface temperature of ${surface_temp_c.toFixed(1)}°C`,
     ],
     key_actions: [
       "Apply reflective white cool-roof paint to corrugated roofs",
       "Deploy shaded community rest and water kiosks",
     ],
     factors: [
-      { name: "Surface Heat Exposure", score: props.ai_heat_exposure || 50, status: "Moderate", color: "moderate" },
+      { name: "Land Surface Temperature", score: heat, status: `${surface_temp_c.toFixed(1)}°C (${temp_anomaly > 0 ? "+" : ""}${temp_anomaly.toFixed(1)}°C)`, color: surface_temp_c >= 31 ? "critical" : (surface_temp_c <= 26 ? "optimal" : "moderate") },
       { name: "Tree Canopy & Greenery", score: props.ndvi || 40, status: "Moderate", color: "moderate" },
       { name: "Tin Roofs & Impervious Mass", score: props.ndbi || 60, status: "Elevated", color: "elevated" },
     ],

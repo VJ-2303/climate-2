@@ -720,6 +720,31 @@ html, body {
   color: #ffffff;
 }
 
+.temp-kpi-val {
+  font-family: var(--font-mono);
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.temp-kpi-anomaly {
+  font-family: var(--font-mono);
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.temp-hot {
+  color: #fb923c !important;
+}
+
+.temp-mild {
+  color: #facc15 !important;
+}
+
+.temp-cool {
+  color: #34d399 !important;
+}
+
 .kpi-max {
   font-size: 0.72rem;
   color: #94a3b8;

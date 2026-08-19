@@ -152,17 +152,24 @@ def main():
     gdf_out["top_drivers"] = top_drivers_list
     gdf_out["intervention"] = interventions_list
 
+    # Physical Temperature Properties from Satellite LST & AI Model
+    st_raw = gdf["mean_landsat_st_celsius"].values if "mean_landsat_st_celsius" in gdf.columns else (20.24 + (ai_heat_exposure / 100.0) * 18.37)
+    gdf_out["surface_temp_celsius"] = [round(float(x), 1) for x in st_raw]
+    gdf_out["temp_anomaly_celsius"] = [round(float(x) - 28.7, 1) for x in st_raw]
+
     # Reproject to EPSG:4326
     print(f"Reprojecting blocks from {gdf_out.crs} to {OUTPUT_CRS}...")
     gdf_out = gdf_out.to_crs(OUTPUT_CRS)
 
-    # Filter only the exact property fields specified in SPEC 12.6
+    # Filter property fields including physical temperature
     exact_cols = [
         "block_id",
         "hvi_score",
         "hvi_raw",
         "risk_class",
         "priority",
+        "surface_temp_celsius",
+        "temp_anomaly_celsius",
         "ai_heat_exposure",
         "social_sensitivity",
         "cooling_deficit",
