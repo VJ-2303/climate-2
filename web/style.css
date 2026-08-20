@@ -120,6 +120,24 @@ html, body {
   font-weight: 500;
 }
 
+.brand-sub-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.brand-temp-pill {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #b45309;
+  background: #fef3c7;
+  border: 1px solid #fde68a;
+  padding: 1px 6px;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+
 /* Segmented Risk Filter Buttons */
 .segmented-control {
   display: flex;
@@ -383,6 +401,11 @@ html, body {
   align-items: center;
   gap: 6px;
   z-index: 500;
+  transition: left 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+}
+/* Shift left-side panels right when overview sidebar is open */
+body.overview-open .vertical-slider-panel {
+  left: 334px;
 }
 
 .slider-panel-header {
@@ -476,6 +499,10 @@ html, body {
   align-items: center;
   gap: 3px;
   z-index: 500;
+  transition: left 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+}
+body.overview-open .basemap-toggle-panel {
+  left: 418px;
 }
 
 .basemap-btn {
@@ -580,15 +607,15 @@ html, body {
   border-top-color: rgba(15, 23, 42, 0.95) !important;
 }
 
-/* Map Quick Controls */
+/* Map Quick Controls — sits to the LEFT of the Leaflet zoom buttons */
 .map-quick-controls {
   position: absolute;
   bottom: 18px;
-  right: 14px;
+  right: 52px;          /* clear the 32px Leaflet zoom button + 10px Leaflet margin + 10px gap */
   display: flex;
   flex-direction: column;
   gap: 6px;
-  z-index: 500;
+  z-index: 1050;        /* above Leaflet zoom control (1000) */
 }
 
 .map-btn {
@@ -1116,3 +1143,565 @@ html, body {
 
 
 
+/* ==========================================================================
+   Feature 1 — Settlement Overview Sidebar
+   ========================================================================== */
+
+/* Overview button in topbar */
+.btn-overview {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  background: rgba(15, 23, 42, 0.06);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-sm);
+  color: var(--text-main);
+  font-family: var(--font-sans);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  white-space: nowrap;
+  margin-right: 8px;
+}
+.btn-overview:hover {
+  background: rgba(15, 23, 42, 0.12);
+  border-color: var(--border-strong);
+}
+.btn-overview.active {
+  background: #0f172a;
+  color: #ffffff;
+  border-color: #0f172a;
+}
+
+/* Left-side overview sidebar panel */
+.overview-sidebar {
+  position: fixed;
+  top: var(--header-height);
+  left: 0;
+  width: 320px;
+  height: calc(100vh - var(--header-height));
+  background: #ffffff;
+  border-right: 1px solid var(--border-subtle);
+  box-shadow: 6px 0 24px rgba(15, 23, 42, 0.10);
+  z-index: 800;
+  display: flex;
+  flex-direction: column;
+  transform: translateX(-100%);
+  transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+}
+.overview-sidebar.open {
+  transform: translateX(0);
+}
+
+/* Overview header */
+.ov-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: #f8fafc;
+  flex-shrink: 0;
+}
+.ov-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+}
+.ov-title {
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: var(--text-main);
+  letter-spacing: 0.01em;
+}
+
+/* Scrollable body */
+.ov-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px 14px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.ov-body::-webkit-scrollbar { width: 4px; }
+.ov-body::-webkit-scrollbar-track { background: transparent; }
+.ov-body::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 2px; }
+
+/* KPI 2×2 grid */
+.ov-kpi-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.ov-kpi-card {
+  background: #f8fafc;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 12px 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ov-kpi-label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-subtle);
+}
+.ov-kpi-value {
+  font-size: 1.55rem;
+  font-weight: 800;
+  color: var(--text-main);
+  font-family: var(--font-mono);
+  line-height: 1.1;
+  margin-top: 2px;
+}
+.ov-kpi-sub {
+  font-size: 0.67rem;
+  color: var(--text-subtle);
+  margin-top: 2px;
+}
+.ov-kpi-alert {
+  color: #c2410c;
+}
+.ov-kpi-critical {
+  color: #991b1b;
+}
+.ov-kpi-temp {
+  color: #ea580c;
+}
+.ov-kpi-safe {
+  color: #059669;
+}
+
+/* Section wrappers */
+.ov-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ov-section-label {
+  font-size: 0.70rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-subtle);
+}
+
+/* Risk distribution segmented bar */
+.ov-risk-dist {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ov-dist-bar {
+  display: flex;
+  height: 18px;
+  border-radius: var(--radius-xs);
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+}
+.ov-dist-segment {
+  height: 100%;
+  transition: width 0.4s ease;
+}
+.ov-dist-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+}
+.ov-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+.ov-legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* Dominant intervention badge */
+.ov-intervention-badge {
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+  border: 1px solid #bfdbfe;
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: #1d4ed8;
+  line-height: 1.3;
+}
+
+/* Intervention type breakdown list */
+.ov-intervention-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.ov-int-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.ov-int-row:last-child { border-bottom: none; }
+.ov-int-name { flex: 1; padding-right: 8px; }
+.ov-int-pct {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 0.76rem;
+  color: var(--text-main);
+  min-width: 36px;
+  text-align: right;
+}
+.ov-int-bar-wrap {
+  width: 60px;
+  height: 5px;
+  background: #e2e8f0;
+  border-radius: 3px;
+  margin-left: 8px;
+  overflow: hidden;
+}
+.ov-int-bar-fill {
+  height: 100%;
+  background: #3b82f6;
+  border-radius: 3px;
+  transition: width 0.35s ease;
+}
+
+/* Top-5 priority sectors list */
+.ov-priority-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ov-priority-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 11px;
+  background: #f8fafc;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+.ov-priority-item:hover {
+  background: #f1f5f9;
+  border-color: var(--border-medium);
+}
+.ov-rank {
+  font-size: 0.70rem;
+  font-weight: 800;
+  font-family: var(--font-mono);
+  color: var(--text-subtle);
+  width: 18px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.ov-block-info {
+  flex: 1;
+  min-width: 0;
+}
+.ov-block-id {
+  font-family: var(--font-mono);
+  font-size: 0.80rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+.ov-block-int {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 1px;
+}
+.ov-block-score {
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: var(--radius-xs);
+  background: #fee2e2;
+  color: #991b1b;
+  flex-shrink: 0;
+}
+
+/* ==========================================================================
+   Feature 2 — Draw Zone Intervention Planner
+   ========================================================================== */
+
+/* Draw Zone button — active (drawing mode) state */
+.draw-zone-btn {
+  position: relative;
+}
+.draw-zone-btn.drawing-active {
+  background: #f59e0b !important;
+  color: #ffffff !important;
+  border-color: #d97706 !important;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.30);
+}
+.draw-zone-btn.drawing-active svg {
+  stroke: #ffffff;
+}
+
+/* Zone highlight layer — yellow pulsing outline (applied via Leaflet path CSS) */
+@keyframes zone-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.55; }
+}
+.zone-highlight-path {
+  animation: zone-pulse 1.6s ease-in-out infinite;
+}
+
+/* Modal overlay backdrop */
+.zone-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  background: rgba(9, 13, 22, 0.55);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  animation: modal-fade-in 0.22s ease;
+}
+@keyframes modal-fade-in {
+  from { opacity: 0; transform: scale(0.97); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* Modal card */
+.zone-modal-card {
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 24px 60px rgba(9, 13, 22, 0.22), 0 4px 12px rgba(9, 13, 22, 0.10);
+  border: 1px solid var(--border-subtle);
+  width: 100%;
+  max-width: 540px;
+  max-height: 90vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+.zone-modal-card::-webkit-scrollbar { width: 4px; }
+.zone-modal-card::-webkit-scrollbar-track { background: transparent; }
+.zone-modal-card::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 2px; }
+
+/* Modal header */
+.zone-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px 14px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: #f8fafc;
+  border-radius: 12px 12px 0 0;
+  flex-shrink: 0;
+}
+.zone-modal-title-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+}
+.zone-modal-title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+/* Zone KPI row (3 columns) */
+.zone-kpi-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.zone-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 14px 18px;
+  border-right: 1px solid var(--border-subtle);
+}
+.zone-kpi:last-child { border-right: none; }
+.zone-kpi-label {
+  font-size: 0.67rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-subtle);
+}
+.zone-kpi-val {
+  font-size: 1.45rem;
+  font-weight: 800;
+  font-family: var(--font-mono);
+  color: var(--text-main);
+  line-height: 1.1;
+}
+.zone-kpi-danger { color: #c2410c; }
+
+/* Modal section blocks */
+.zone-modal-section {
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.zone-modal-section:last-of-type { border-bottom: none; }
+.zone-modal-section-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-subtle);
+}
+
+/* Tier breakdown bars */
+.zone-tier-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.zone-tier-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.zone-tier-name {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  width: 60px;
+  flex-shrink: 0;
+}
+.zone-tier-bar-wrap {
+  flex: 1;
+  height: 8px;
+  background: #e2e8f0;
+  border-radius: 4px;
+  overflow: hidden;
+}
+.zone-tier-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.4s ease;
+}
+.zone-tier-count {
+  font-family: var(--font-mono);
+  font-size: 0.73rem;
+  font-weight: 600;
+  color: var(--text-main);
+  width: 40px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+/* Dominant intervention banner */
+.zone-dominant-intv {
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+  border: 1px solid #bfdbfe;
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #1d4ed8;
+  line-height: 1.3;
+}
+
+/* Zone Baseline Temperature Comparison */
+.zone-baseline-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #f8fafc;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+}
+.zone-baseline-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  text-align: center;
+}
+.zone-baseline-label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-subtle);
+}
+.zone-baseline-val {
+  font-family: var(--font-mono);
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--text-main);
+}
+.zone-baseline-divider {
+  width: 1px;
+  height: 28px;
+  background: var(--border-subtle);
+}
+.zone-baseline-delta {
+  color: #c2410c;
+}
+.zone-baseline-delta.temp-cool {
+  color: #047857;
+}
+
+/* Modal footer */
+.zone-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px 16px;
+  border-top: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+.zone-modal-note {
+  font-size: 0.72rem;
+  color: var(--text-subtle);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.zone-modal-note::before {
+  content: "";
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  background: #f59e0b;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+/* Override Leaflet.draw toolbar to match app theme */
+.leaflet-draw-toolbar a {
+  background-color: #ffffff !important;
+  border-color: var(--border-medium) !important;
+}
+.leaflet-draw-toolbar a:hover {
+  background-color: #f1f5f9 !important;
+}

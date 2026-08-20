@@ -12,7 +12,10 @@
   
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  
+
+  <!-- Leaflet.draw CSS (Feature 2 - Zone Planner) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
+
   <!-- Custom Styles -->
   <link rel="stylesheet" href="/static/style.css" />
 </head>
@@ -29,9 +32,23 @@
           </div>
           <div class="brand-text">
             <span class="brand-title">HeatViz</span>
-            <span class="brand-location">Kibera, Nairobi</span>
+            <div class="brand-sub-row">
+              <span class="brand-location">Kibera, Nairobi</span>
+              <span class="brand-temp-pill" id="topbar-avg-temp">Avg: --°C</span>
+            </div>
           </div>
         </div>
+
+        <!-- Overview Dashboard Toggle -->
+        <button class="btn btn-overview" id="btn-overview" title="Settlement Summary Dashboard">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="7" height="7" rx="1"/>
+            <rect x="14" y="3" width="7" height="7" rx="1"/>
+            <rect x="3" y="14" width="7" height="7" rx="1"/>
+            <rect x="14" y="14" width="7" height="7" rx="1"/>
+          </svg>
+          <span>Overview</span>
+        </button>
 
         <!-- Quick Segmented Risk Filter -->
         <div class="segmented-control" id="risk-segmented-control" role="tablist" aria-label="Risk Filter">
@@ -149,6 +166,80 @@
       </div>
     </header>
 
+    <!-- Settlement Overview Left Sidebar -->
+    <aside class="overview-sidebar" id="overview-sidebar" aria-label="Settlement Summary Dashboard">
+      <div class="ov-header">
+        <div class="ov-header-left">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="7" height="7" rx="1"/>
+            <rect x="14" y="3" width="7" height="7" rx="1"/>
+            <rect x="3" y="14" width="7" height="7" rx="1"/>
+            <rect x="14" y="14" width="7" height="7" rx="1"/>
+          </svg>
+          <span class="ov-title">Settlement Overview</span>
+        </div>
+        <button class="icon-btn" id="btn-overview-close" title="Close Overview">✕</button>
+      </div>
+
+      <div class="ov-body" id="ov-body">
+        <!-- KPI Cards Row -->
+        <div class="ov-kpi-grid" id="ov-kpi-grid">
+          <div class="ov-kpi-card">
+            <span class="ov-kpi-label">Settlement Score</span>
+            <span class="ov-kpi-value" id="ov-mean-hvi">--</span>
+            <span class="ov-kpi-sub">mean HVI / 100</span>
+          </div>
+          <div class="ov-kpi-card">
+            <span class="ov-kpi-label">Avg Surface Temp</span>
+            <span class="ov-kpi-value ov-kpi-temp" id="ov-mean-temp">--°C</span>
+            <span class="ov-kpi-sub">settlement-wide thermal baseline</span>
+          </div>
+          <div class="ov-kpi-card">
+            <span class="ov-kpi-label">At-Risk Population</span>
+            <span class="ov-kpi-value ov-kpi-alert" id="ov-atrisk-pop">--</span>
+            <span class="ov-kpi-sub">in Critical + High zones</span>
+          </div>
+          <div class="ov-kpi-card">
+            <span class="ov-kpi-label">Critical Sectors</span>
+            <span class="ov-kpi-value ov-kpi-critical" id="ov-critical-count">--</span>
+            <span class="ov-kpi-sub">require urgent intervention</span>
+          </div>
+          <div class="ov-kpi-card">
+            <span class="ov-kpi-label">Total Sectors</span>
+            <span class="ov-kpi-value" id="ov-total-blocks">--</span>
+            <span class="ov-kpi-sub">50m × 50m blocks analyzed</span>
+          </div>
+          <div class="ov-kpi-card">
+            <span class="ov-kpi-label">Resilient Sectors</span>
+            <span class="ov-kpi-value ov-kpi-safe" id="ov-safe-count">--</span>
+            <span class="ov-kpi-sub">Low / resilient microclimate</span>
+          </div>
+        </div>
+
+        <!-- Risk Distribution Bar -->
+        <div class="ov-section">
+          <div class="ov-section-label">Risk Distribution</div>
+          <div class="ov-risk-dist" id="ov-risk-dist">
+            <div class="ov-dist-bar" id="ov-dist-bar"></div>
+            <div class="ov-dist-legend" id="ov-dist-legend"></div>
+          </div>
+        </div>
+
+        <!-- Dominant Intervention -->
+        <div class="ov-section">
+          <div class="ov-section-label">Top Intervention Needed</div>
+          <div class="ov-intervention-badge" id="ov-top-intervention">--</div>
+          <div class="ov-intervention-breakdown" id="ov-intervention-breakdown"></div>
+        </div>
+
+        <!-- Top 5 Priority Sectors -->
+        <div class="ov-section">
+          <div class="ov-section-label">Top 5 Priority Sectors</div>
+          <ol class="ov-priority-list" id="ov-priority-list"></ol>
+        </div>
+      </div>
+    </aside>
+
     <!-- Main Workspace -->
     <main class="workspace">
       <!-- Interactive Leaflet Map Area -->
@@ -218,6 +309,12 @@
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
               <path d="M3 3v5h5"/>
+            </svg>
+          </button>
+          <!-- Feature 2 - Draw Zone Intervention Planner -->
+          <button class="map-btn draw-zone-btn" id="btn-draw-zone" title="Draw Zone — Intervention Planner">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="3 11 22 2 13 21 11 13 3 11"/>
             </svg>
           </button>
         </div>
@@ -334,6 +431,76 @@
       </aside>
     </main>
 
+    <!-- Feature 2 — Zone Intervention Report Modal -->
+    <div class="zone-modal-overlay" id="zone-modal" style="display:none;" role="dialog" aria-modal="true" aria-label="Zone Intervention Report">
+      <div class="zone-modal-card">
+        <div class="zone-modal-header">
+          <div class="zone-modal-title-group">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="3 11 22 2 13 21 11 13 3 11"/>
+            </svg>
+            <span class="zone-modal-title">Zone Intervention Report</span>
+          </div>
+          <button class="icon-btn" id="btn-zone-close" title="Clear Zone">✕</button>
+        </div>
+
+        <!-- Zone KPI Row -->
+        <div class="zone-kpi-row">
+          <div class="zone-kpi">
+            <span class="zone-kpi-label">Sectors in Zone</span>
+            <span class="zone-kpi-val" id="zm-block-count">--</span>
+          </div>
+          <div class="zone-kpi">
+            <span class="zone-kpi-label">At-Risk Population</span>
+            <span class="zone-kpi-val zone-kpi-danger" id="zm-atrisk-pop">--</span>
+          </div>
+          <div class="zone-kpi">
+            <span class="zone-kpi-label">Mean HVI Score</span>
+            <span class="zone-kpi-val" id="zm-mean-hvi">--</span>
+          </div>
+        </div>
+
+        <!-- Risk Tier Breakdown -->
+        <div class="zone-modal-section">
+          <div class="zone-modal-section-label">Risk Tier Breakdown</div>
+          <div class="zone-tier-bars" id="zm-tier-bars"></div>
+        </div>
+
+        <!-- Dominant Intervention -->
+        <div class="zone-modal-section">
+          <div class="zone-modal-section-label">Dominant Intervention Needed</div>
+          <div class="zone-dominant-intv" id="zm-dominant-intv">--</div>
+        </div>
+
+        <!-- Kibera Settlement Baseline Temperature -->
+        <div class="zone-modal-section">
+          <div class="zone-modal-section-label">Settlement Temperature Baseline</div>
+          <div class="zone-baseline-row">
+            <div class="zone-baseline-item">
+              <span class="zone-baseline-label">Kibera Avg Temp</span>
+              <span class="zone-baseline-val" id="zm-kibera-avg-temp">--</span>
+            </div>
+            <div class="zone-baseline-divider"></div>
+            <div class="zone-baseline-item">
+              <span class="zone-baseline-label">Zone Avg Temp</span>
+              <span class="zone-baseline-val" id="zm-zone-avg-temp">--</span>
+            </div>
+            <div class="zone-baseline-divider"></div>
+            <div class="zone-baseline-item">
+              <span class="zone-baseline-label">Zone &Delta; vs Settlement</span>
+              <span class="zone-baseline-val zone-baseline-delta" id="zm-temp-delta">--</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="zone-modal-footer">
+          <span class="zone-modal-note">Sectors highlighted in yellow on map</span>
+          <button class="btn btn-outline" id="btn-zone-clear">Clear Zone</button>
+        </div>
+
+      </div>
+    </div>
+
     <!-- Global Loading Overlay -->
     <div id="loading-overlay" class="loading-curtain">
       <div class="loading-dialog">
@@ -346,6 +513,10 @@
 
   <!-- Leaflet JS CDN -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- Leaflet.draw plugin (Feature 2 - Zone Planner) -->
+  <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+  <!-- Turf.js — point-in-polygon for zone intersection (Feature 2) -->
+  <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
   <!-- Application JS -->
   <script src="/static/app.js"></script>
 </body>

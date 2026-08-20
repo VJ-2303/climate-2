@@ -53,6 +53,16 @@ let currentThreshold = 0;
 const layerCache = {};
 const blockIntelligenceCache = {};
 
+// Feature 1 — Overview Dashboard state
+let overviewOpen = false;
+
+// Feature 2 — Draw Zone Intervention Planner state
+let drawControl = null;
+let drawnZoneLayer = null;
+let zoneHighlightLayer = null;
+let isDrawingZone = false;
+let kiberaMeanSurfaceTemp = 28.7;
+
 document.addEventListener("DOMContentLoaded", initApp);
 
 function initApp() {
@@ -168,6 +178,7 @@ async function loadPrimaryData() {
       }
     }
     renderPrimaryLayer();
+    initOverviewDashboard();
   } catch (error) {
     console.error("Failed to load primary data:", error);
     alert("Could not load vulnerability dataset. Please verify the server is running.");
@@ -765,6 +776,26 @@ function setupEventListeners() {
       document.body.removeChild(a);
     });
   }
+
+  // Feature 1 — Overview Dashboard toggle
+  const overviewBtn = document.getElementById("btn-overview");
+  const overviewCloseBtn = document.getElementById("btn-overview-close");
+  if (overviewBtn) {
+    overviewBtn.addEventListener("click", () => toggleOverviewSidebar());
+  }
+  if (overviewCloseBtn) {
+    overviewCloseBtn.addEventListener("click", () => toggleOverviewSidebar(false));
+  }
+
+  // Feature 2 — Draw Zone Intervention Planner
+  const drawZoneBtn = document.getElementById("btn-draw-zone");
+  if (drawZoneBtn) {
+    drawZoneBtn.addEventListener("click", () => toggleDrawZoneMode());
+  }
+  const zoneCloseBtn = document.getElementById("btn-zone-close");
+  const zoneClearBtn = document.getElementById("btn-zone-clear");
+  if (zoneCloseBtn) zoneCloseBtn.addEventListener("click", clearZone);
+  if (zoneClearBtn) zoneClearBtn.addEventListener("click", clearZone);
 }
 
 function handleSearch(query) {
@@ -906,3 +937,525 @@ function updateLegend(layerName) {
 
 
 
+
+// =============================================================================
+// Feature 1 — Settlement-Level Summary Dashboard
+// =============================================================================
+
+/**
+ * Computes all settlement-level statistics from the loaded GeoJSON features.
+ * Returns a structured report object.
+ */
+function computeSettlementStats(features) {
+  const counts = { Critical: 0, High: 0, Medium: 0, Low: 0 };
+  let totalPop = 0;
+  let atRiskPop = 0;
+  let hviSum = 0;
+  const interventionCounts = {};
+  const allBlocks = [];
+
+  features.forEach((feat) => {
+    const p = feat.properties;
+    if (!p) return;
+
+    const rc = p.risk_class || "Low";
+    counts[rc] = (counts[rc] || 0) + 1;
+
+    const pop = p.estimated_population || 0;
+    totalPop += pop;
+    if (rc === "Critical" || rc === "High") atRiskPop += pop;
+
+    hviSum += (p.hvi_score || 0);
+
+    const intv = p.intervention || "Unknown";
+    interventionCounts[intv] = (interventionCounts[intv] || 0) + 1;
+
+    // Priority score = hvi_score × estimated_population (impact × urgency)
+    allBlocks.push({
+      block_id: p.block_id,
+      hvi_score: p.hvi_score || 0,
+      risk_class: rc,
+      estimated_population: pop,
+      intervention: intv,
+      priority: (p.hvi_score || 0) * (pop || 1),
+    });
+  });
+
+  const total = features.length;
+  const meanHVI = total > 0 ? Math.round(hviSum / total) : 0;
+
+  // Compute settlement-wide average surface temperature
+  const tempFeatures = features.filter((f) => f.properties && f.properties.surface_temp_celsius !== undefined);
+  if (tempFeatures.length > 0) {
+    const totalTemp = tempFeatures.reduce((acc, f) => acc + Number(f.properties.surface_temp_celsius), 0);
+    kiberaMeanSurfaceTemp = totalTemp / tempFeatures.length;
+  }
+
+  // Top 5 priority sectors
+  const top5 = allBlocks
+    .filter((b) => b.risk_class === "Critical" || b.risk_class === "High")
+    .sort((a, b) => b.priority - a.priority)
+    .slice(0, 5);
+
+  // Sort interventions by count descending
+  const sortedInterventions = Object.entries(interventionCounts)
+    .sort(([, a], [, b]) => b - a);
+
+  const criticalIntCount = features.filter(
+    (f) => f.properties && (f.properties.risk_class === "Critical" || f.properties.risk_class === "High")
+  ).reduce((acc, f) => {
+    const intv = f.properties.intervention || "Unknown";
+    acc[intv] = (acc[intv] || 0) + 1;
+    return acc;
+  }, {});
+
+  const sortedCriticalIntvs = Object.entries(criticalIntCount).sort(([, a], [, b]) => b - a);
+  const dominantIntervention = sortedCriticalIntvs.length > 0 ? sortedCriticalIntvs[0][0] : "--";
+
+  return {
+    counts,
+    total,
+    totalPop: Math.round(totalPop),
+    atRiskPop: Math.round(atRiskPop),
+    meanHVI,
+    kiberaMeanTemp: kiberaMeanSurfaceTemp,
+    top5,
+    sortedInterventions,
+    sortedCriticalIntvs,
+    dominantIntervention,
+  };
+}
+
+/**
+ * Populates the Overview sidebar DOM from computed stats.
+ */
+function renderOverviewDashboard(stats) {
+  const {
+    counts, total, atRiskPop, meanHVI, kiberaMeanTemp,
+    top5, sortedCriticalIntvs, dominantIntervention,
+  } = stats;
+
+  // KPI values
+  const setEl = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+  setEl("ov-mean-hvi", meanHVI);
+  setEl("ov-mean-temp", `${(kiberaMeanTemp || 28.7).toFixed(1)}°C`);
+  setEl("topbar-avg-temp", `Avg: ${(kiberaMeanTemp || 28.7).toFixed(1)}°C`);
+  setEl("ov-atrisk-pop", atRiskPop.toLocaleString());
+  setEl("ov-critical-count", (counts.Critical || 0).toLocaleString());
+  setEl("ov-total-blocks", total.toLocaleString());
+  setEl("ov-safe-count", (counts.Low || 0).toLocaleString());
+
+  // Risk distribution segmented bar
+  const barEl = document.getElementById("ov-dist-bar");
+  const legendEl = document.getElementById("ov-dist-legend");
+  if (barEl && legendEl) {
+    barEl.innerHTML = "";
+    legendEl.innerHTML = "";
+    const riskColors = { Critical: "#dc2626", High: "#ea580c", Medium: "#d97706", Low: "#059669" };
+    const tiers = ["Critical", "High", "Medium", "Low"];
+    tiers.forEach((tier) => {
+      const cnt = counts[tier] || 0;
+      const pct = total > 0 ? ((cnt / total) * 100).toFixed(1) : 0;
+      if (cnt === 0) return;
+      // Bar segment
+      const seg = document.createElement("div");
+      seg.className = "ov-dist-segment";
+      seg.style.width = pct + "%";
+      seg.style.background = riskColors[tier];
+      seg.title = `${tier}: ${cnt} sectors (${pct}%)`;
+      barEl.appendChild(seg);
+      // Legend item
+      const li = document.createElement("div");
+      li.className = "ov-legend-item";
+      li.innerHTML = `<span class="ov-legend-dot" style="background:${riskColors[tier]}"></span>${tier} ${cnt} (${pct}%)`;
+      legendEl.appendChild(li);
+    });
+  }
+
+  // Dominant intervention badge
+  const intBadge = document.getElementById("ov-top-intervention");
+  if (intBadge) intBadge.textContent = dominantIntervention;
+
+  // Intervention breakdown mini-bars (top 5 types across Critical+High)
+  const intBreakdown = document.getElementById("ov-intervention-breakdown");
+  if (intBreakdown) {
+    intBreakdown.innerHTML = "";
+    const maxCount = sortedCriticalIntvs.length > 0 ? sortedCriticalIntvs[0][1] : 1;
+    const topIntvs = sortedCriticalIntvs.slice(0, 5);
+    const totalCritHigh = topIntvs.reduce((s, [, c]) => s + c, 0);
+    topIntvs.forEach(([name, count]) => {
+      const pct = totalCritHigh > 0 ? Math.round((count / totalCritHigh) * 100) : 0;
+      const barWidth = maxCount > 0 ? Math.round((count / maxCount) * 100) : 0;
+      const row = document.createElement("div");
+      row.className = "ov-int-row";
+      row.innerHTML = `
+        <span class="ov-int-name">${name}</span>
+        <span class="ov-int-pct">${pct}%</span>
+        <div class="ov-int-bar-wrap"><div class="ov-int-bar-fill" style="width:${barWidth}%"></div></div>
+      `;
+      intBreakdown.appendChild(row);
+    });
+  }
+
+  // Top-5 priority sectors list (clickable → opens block detail drawer)
+  const priorityList = document.getElementById("ov-priority-list");
+  if (priorityList) {
+    priorityList.innerHTML = "";
+    top5.forEach((block, idx) => {
+      const li = document.createElement("li");
+      li.className = "ov-priority-item";
+      li.innerHTML = `
+        <span class="ov-rank">#${idx + 1}</span>
+        <div class="ov-block-info">
+          <div class="ov-block-id">${block.block_id}</div>
+          <div class="ov-block-int">${block.intervention}</div>
+        </div>
+      `;
+      li.addEventListener("click", () => {
+        // Navigate to this block on the map and open its Sector Intelligence drawer
+        const feature = primaryData && primaryData.features
+          ? primaryData.features.find((f) => f.properties && f.properties.block_id === block.block_id)
+          : null;
+        if (feature) {
+          // Fly to block centroid
+          const coords = feature.geometry.coordinates;
+          let lats = [], lngs = [];
+          const extractCoords = (rings) => rings.forEach((ring) => {
+            if (Array.isArray(ring[0])) extractCoords(ring);
+            else { lngs.push(ring[0]); lats.push(ring[1]); }
+          });
+          extractCoords(coords);
+          const lat = (Math.min(...lats) + Math.max(...lats)) / 2;
+          const lng = (Math.min(...lngs) + Math.max(...lngs)) / 2;
+          map.flyTo([lat, lng], 17, { duration: 0.8 });
+          // Pass the full properties object — openSidebar requires props.block_id
+          openSidebar(feature.properties);
+        }
+      });
+      priorityList.appendChild(li);
+    });
+  }
+}
+
+/**
+ * Initialises the Overview dashboard by computing stats from loaded data.
+ * Called once after primaryData is loaded.
+ */
+function initOverviewDashboard() {
+  if (!primaryData || !primaryData.features) return;
+  const stats = computeSettlementStats(primaryData.features);
+  renderOverviewDashboard(stats);
+}
+
+/**
+ * Toggles the Overview left sidebar open/closed.
+ * @param {boolean|undefined} forceState — if provided, sets state explicitly.
+ */
+function toggleOverviewSidebar(forceState) {
+  const sidebar = document.getElementById("overview-sidebar");
+  const btn = document.getElementById("btn-overview");
+  if (!sidebar) return;
+
+  overviewOpen = forceState !== undefined ? forceState : !overviewOpen;
+  sidebar.classList.toggle("open", overviewOpen);
+  if (btn) btn.classList.toggle("active", overviewOpen);
+
+  // Drive CSS shift of left-side floating panels (threshold slider, basemap toggle)
+  document.body.classList.toggle("overview-open", overviewOpen);
+}
+
+// =============================================================================
+// Feature 2 — Draw Zone Intervention Planner
+// =============================================================================
+
+/**
+ * Initialises Leaflet.draw control and wires up the draw:created event.
+ * Called lazily the first time the Draw Zone button is clicked.
+ */
+function initDrawZone() {
+  if (drawControl) return; // already initialised
+
+  // Create an invisible draw control (we'll trigger it programmatically)
+  const drawnItems = new L.FeatureGroup();
+  map.addLayer(drawnItems);
+
+  drawControl = new L.Control.Draw({
+    position: "topright",
+    draw: {
+      polygon: {
+        allowIntersection: false,
+        showArea: false,
+        shapeOptions: {
+          color: "#f59e0b",
+          weight: 2,
+          opacity: 0.9,
+          fillOpacity: 0.08,
+          dashArray: "6 4",
+        },
+      },
+      polyline: false,
+      rectangle: false,
+      circle: false,
+      circlemarker: false,
+      marker: false,
+    },
+    edit: { featureGroup: drawnItems, edit: false, remove: false },
+  });
+
+  // Listen for completed drawing
+  map.on(L.Draw.Event.CREATED, (e) => {
+    // Remove any previous drawn polygon
+    if (drawnZoneLayer) {
+      map.removeLayer(drawnZoneLayer);
+    }
+    drawnZoneLayer = e.layer;
+    drawnZoneLayer.addTo(map);
+
+    // Exit drawing mode UI
+    isDrawingZone = false;
+    const drawZoneBtn = document.getElementById("btn-draw-zone");
+    if (drawZoneBtn) drawZoneBtn.classList.remove("drawing-active");
+
+    // Analyse and report
+    handleZoneDrawn(drawnZoneLayer);
+  });
+
+  // If the user cancels drawing (Esc)
+  map.on(L.Draw.Event.DRAWSTOP, () => {
+    isDrawingZone = false;
+    const drawZoneBtn = document.getElementById("btn-draw-zone");
+    if (drawZoneBtn) drawZoneBtn.classList.remove("drawing-active");
+  });
+}
+
+/**
+ * Toggles draw zone mode on/off.
+ */
+function toggleDrawZoneMode() {
+  initDrawZone();
+
+  const drawZoneBtn = document.getElementById("btn-draw-zone");
+
+  if (isDrawingZone) {
+    // Cancel ongoing draw
+    map.fire("draw:drawstop");
+    isDrawingZone = false;
+    if (drawZoneBtn) drawZoneBtn.classList.remove("drawing-active");
+    return;
+  }
+
+  // Clear previous zone first
+  clearZone(false); // clear highlights without hiding modal (it'll be replaced)
+
+  isDrawingZone = true;
+  if (drawZoneBtn) drawZoneBtn.classList.add("drawing-active");
+
+  // Programmatically start drawing a polygon
+  const polygonDraw = new L.Draw.Polygon(map, drawControl.options.draw.polygon);
+  polygonDraw.enable();
+}
+
+/**
+ * Called when a polygon zone is completed.
+ * Finds all blocks inside, computes report, highlights on map, shows modal.
+ */
+function handleZoneDrawn(zoneLayer) {
+  if (!primaryData || !primaryData.features) return;
+
+  // Build a Turf polygon from the drawn Leaflet layer
+  const latlngs = zoneLayer.getLatLngs()[0];
+  const coords = latlngs.map((ll) => [ll.lng, ll.lat]);
+  // Close the ring
+  coords.push(coords[0]);
+  const zonePolygon = turf.polygon([coords]);
+
+  // Find all GeoJSON blocks whose centroid is inside the zone
+  const blocksInside = [];
+  primaryData.features.forEach((feat) => {
+    if (!feat.geometry || !feat.properties) return;
+    // Use centroid for point-in-polygon test
+    const centroid = turf.centroid(feat);
+    if (turf.booleanPointInPolygon(centroid, zonePolygon)) {
+      blocksInside.push(feat);
+    }
+  });
+
+  if (blocksInside.length === 0) {
+    alert("No sectors found inside the drawn zone. Please draw a larger area.");
+    clearZone();
+    return;
+  }
+
+  // Highlight blocks inside zone on the map
+  applyZoneHighlight(blocksInside);
+
+  // Compute zone report
+  const report = computeZoneReport(blocksInside);
+
+  // Render modal
+  renderZoneModal(report);
+}
+
+/**
+ * Adds a yellow pulsing highlight Leaflet layer over all blocks in the zone.
+ */
+function applyZoneHighlight(features) {
+  if (zoneHighlightLayer) {
+    map.removeLayer(zoneHighlightLayer);
+    zoneHighlightLayer = null;
+  }
+
+  zoneHighlightLayer = L.geoJSON(
+    { type: "FeatureCollection", features },
+    {
+      style: () => ({
+        color: "#f59e0b",
+        weight: 2.5,
+        opacity: 1,
+        fillColor: "#fef3c7",
+        fillOpacity: 0.45,
+      }),
+      onEachFeature: (feat, layer) => {
+        // Attach the pulse animation class to each path element
+        layer.on("add", () => {
+          const el = layer.getElement ? layer.getElement() : null;
+          if (el) el.classList.add("zone-highlight-path");
+        });
+      },
+    }
+  );
+
+  zoneHighlightLayer.addTo(map);
+  zoneHighlightLayer.bringToFront();
+  // Ensure main GeoJSON stays below but visible
+  if (currentLayer) currentLayer.bringToBack();
+}
+
+/**
+ * Computes intervention statistics for a set of GeoJSON features (the zone).
+ */
+function computeZoneReport(features) {
+  const counts = { Critical: 0, High: 0, Medium: 0, Low: 0 };
+  let atRiskPop = 0;
+  let hviSum = 0;
+  let zoneTempSum = 0;
+  let validTempCount = 0;
+  const interventionCounts = {};
+
+  features.forEach((feat) => {
+    const p = feat.properties;
+    if (!p) return;
+    const rc = p.risk_class || "Low";
+    counts[rc] = (counts[rc] || 0) + 1;
+    const pop = p.estimated_population || 0;
+    if (rc === "Critical" || rc === "High") atRiskPop += pop;
+    hviSum += p.hvi_score || 0;
+
+    if (p.surface_temp_celsius !== undefined && p.surface_temp_celsius !== null) {
+      zoneTempSum += Number(p.surface_temp_celsius);
+      validTempCount++;
+    }
+
+    const intv = p.intervention || "Unknown";
+    interventionCounts[intv] = (interventionCounts[intv] || 0) + 1;
+  });
+
+  const total = features.length;
+  const meanHVI = total > 0 ? Math.round(hviSum / total) : 0;
+  const zoneMeanTemp = validTempCount > 0 ? (zoneTempSum / validTempCount) : kiberaMeanSurfaceTemp;
+  const tempDelta = zoneMeanTemp - kiberaMeanSurfaceTemp;
+
+  const sortedIntvs = Object.entries(interventionCounts).sort(([, a], [, b]) => b - a);
+  const dominantIntervention = sortedIntvs.length > 0 ? sortedIntvs[0][0] : "--";
+
+  return {
+    total,
+    counts,
+    atRiskPop: Math.round(atRiskPop),
+    meanHVI,
+    zoneMeanTemp,
+    kiberaMeanTemp: kiberaMeanSurfaceTemp,
+    tempDelta,
+    dominantIntervention,
+  };
+}
+
+/**
+ * Populates and shows the Zone Intervention Report modal.
+ */
+function renderZoneModal(report) {
+  const { total, counts, atRiskPop, meanHVI, zoneMeanTemp, kiberaMeanTemp, tempDelta, dominantIntervention } = report;
+
+  // KPI values
+  const setEl = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+  setEl("zm-block-count", total.toLocaleString());
+  setEl("zm-atrisk-pop", atRiskPop.toLocaleString());
+  setEl("zm-mean-hvi", meanHVI);
+
+  // Risk tier bars
+  const tierBarsEl = document.getElementById("zm-tier-bars");
+  if (tierBarsEl) {
+    tierBarsEl.innerHTML = "";
+    const riskColors = { Critical: "#dc2626", High: "#ea580c", Medium: "#d97706", Low: "#059669" };
+    const maxCount = Math.max(...Object.values(counts), 1);
+    ["Critical", "High", "Medium", "Low"].forEach((tier) => {
+      const cnt = counts[tier] || 0;
+      const barW = Math.round((cnt / maxCount) * 100);
+      const row = document.createElement("div");
+      row.className = "zone-tier-row";
+      row.innerHTML = `
+        <span class="zone-tier-name">${tier}</span>
+        <div class="zone-tier-bar-wrap">
+          <div class="zone-tier-bar-fill" style="width:${barW}%;background:${riskColors[tier]}"></div>
+        </div>
+        <span class="zone-tier-count">${cnt}</span>
+      `;
+      tierBarsEl.appendChild(row);
+    });
+  }
+
+  // Dominant intervention
+  setEl("zm-dominant-intv", dominantIntervention);
+
+  // Settlement Baseline Temperature Comparison
+  setEl("zm-kibera-avg-temp", `${kiberaMeanTemp.toFixed(1)}°C`);
+  setEl("zm-zone-avg-temp", `${zoneMeanTemp.toFixed(1)}°C`);
+  
+  const deltaEl = document.getElementById("zm-temp-delta");
+  if (deltaEl) {
+    deltaEl.textContent = `${tempDelta > 0 ? "+" : ""}${tempDelta.toFixed(1)}°C`;
+    if (tempDelta <= 0) {
+      deltaEl.classList.add("temp-cool");
+    } else {
+      deltaEl.classList.remove("temp-cool");
+    }
+  }
+
+  // Show modal
+  const modal = document.getElementById("zone-modal");
+  if (modal) modal.style.display = "flex";
+}
+
+/**
+ * Clears the drawn zone polygon, highlight layer, and hides the modal.
+ * @param {boolean} hideModal - whether to also hide the modal (default: true)
+ */
+function clearZone(hideModal = true) {
+  if (drawnZoneLayer) {
+    map.removeLayer(drawnZoneLayer);
+    drawnZoneLayer = null;
+  }
+  if (zoneHighlightLayer) {
+    map.removeLayer(zoneHighlightLayer);
+    zoneHighlightLayer = null;
+  }
+  if (hideModal) {
+    const modal = document.getElementById("zone-modal");
+    if (modal) modal.style.display = "none";
+  }
+  isDrawingZone = false;
+  const drawZoneBtn = document.getElementById("btn-draw-zone");
+  if (drawZoneBtn) drawZoneBtn.classList.remove("drawing-active");
+  // Restore main layer z-order
+  if (currentLayer) currentLayer.bringToFront();
+}
