@@ -17,7 +17,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
 
   <!-- Custom Styles -->
-  <link rel="stylesheet" href="/static/style.css" />
+  <link rel="stylesheet" href="/static/style.css?v=offline_v1" />
 </head>
 <body>
   <div class="app-layout">
@@ -153,6 +153,17 @@
             </label>
           </div>
         </div>
+
+        <!-- Offline Satellite Basemap Cache Trigger -->
+        <button id="btn-offline-cache" class="btn btn-outline" title="Pre-download Kibera Satellite Map for Instant Offline Loading">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          <span id="offline-cache-label">Offline Basemap</span>
+          <span id="offline-cache-badge" class="offline-badge">Ready</span>
+        </button>
 
         <!-- Export Dataset -->
         <button id="export-btn" class="btn btn-primary" title="Export full GeoJSON dataset">
@@ -501,6 +512,82 @@
       </div>
     </div>
 
+    <!-- Feature: Offline Basemap Downloader Modal -->
+    <div class="zone-modal-overlay" id="offline-cache-modal" style="display:none;" role="dialog" aria-modal="true" aria-label="Offline Map Cache">
+      <div class="zone-modal-card offline-cache-card">
+        <div class="zone-modal-header">
+          <div class="zone-modal-title-group">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/>
+              <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            <span class="zone-modal-title">Offline Map Cache Manager</span>
+          </div>
+          <button class="icon-btn" id="btn-offline-modal-close" title="Close">✕</button>
+        </div>
+
+        <div class="offline-modal-body">
+          <p class="offline-modal-desc">
+            Pre-download high-resolution satellite imagery and reference labels for <strong>Kibera + 2km Buffer Zone</strong> directly into your browser's local cache. Once downloaded, the map will load instantly with <strong>zero internet latency</strong> and remain 100% accessible offline in the field.
+          </p>
+
+          <div class="offline-specs-grid">
+            <div class="offline-spec-item">
+              <span class="offline-spec-label">Target Area</span>
+              <span class="offline-spec-val">Kibera + Buffer (5km × 5km)</span>
+            </div>
+            <div class="offline-spec-item">
+              <span class="offline-spec-label">Zoom Levels</span>
+              <span class="offline-spec-val">Zooms 13 to 17 (Rooftop Detail)</span>
+            </div>
+            <div class="offline-spec-item">
+              <span class="offline-spec-label">Total Tile Count</span>
+              <span class="offline-spec-val" id="offline-spec-count">~440 tiles</span>
+            </div>
+            <div class="offline-spec-item">
+              <span class="offline-spec-label">Estimated Cache Size</span>
+              <span class="offline-spec-val" id="offline-spec-size">~9.5 MB</span>
+            </div>
+          </div>
+
+          <!-- Progress Bar Section -->
+          <div class="offline-progress-section" id="offline-progress-section" style="display: none;">
+            <div class="offline-progress-header">
+              <span class="offline-progress-status" id="offline-progress-status">Downloading satellite tiles...</span>
+              <span class="offline-progress-pct" id="offline-progress-pct">0%</span>
+            </div>
+            <div class="offline-progress-bar-bg">
+              <div class="offline-progress-bar-fill" id="offline-progress-bar-fill" style="width: 0%;"></div>
+            </div>
+            <div class="offline-progress-detail" id="offline-progress-detail">0 of 0 tiles cached</div>
+          </div>
+
+          <!-- Status Box -->
+          <div class="offline-status-box" id="offline-status-box">
+            <div class="offline-status-dot" id="offline-status-dot"></div>
+            <span class="offline-status-text" id="offline-status-text">Status: Ready to pre-download.</span>
+          </div>
+        </div>
+
+        <div class="zone-modal-footer offline-modal-footer">
+          <button class="btn btn-outline btn-danger-outline" id="btn-clear-cache" title="Clear local tile cache">Clear Cache</button>
+          <div class="modal-actions-right">
+            <button class="btn btn-outline" id="btn-close-offline-modal">Close</button>
+            <button class="btn btn-primary" id="btn-start-cache-download">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              <span id="btn-start-cache-label">Download &amp; Cache Map</span>
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
     <!-- Global Loading Overlay -->
     <div id="loading-overlay" class="loading-curtain">
       <div class="loading-dialog">
@@ -518,7 +605,7 @@
   <!-- Turf.js — point-in-polygon for zone intersection (Feature 2) -->
   <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
   <!-- Application JS -->
-  <script src="/static/app.js"></script>
+  <script src="/static/app.js?v=offline_v3"></script>
 </body>
 </html>
 

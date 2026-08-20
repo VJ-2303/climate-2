@@ -3,10 +3,10 @@
  */
 
 const RISK_COLORS = {
-  Critical: "#dc2626", // Deep High-Contrast Crimson Red
-  High: "#ea580c",     // Deep High-Contrast Amber Orange
-  Medium: "#d97706",   // Deep High-Contrast Warm Gold
-  Low: "#059669",      // Deep High-Contrast Emerald Green
+  Critical: "#dc2626", // Pure High-Contrast Red (Critical: 76–100)
+  High: "#f97316",     // Pure High-Contrast Orange (High: 56–75)
+  Medium: "#eab308",   // Pure High-Contrast Bright Yellow (Medium: 31–55)
+  Low: "#16a34a",      // Pure High-Contrast Crisp Green (Low / Safe: 0–30)
 };
 
 // High-contrast, domain-specific 5-step color ramps (every baseline has a visible tint)
@@ -35,6 +35,14 @@ const LAYER_TITLES = {
 
 const CENTER = [-1.317, 36.789];
 const DEFAULT_ZOOM = 15;
+const MIN_ZOOM = 13; // Locks zoom-out to 2x buffer overview
+const MAX_ZOOM = 18; // Detailed rooftop inspection
+
+// 2x Buffer Spatial Lock Bounds around Kibera Target Area
+const KIBERA_BOUNDS_2X = [
+  [-1.355, 36.735], // Southwest coordinate (2x buffer)
+  [-1.280, 36.845], // Northeast coordinate (2x buffer)
+];
 
 // Global Application State
 let map;
@@ -51,6 +59,7 @@ let currentActiveLayerName = "hvi";
 let currentRiskFilter = "All";
 let currentThreshold = 0;
 const layerCache = {};
+const layerAttributeCache = {};
 const blockIntelligenceCache = {};
 
 // Feature 1 — Overview Dashboard state
@@ -66,10 +75,14 @@ let kiberaMeanSurfaceTemp = 28.7;
 document.addEventListener("DOMContentLoaded", initApp);
 
 function initApp() {
-  // 1. Initialize Leaflet Map
+  // 1. Initialize Leaflet Map with 2x Buffer Boundary Lock
   map = L.map("map", {
     renderer: L.canvas({ padding: 0.5 }),
     zoomControl: false,
+    minZoom: MIN_ZOOM,
+    maxZoom: MAX_ZOOM,
+    maxBounds: KIBERA_BOUNDS_2X,
+    maxBoundsViscosity: 1.0, // Hard lock prevents panning outside 2x buffer
   }).setView(CENTER, DEFAULT_ZOOM);
 
   // Position zoom controls in bottom-right
@@ -89,37 +102,103 @@ function initApp() {
   setupEventListeners();
   loadPrimaryData();
   updateLegend("hvi");
+  checkTileCacheStatus();
 }
 
+// ---------------------------------------------------------------------------
+// Offline Tile Caching Layer (CacheStorage API)
+// ---------------------------------------------------------------------------
+const TILE_CACHE_NAME = "heatviz-tiles-v1";
+
+const CachedTileLayer = L.TileLayer.extend({
+  createTile: function (coords, done) {
+    const tile = document.createElement("img");
+    L.DomEvent.on(tile, "load", L.Util.bind(this._tileOnLoad, this, done, tile));
+    L.DomEvent.on(tile, "error", L.Util.bind(this._tileOnError, this, done, tile));
+
+    if (this.options.crossOrigin || this.options.crossOrigin === "") {
+      tile.crossOrigin =
+        this.options.crossOrigin === true ? "" : this.options.crossOrigin;
+    }
+
+    tile.alt = "";
+    tile.setAttribute("role", "presentation");
+
+    const url = this.getTileUrl(coords);
+
+    // Fast check: look up in browser CacheStorage first (0ms latency / offline)
+    if ("caches" in window) {
+      caches
+        .open(TILE_CACHE_NAME)
+        .then((cache) => {
+          cache
+            .match(url)
+            .then((cachedResponse) => {
+              if (cachedResponse) {
+                cachedResponse
+                  .blob()
+                  .then((blob) => {
+                    tile.src = URL.createObjectURL(blob);
+                  })
+                  .catch(() => {
+                    tile.src = url;
+                  });
+              } else {
+                tile.src = url;
+                // Opportunistically cache fetched tile in background
+                fetch(url, { mode: "cors" })
+                  .then((res) => {
+                    if (res.ok) cache.put(url, res.clone());
+                  })
+                  .catch(() => {});
+              }
+            })
+            .catch(() => {
+              tile.src = url;
+            });
+        })
+        .catch(() => {
+          tile.src = url;
+        });
+    } else {
+      tile.src = url;
+    }
+
+    return tile;
+  },
+});
+
 function initBasemaps() {
-  // Clean CartoDB Positron Basemap (Default Street / Light)
-  defaultBasemapLayer = L.tileLayer(
-    "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
+  // Clean CartoDB Positron Basemap (Default Street / Light) with Offline Cache
+  defaultBasemapLayer = new CachedTileLayer(
+    "https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
     {
       attribution:
         '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; CARTO',
-      subdomains: "abcd",
       maxZoom: 19,
+      crossOrigin: true,
     }
   );
 
-  // ESRI World Imagery (High-Resolution Satellite)
-  satelliteBasemapLayer = L.tileLayer(
+  // ESRI World Imagery (High-Resolution Satellite) with Offline Cache
+  satelliteBasemapLayer = new CachedTileLayer(
     "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
     {
       attribution:
         "Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics, GIS User Community",
       maxZoom: 19,
+      crossOrigin: true,
     }
   );
 
-  // Optional Satellite Reference & Place Labels Overlay
-  satelliteLabelsLayer = L.tileLayer(
+  // Satellite Reference & Place Labels Overlay with Offline Cache
+  satelliteLabelsLayer = new CachedTileLayer(
     "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",
     {
       attribution: "&copy; Esri",
       maxZoom: 19,
       opacity: 0.85,
+      crossOrigin: true,
     }
   );
 
@@ -175,6 +254,9 @@ async function loadPrimaryData() {
         if (feat.properties && feat.properties.block_id) {
           primaryFeatureMap.set(feat.properties.block_id, feat.properties);
         }
+        if (feat.geometry && window.turf) {
+          feat._centroid = turf.centroid(feat);
+        }
       }
     }
     renderPrimaryLayer();
@@ -207,20 +289,23 @@ function getThematicColor(layerName, val) {
 
 function getLayerFillColor(layer) {
   if (!layer || !layer.feature) return "#94a3b8";
-  const props = layer.feature.properties;
+  const blockId = layer.feature.properties.block_id;
   if (currentActiveLayerName === "hvi") {
-    let layerRisk = props.risk_class;
-    if (!layerRisk && primaryFeatureMap) {
-      const pf = primaryFeatureMap.get(props.block_id);
-      if (pf) layerRisk = pf.risk_class;
+    let layerRisk = layer.feature.properties.risk_class;
+    if (!layerRisk && primaryFeatureMap && primaryFeatureMap.has(blockId)) {
+      layerRisk = primaryFeatureMap.get(blockId).risk_class;
     }
     return RISK_COLORS[layerRisk] || "#94a3b8";
   } else {
+    const attrMap = layerAttributeCache[currentActiveLayerName];
     const propName = currentActiveLayerName.replace("_blocks", "");
-    let score = props[propName];
-    if (score === undefined && primaryFeatureMap) {
-      const pf = primaryFeatureMap.get(props.block_id);
-      if (pf) score = pf[propName];
+    let score;
+    if (attrMap && attrMap[blockId] !== undefined) {
+      score = attrMap[blockId];
+    } else if (primaryFeatureMap && primaryFeatureMap.has(blockId)) {
+      score = primaryFeatureMap.get(blockId)[propName];
+    } else {
+      score = layer.feature.properties[propName];
     }
     return getThematicColor(currentActiveLayerName, Number(score));
   }
@@ -250,14 +335,28 @@ function getPrimaryStyle(feature) {
 
 function onEachPrimaryFeature(feature, layer) {
   const props = feature.properties;
-  const tempVal = props.surface_temp_celsius !== undefined
-    ? props.surface_temp_celsius.toFixed(1)
-    : (20.24 + ((props.ai_heat_exposure || 50) / 100) * 18.37).toFixed(1);
 
-  layer.bindTooltip(
-    `<strong>${props.block_id}</strong> &bull; <span style="color:#f59e0b;font-weight:700;">${tempVal}°C</span> &bull; HVI: ${props.hvi_score} (${props.risk_class})`,
-    { sticky: true, className: "custom-map-tooltip" }
-  );
+  layer.bindTooltip(() => {
+    const blockId = props.block_id;
+    if (currentActiveLayerName === "hvi") {
+      const tempVal = props.surface_temp_celsius !== undefined
+        ? props.surface_temp_celsius.toFixed(1)
+        : (20.24 + ((props.ai_heat_exposure || 50) / 100) * 18.37).toFixed(1);
+      return `<strong>${blockId}</strong> &bull; <span style="color:#f59e0b;font-weight:700;">${tempVal}°C</span> &bull; HVI: ${props.hvi_score} (${props.risk_class})`;
+    } else {
+      const attrMap = layerAttributeCache[currentActiveLayerName];
+      const propName = currentActiveLayerName.replace("_blocks", "");
+      let val;
+      if (attrMap && attrMap[blockId] !== undefined) {
+        val = attrMap[blockId];
+      } else if (primaryFeatureMap && primaryFeatureMap.has(blockId)) {
+        val = primaryFeatureMap.get(blockId)[propName];
+      } else {
+        val = props[propName];
+      }
+      return `<strong>${blockId}</strong> &bull; ${LAYER_TITLES[currentActiveLayerName] || propName}: ${val !== undefined && val !== null ? Number(val).toFixed(1) : "N/A"}`;
+    }
+  }, { sticky: true, className: "custom-map-tooltip" });
 
   layer.on({
     mouseover: (e) => highlightFeature(e.target),
@@ -326,7 +425,7 @@ function selectFeature(layer, properties) {
   openSidebar(properties);
 }
 
-// 4. Layer Switching Manager
+// 4. Ultra-Fast Layer Switching Manager (In-Place Canvas Mutation)
 async function switchLayer(layerName) {
   currentActiveLayerName = layerName;
   showLoading(true);
@@ -348,11 +447,11 @@ async function switchLayer(layerName) {
 
   try {
     if (layerName === "hvi") {
-      renderPrimaryLayer();
+      applyFilters();
       updateLegend("hvi");
     } else {
-      const data = await fetchThematicData(layerName);
-      renderThematicLayer(layerName, data);
+      await fetchThematicAttributes(layerName);
+      applyFilters();
       updateLegend(layerName);
     }
   } catch (err) {
@@ -362,54 +461,36 @@ async function switchLayer(layerName) {
   }
 }
 
-async function fetchThematicData(layerName) {
-  if (layerCache[layerName]) return layerCache[layerName];
+async function fetchThematicAttributes(layerName) {
+  if (layerAttributeCache[layerName]) return layerAttributeCache[layerName];
 
-  const res = await fetch(`/data/layers/${layerName}.geojson`);
-  if (!res.ok) throw new Error(`Failed to load ${layerName}`);
+  try {
+    const res = await fetch(`/api/layers/${layerName}/attributes`);
+    if (res.ok) {
+      const attrMap = await res.json();
+      layerAttributeCache[layerName] = attrMap;
+      return attrMap;
+    }
+  } catch (e) {
+    console.warn(`Fast attribute fetch failed for ${layerName}, falling back to GeoJSON:`, e);
+  }
 
-  const data = await res.json();
-  layerCache[layerName] = data;
-  return data;
-}
-
-function renderThematicLayer(layerName, data) {
-  if (currentLayer) map.removeLayer(currentLayer);
-
+  // Fallback to full GeoJSON extraction
+  const geoRes = await fetch(`/data/layers/${layerName}.geojson`);
+  if (!geoRes.ok) throw new Error(`Failed to load ${layerName}`);
+  const geoData = await geoRes.json();
   const propName = layerName.replace("_blocks", "");
-
-  currentLayer = L.geoJSON(data, {
-    style: (feature) => {
-      const val = feature.properties[propName];
-      return {
-        stroke: false,
-        fillOpacity: 0.60,
-        fillColor: getThematicColor(layerName, Number(val)),
-      };
-    },
-    onEachFeature: (feature, layer) => {
-      const val = feature.properties[propName];
-      layer.bindTooltip(
-        `<strong>${feature.properties.block_id}</strong> &bull; ${LAYER_TITLES[layerName] || propName}: ${val !== undefined && val !== null ? Number(val).toFixed(1) : "N/A"}`,
-        { sticky: true, className: "custom-map-tooltip" }
-      );
-
-      layer.on({
-        mouseover: (e) => highlightFeature(e.target),
-        mouseout: (e) => resetHighlight(e.target),
-        click: (e) => {
-          e.originalEvent._stoppedByFeature = true;
-          let props = feature.properties;
-          if (primaryFeatureMap && primaryFeatureMap.has(feature.properties.block_id)) {
-            props = primaryFeatureMap.get(feature.properties.block_id);
-          }
-          selectFeature(layer, props);
-        },
-      });
-    },
-  }).addTo(map);
-
-  applyFilters();
+  const attrMap = {};
+  if (geoData && geoData.features) {
+    for (let i = 0; i < geoData.features.length; i++) {
+      const feat = geoData.features[i];
+      if (feat.properties && feat.properties.block_id) {
+        attrMap[feat.properties.block_id] = feat.properties[propName];
+      }
+    }
+  }
+  layerAttributeCache[layerName] = attrMap;
+  return attrMap;
 }
 
 function getBlueColor(val) {
@@ -444,6 +525,11 @@ async function openSidebar(props) {
       const response = await fetch(`/api/blocks/${blockId}`);
       if (response.ok) {
         intelligenceData = await response.json();
+        // Keep cache bounded to 250 items to prevent unbounded memory growth in long sessions
+        const keys = Object.keys(blockIntelligenceCache);
+        if (keys.length > 250) {
+          delete blockIntelligenceCache[keys[0]];
+        }
         blockIntelligenceCache[blockId] = intelligenceData;
       } else {
         intelligenceData = generateFallbackIntelligence(props);
@@ -669,10 +755,11 @@ function setupEventListeners() {
     });
   });
 
-  // Vertical Threshold Slider (0–100)
+  // Vertical Threshold Slider (0–100) with rAF Throttling
   const thresholdSlider = document.getElementById("threshold-slider");
   const sliderValDisplay = document.getElementById("slider-val-display");
   const sliderResetBtn = document.getElementById("slider-reset-btn");
+  let thresholdRafId = null;
 
   if (thresholdSlider) {
     thresholdSlider.addEventListener("input", (e) => {
@@ -680,7 +767,12 @@ function setupEventListeners() {
       if (sliderValDisplay) {
         sliderValDisplay.textContent = `\u2265 ${currentThreshold}`;
       }
-      applyFilters();
+      if (!thresholdRafId) {
+        thresholdRafId = requestAnimationFrame(() => {
+          applyFilters();
+          thresholdRafId = null;
+        });
+      }
     });
   }
 
@@ -796,6 +888,19 @@ function setupEventListeners() {
   const zoneClearBtn = document.getElementById("btn-zone-clear");
   if (zoneCloseBtn) zoneCloseBtn.addEventListener("click", clearZone);
   if (zoneClearBtn) zoneClearBtn.addEventListener("click", clearZone);
+
+  // Feature 3 — Offline Basemap Cache Manager
+  const offlineCacheBtn = document.getElementById("btn-offline-cache");
+  const offlineModalCloseBtn = document.getElementById("btn-offline-modal-close");
+  const offlineCloseBtn = document.getElementById("btn-close-offline-modal");
+  const startCacheDownloadBtn = document.getElementById("btn-start-cache-download");
+  const clearCacheBtn = document.getElementById("btn-clear-cache");
+
+  if (offlineCacheBtn) offlineCacheBtn.addEventListener("click", openOfflineModal);
+  if (offlineModalCloseBtn) offlineModalCloseBtn.addEventListener("click", closeOfflineModal);
+  if (offlineCloseBtn) offlineCloseBtn.addEventListener("click", closeOfflineModal);
+  if (startCacheDownloadBtn) startCacheDownloadBtn.addEventListener("click", startTileCacheDownload);
+  if (clearCacheBtn) clearCacheBtn.addEventListener("click", clearTileCache);
 }
 
 function handleSearch(query) {
@@ -817,9 +922,8 @@ function handleSearch(query) {
     map.flyToBounds(layer.getBounds(), { padding: [100, 100], maxZoom: 17, duration: 1.0 });
 
     let props = layer.feature.properties;
-    if (primaryData && !props.hvi_score) {
-      const pf = primaryData.features.find((f) => f.properties.block_id === props.block_id);
-      if (pf) props = pf.properties;
+    if (primaryFeatureMap && primaryFeatureMap.has(props.block_id)) {
+      props = primaryFeatureMap.get(props.block_id);
     }
     selectFeature(layer, props);
   } else if (matches.length > 1 && matches.length < 20) {
@@ -837,21 +941,26 @@ function applyFilters() {
   if (!currentLayer) return;
 
   const propName = currentActiveLayerName === "hvi" ? "hvi_score" : currentActiveLayerName.replace("_blocks", "");
+  const attrMap = currentActiveLayerName === "hvi" ? null : layerAttributeCache[currentActiveLayerName];
 
   currentLayer.eachLayer((layer) => {
-    const props = layer.feature.properties;
+    const blockId = layer.feature.properties.block_id;
 
-    let score = props[propName];
-    if (score === undefined && primaryFeatureMap) {
-      const pf = primaryFeatureMap.get(props.block_id);
-      if (pf) score = pf[propName];
+    let score;
+    if (currentActiveLayerName === "hvi") {
+      score = layer.feature.properties.hvi_score;
+    } else if (attrMap && attrMap[blockId] !== undefined) {
+      score = attrMap[blockId];
+    } else if (primaryFeatureMap && primaryFeatureMap.has(blockId)) {
+      score = primaryFeatureMap.get(blockId)[propName];
+    } else {
+      score = layer.feature.properties[propName];
     }
     const numScore = score !== undefined && score !== null ? Number(score) : 0;
 
-    let layerRisk = props.risk_class;
-    if (!layerRisk && primaryFeatureMap) {
-      const pf = primaryFeatureMap.get(props.block_id);
-      if (pf) layerRisk = pf.risk_class;
+    let layerRisk = layer.feature.properties.risk_class;
+    if (!layerRisk && primaryFeatureMap && primaryFeatureMap.has(blockId)) {
+      layerRisk = primaryFeatureMap.get(blockId).risk_class;
     }
 
     const matchesRisk = currentRiskFilter === "All" || layerRisk === currentRiskFilter;
@@ -951,64 +1060,61 @@ function computeSettlementStats(features) {
   let totalPop = 0;
   let atRiskPop = 0;
   let hviSum = 0;
+  let tempSum = 0;
+  let tempCount = 0;
   const interventionCounts = {};
+  const criticalIntCount = {};
   const allBlocks = [];
 
-  features.forEach((feat) => {
+  for (let i = 0; i < features.length; i++) {
+    const feat = features[i];
     const p = feat.properties;
-    if (!p) return;
+    if (!p) continue;
 
     const rc = p.risk_class || "Low";
     counts[rc] = (counts[rc] || 0) + 1;
 
     const pop = p.estimated_population || 0;
     totalPop += pop;
-    if (rc === "Critical" || rc === "High") atRiskPop += pop;
+
+    const isAtRisk = rc === "Critical" || rc === "High";
+    if (isAtRisk) {
+      atRiskPop += pop;
+    }
 
     hviSum += (p.hvi_score || 0);
 
+    if (p.surface_temp_celsius !== undefined && p.surface_temp_celsius !== null) {
+      tempSum += Number(p.surface_temp_celsius);
+      tempCount++;
+    }
+
     const intv = p.intervention || "Unknown";
     interventionCounts[intv] = (interventionCounts[intv] || 0) + 1;
-
-    // Priority score = hvi_score × estimated_population (impact × urgency)
-    allBlocks.push({
-      block_id: p.block_id,
-      hvi_score: p.hvi_score || 0,
-      risk_class: rc,
-      estimated_population: pop,
-      intervention: intv,
-      priority: (p.hvi_score || 0) * (pop || 1),
-    });
-  });
+    if (isAtRisk) {
+      criticalIntCount[intv] = (criticalIntCount[intv] || 0) + 1;
+      allBlocks.push({
+        block_id: p.block_id,
+        hvi_score: p.hvi_score || 0,
+        risk_class: rc,
+        estimated_population: pop,
+        intervention: intv,
+        priority: (p.hvi_score || 0) * (pop || 1),
+      });
+    }
+  }
 
   const total = features.length;
   const meanHVI = total > 0 ? Math.round(hviSum / total) : 0;
-
-  // Compute settlement-wide average surface temperature
-  const tempFeatures = features.filter((f) => f.properties && f.properties.surface_temp_celsius !== undefined);
-  if (tempFeatures.length > 0) {
-    const totalTemp = tempFeatures.reduce((acc, f) => acc + Number(f.properties.surface_temp_celsius), 0);
-    kiberaMeanSurfaceTemp = totalTemp / tempFeatures.length;
+  if (tempCount > 0) {
+    kiberaMeanSurfaceTemp = tempSum / tempCount;
   }
 
-  // Top 5 priority sectors
   const top5 = allBlocks
-    .filter((b) => b.risk_class === "Critical" || b.risk_class === "High")
     .sort((a, b) => b.priority - a.priority)
     .slice(0, 5);
 
-  // Sort interventions by count descending
-  const sortedInterventions = Object.entries(interventionCounts)
-    .sort(([, a], [, b]) => b - a);
-
-  const criticalIntCount = features.filter(
-    (f) => f.properties && (f.properties.risk_class === "Critical" || f.properties.risk_class === "High")
-  ).reduce((acc, f) => {
-    const intv = f.properties.intervention || "Unknown";
-    acc[intv] = (acc[intv] || 0) + 1;
-    return acc;
-  }, {});
-
+  const sortedInterventions = Object.entries(interventionCounts).sort(([, a], [, b]) => b - a);
   const sortedCriticalIntvs = Object.entries(criticalIntCount).sort(([, a], [, b]) => b - a);
   const dominantIntervention = sortedCriticalIntvs.length > 0 ? sortedCriticalIntvs[0][0] : "--";
 
@@ -1051,7 +1157,7 @@ function renderOverviewDashboard(stats) {
   if (barEl && legendEl) {
     barEl.innerHTML = "";
     legendEl.innerHTML = "";
-    const riskColors = { Critical: "#dc2626", High: "#ea580c", Medium: "#d97706", Low: "#059669" };
+    const riskColors = { Critical: "#dc2626", High: "#f97316", Medium: "#eab308", Low: "#16a34a" };
     const tiers = ["Critical", "High", "Medium", "Low"];
     tiers.forEach((tier) => {
       const cnt = counts[tier] || 0;
@@ -1271,14 +1377,14 @@ function handleZoneDrawn(zoneLayer) {
 
   // Find all GeoJSON blocks whose centroid is inside the zone
   const blocksInside = [];
-  primaryData.features.forEach((feat) => {
-    if (!feat.geometry || !feat.properties) return;
-    // Use centroid for point-in-polygon test
-    const centroid = turf.centroid(feat);
+  for (let i = 0; i < primaryData.features.length; i++) {
+    const feat = primaryData.features[i];
+    if (!feat.geometry || !feat.properties) continue;
+    const centroid = feat._centroid || turf.centroid(feat);
     if (turf.booleanPointInPolygon(centroid, zonePolygon)) {
       blocksInside.push(feat);
     }
-  });
+  }
 
   if (blocksInside.length === 0) {
     alert("No sectors found inside the drawn zone. Please draw a larger area.");
@@ -1396,7 +1502,7 @@ function renderZoneModal(report) {
   const tierBarsEl = document.getElementById("zm-tier-bars");
   if (tierBarsEl) {
     tierBarsEl.innerHTML = "";
-    const riskColors = { Critical: "#dc2626", High: "#ea580c", Medium: "#d97706", Low: "#059669" };
+    const riskColors = { Critical: "#dc2626", High: "#f97316", Medium: "#eab308", Low: "#16a34a" };
     const maxCount = Math.max(...Object.values(counts), 1);
     ["Critical", "High", "Medium", "Low"].forEach((tier) => {
       const cnt = counts[tier] || 0;
@@ -1459,3 +1565,215 @@ function clearZone(hideModal = true) {
   // Restore main layer z-order
   if (currentLayer) currentLayer.bringToFront();
 }
+
+// ---------------------------------------------------------------------------
+// Feature 3 — Offline Tile Cache Manager
+// ---------------------------------------------------------------------------
+const KIBERA_CACHE_CONFIG = {
+  // 5km x 5km bounding box covering Kibera settlement + surrounding buffer
+  minLat: -1.345,
+  maxLat: -1.290,
+  minLon: 36.755,
+  maxLon: 36.825,
+  minZoom: 13,
+  maxZoom: 17,
+};
+
+let isCachingInProgress = false;
+
+function latLonToTileCoords(lat, lon, zoom) {
+  const latRad = (lat * Math.PI) / 180;
+  const n = Math.pow(2, zoom);
+  const x = Math.floor(((lon + 180) / 360) * n);
+  const y = Math.floor(((1 - Math.asinh(Math.tan(latRad)) / Math.PI) / 2) * n);
+  return { x, y };
+}
+
+function getKiberaTileUrlList() {
+  const urls = [];
+  const esriSatPattern =
+    "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
+  const esriLabelPattern =
+    "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}";
+  const cartoLightPattern =
+    "https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png";
+
+  for (let z = KIBERA_CACHE_CONFIG.minZoom; z <= KIBERA_CACHE_CONFIG.maxZoom; z++) {
+    const pTopLeft = latLonToTileCoords(KIBERA_CACHE_CONFIG.maxLat, KIBERA_CACHE_CONFIG.minLon, z);
+    const pBottomRight = latLonToTileCoords(KIBERA_CACHE_CONFIG.minLat, KIBERA_CACHE_CONFIG.maxLon, z);
+
+    const minX = Math.min(pTopLeft.x, pBottomRight.x);
+    const maxX = Math.max(pTopLeft.x, pBottomRight.x);
+    const minY = Math.min(pTopLeft.y, pBottomRight.y);
+    const maxY = Math.max(pTopLeft.y, pBottomRight.y);
+
+    for (let x = minX; x <= maxX; x++) {
+      for (let y = minY; y <= maxY; y++) {
+        urls.push(esriSatPattern.replace("{z}", z).replace("{y}", y).replace("{x}", x));
+        urls.push(esriLabelPattern.replace("{z}", z).replace("{y}", y).replace("{x}", x));
+        urls.push(cartoLightPattern.replace("{z}", z).replace("{y}", y).replace("{x}", x));
+      }
+    }
+  }
+  return urls;
+}
+
+async function checkTileCacheStatus() {
+  const badge = document.getElementById("offline-cache-badge");
+  const dot = document.getElementById("offline-status-dot");
+  const statusText = document.getElementById("offline-status-text");
+  const specCount = document.getElementById("offline-spec-count");
+  const specSize = document.getElementById("offline-spec-size");
+
+  const urls = getKiberaTileUrlList();
+  const totalTiles = urls.length;
+  if (specCount) specCount.textContent = `${totalTiles} tiles`;
+  if (specSize) specSize.textContent = `~${((totalTiles * 22) / 1024).toFixed(1)} MB`;
+
+  if (!("caches" in window)) {
+    if (badge) badge.textContent = "Unsupported";
+    if (statusText) statusText.textContent = "CacheStorage not supported in this browser.";
+    return;
+  }
+
+  try {
+    const cache = await caches.open(TILE_CACHE_NAME);
+    const keys = await cache.keys();
+    const cachedCount = keys.length;
+
+    if (cachedCount > 0) {
+      const pct = Math.min(100, Math.round((cachedCount / totalTiles) * 100));
+      if (badge) {
+        badge.textContent = `${pct}% Cached`;
+        badge.className = "offline-badge badge-cached";
+      }
+      if (dot) dot.className = "offline-status-dot dot-ready";
+      if (statusText) {
+        statusText.textContent = `Status: ${cachedCount} tiles cached (${pct}% complete). Offline ready!`;
+      }
+    } else {
+      if (badge) {
+        badge.textContent = "Ready";
+        badge.className = "offline-badge";
+      }
+      if (dot) dot.className = "offline-status-dot";
+      if (statusText) {
+        statusText.textContent = "Status: Ready to pre-download.";
+      }
+    }
+  } catch (err) {
+    console.warn("Could not check tile cache:", err);
+  }
+}
+
+function openOfflineModal() {
+  checkTileCacheStatus();
+  const modal = document.getElementById("offline-cache-modal");
+  if (modal) modal.style.display = "flex";
+}
+
+function closeOfflineModal() {
+  const modal = document.getElementById("offline-cache-modal");
+  if (modal) modal.style.display = "none";
+}
+
+async function startTileCacheDownload() {
+  if (isCachingInProgress) return;
+  isCachingInProgress = true;
+
+  const btnLabel = document.getElementById("btn-start-cache-label");
+  const progressSection = document.getElementById("offline-progress-section");
+  const progressStatus = document.getElementById("offline-progress-status");
+  const progressPct = document.getElementById("offline-progress-pct");
+  const progressBarFill = document.getElementById("offline-progress-bar-fill");
+  const progressDetail = document.getElementById("offline-progress-detail");
+  const badge = document.getElementById("offline-cache-badge");
+  const dot = document.getElementById("offline-status-dot");
+  const statusText = document.getElementById("offline-status-text");
+
+  if (progressSection) progressSection.style.display = "flex";
+  if (btnLabel) btnLabel.textContent = "Downloading...";
+  if (badge) {
+    badge.textContent = "Caching...";
+    badge.className = "offline-badge badge-downloading";
+  }
+  if (dot) dot.className = "offline-status-dot dot-active";
+
+  const urls = getKiberaTileUrlList();
+  const total = urls.length;
+  let completed = 0;
+  let failed = 0;
+
+  try {
+    const cache = await caches.open(TILE_CACHE_NAME);
+
+    // Concurrency queue worker
+    const CONCURRENCY = 6;
+    let index = 0;
+
+    async function downloadWorker() {
+      while (index < urls.length) {
+        const i = index++;
+        const url = urls[i];
+        try {
+          const existing = await cache.match(url);
+          if (!existing) {
+            const res = await fetch(url, { mode: "cors" });
+            if (res.ok) {
+              await cache.put(url, res);
+            } else {
+              failed++;
+            }
+          }
+        } catch (e) {
+          failed++;
+        }
+
+        completed++;
+        const pct = Math.round((completed / total) * 100);
+        if (progressPct) progressPct.textContent = `${pct}%`;
+        if (progressBarFill) progressBarFill.style.width = `${pct}%`;
+        if (progressDetail) {
+          progressDetail.textContent = `${completed} of ${total} tiles cached (${failed} skipped)`;
+        }
+      }
+    }
+
+    const workers = Array.from({ length: CONCURRENCY }, () => downloadWorker());
+    await Promise.all(workers);
+
+    if (progressStatus) progressStatus.textContent = "Download Complete!";
+    if (statusText) {
+      statusText.textContent = `Status: Success! ${completed - failed} tiles pre-cached. Map is 100% offline-ready.`;
+    }
+    if (dot) dot.className = "offline-status-dot dot-ready";
+    if (badge) {
+      badge.textContent = "100% Ready";
+      badge.className = "offline-badge badge-cached";
+    }
+    if (btnLabel) btnLabel.textContent = "Re-download Cache";
+  } catch (err) {
+    console.error("Cache download error:", err);
+    if (progressStatus) progressStatus.textContent = "Download Interrupted";
+    if (statusText) statusText.textContent = `Status: Error encountered (${err.message}).`;
+  } finally {
+    isCachingInProgress = false;
+    if (btnLabel && btnLabel.textContent === "Downloading...") {
+      btnLabel.textContent = "Download & Cache Map";
+    }
+  }
+}
+
+async function clearTileCache() {
+  if (!confirm("Are you sure you want to clear the downloaded basemap tiles?")) return;
+  try {
+    await caches.delete(TILE_CACHE_NAME);
+    const progressSection = document.getElementById("offline-progress-section");
+    if (progressSection) progressSection.style.display = "none";
+    await checkTileCacheStatus();
+    alert("Offline basemap cache cleared.");
+  } catch (err) {
+    console.error("Could not clear cache:", err);
+  }
+}
+

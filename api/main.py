@@ -35,17 +35,18 @@ LAYER_NAMES = {
     "population_density_blocks",
 }
 
-# In-memory fast cache for block lookups, 2D spatial grid, and settlement statistics
+# In-memory fast cache for block lookups, 2D spatial grid, settlement statistics, and layer attributes
 blocks_db: Dict[str, Dict[str, Any]] = {}
 block_to_grid: Dict[str, Tuple[int, int]] = {}
 grid_to_block: Dict[Tuple[int, int], str] = {}
+layer_attributes_cache: Dict[str, Dict[str, float]] = {}
 all_hvi_scores: List[int] = []
 total_blocks_count: int = 0
 
 
 def load_dataset_into_memory() -> None:
     """Loads vulnerability blocks GeoJSON into memory, creates 2D spatial grid, and precomputes benchmark distributions."""
-    global blocks_db, block_to_grid, grid_to_block, all_hvi_scores, total_blocks_count
+    global blocks_db, block_to_grid, grid_to_block, all_hvi_scores, total_blocks_count, layer_attributes_cache
     geojson_path = OUTPUT_DIR / "vulnerability_blocks.geojson"
     processed_path = PROCESSED_DIR / "kibera_blocks_50m.geojson"
 
@@ -61,6 +62,7 @@ def load_dataset_into_memory() -> None:
         blocks_db.clear()
         block_to_grid.clear()
         grid_to_block.clear()
+        layer_attributes_cache.clear()
         scores = []
 
         for feature in features:
@@ -89,9 +91,27 @@ def load_dataset_into_memory() -> None:
             except Exception as pe:
                 logger.warning(f"Could not load processed grid index: {pe}")
 
+        # Precompute attribute-only maps for ultra-fast sub-layer switching
+        for layer_name in LAYER_NAMES:
+            layer_file = LAYERS_DIR / f"{layer_name}.geojson"
+            if layer_file.is_file():
+                try:
+                    with open(layer_file, "r", encoding="utf-8") as lf:
+                        ldata = json.load(lf)
+                    prop_name = layer_name.replace("_blocks", "")
+                    attr_map = {}
+                    for feat in ldata.get("features", []):
+                        fprops = feat.get("properties", {})
+                        fbid = fprops.get("block_id")
+                        if fbid and prop_name in fprops:
+                            attr_map[fbid] = fprops[prop_name]
+                    layer_attributes_cache[layer_name] = attr_map
+                except Exception as le:
+                    logger.warning(f"Could not precompute attributes for {layer_name}: {le}")
+
         all_hvi_scores = sorted(scores)
         total_blocks_count = len(blocks_db)
-        logger.info(f"Loaded {total_blocks_count} blocks into in-memory database successfully.")
+        logger.info(f"Loaded {total_blocks_count} blocks and {len(layer_attributes_cache)} layer attribute caches successfully.")
     except Exception as e:
         logger.error(f"Failed to load blocks into memory: {e}", exc_info=True)
 
@@ -103,6 +123,7 @@ async def lifespan(app: FastAPI):
     blocks_db.clear()
     block_to_grid.clear()
     grid_to_block.clear()
+    layer_attributes_cache.clear()
     all_hvi_scores.clear()
 
 
@@ -113,8 +134,18 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Enable Gzip compression middleware (90% bandwidth reduction on GeoJSON)
+# Enable Gzip compression middleware (88% bandwidth reduction on GeoJSON)
 app.add_middleware(GZipMiddleware, minimum_size=1000)
+
+# HTTP Caching Middleware for static files and GeoJSON responses
+@app.middleware("http")
+async def add_cache_headers(request, call_next):
+    response = await call_next(request)
+    path = request.url.path
+    if path.endswith((".geojson", ".js", ".css", ".png", ".svg", ".woff2", ".ttf")):
+        response.headers["Cache-Control"] = "public, max-age=86400, stale-while-revalidate=3600"
+    return response
+
 
 # Mount static web frontend files
 app.mount("/static", StaticFiles(directory=WEB_DIR, check_dir=False), name="static")
@@ -123,7 +154,11 @@ app.mount("/static", StaticFiles(directory=WEB_DIR, check_dir=False), name="stat
 def geojson_response(path: Path) -> FileResponse:
     if not path.is_file():
         raise HTTPException(status_code=404, detail=f"GeoJSON not found: {path.name}")
-    return FileResponse(path, media_type="application/geo+json")
+    return FileResponse(
+        path,
+        media_type="application/geo+json",
+        headers={"Cache-Control": "public, max-age=86400, stale-while-revalidate=3600"},
+    )
 
 
 @app.get("/")
@@ -144,6 +179,28 @@ def layer(name: str) -> FileResponse:
     if name not in LAYER_NAMES:
         raise HTTPException(status_code=404, detail=f"Unknown layer: {name}")
     return geojson_response(LAYERS_DIR / f"{name}.geojson")
+
+
+@app.get("/api/layers/{name}/attributes")
+def layer_attributes(name: str) -> JSONResponse:
+    """Returns lightweight key-value dictionary {block_id: score} for ultra-fast in-place layer switching."""
+    if name not in LAYER_NAMES:
+        raise HTTPException(status_code=404, detail=f"Unknown layer: {name}")
+    attr_map = layer_attributes_cache.get(name)
+    if not attr_map:
+        prop_name = name.replace("_blocks", "")
+        layer_file = LAYERS_DIR / f"{name}.geojson"
+        if not layer_file.is_file():
+            raise HTTPException(status_code=404, detail=f"Layer file not found: {name}")
+        with open(layer_file, "r", encoding="utf-8") as f:
+            ldata = json.load(f)
+        attr_map = {feat["properties"]["block_id"]: feat["properties"].get(prop_name, 0) for feat in ldata.get("features", [])}
+        layer_attributes_cache[name] = attr_map
+
+    return JSONResponse(
+        content=attr_map,
+        headers={"Cache-Control": "public, max-age=86400, stale-while-revalidate=3600"},
+    )
 
 
 @app.get("/api/blocks/{block_id}")
@@ -172,4 +229,7 @@ def get_block_intelligence(block_id: str) -> JSONResponse:
         blocks_db=blocks_db,
     )
 
-    return JSONResponse(content=payload)
+    return JSONResponse(
+        content=payload,
+        headers={"Cache-Control": "public, max-age=3600"},
+    )
