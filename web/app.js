@@ -108,7 +108,7 @@ function initApp() {
 // ---------------------------------------------------------------------------
 // Offline Tile Caching Layer (CacheStorage API)
 // ---------------------------------------------------------------------------
-const TILE_CACHE_NAME = "heatviz-tiles-v1";
+const TILE_CACHE_NAME = "heatviz-tiles-v2";
 
 const CachedTileLayer = L.TileLayer.extend({
   createTile: function (coords, done) {
@@ -169,12 +169,12 @@ const CachedTileLayer = L.TileLayer.extend({
 });
 
 function initBasemaps() {
-  // Clean CartoDB Positron Basemap (Default Street / Light) with Offline Cache
+  // OpenStreetMap Basemap (100% Free, No API Key Required) with Offline Cache
   defaultBasemapLayer = new CachedTileLayer(
-    "https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
+    "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
     {
       attribution:
-        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; CARTO',
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
       maxZoom: 19,
       crossOrigin: true,
     }
@@ -1595,8 +1595,8 @@ function getKiberaTileUrlList() {
     "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
   const esriLabelPattern =
     "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}";
-  const cartoLightPattern =
-    "https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png";
+  const osmPattern =
+    "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
 
   for (let z = KIBERA_CACHE_CONFIG.minZoom; z <= KIBERA_CACHE_CONFIG.maxZoom; z++) {
     const pTopLeft = latLonToTileCoords(KIBERA_CACHE_CONFIG.maxLat, KIBERA_CACHE_CONFIG.minLon, z);
@@ -1611,7 +1611,7 @@ function getKiberaTileUrlList() {
       for (let y = minY; y <= maxY; y++) {
         urls.push(esriSatPattern.replace("{z}", z).replace("{y}", y).replace("{x}", x));
         urls.push(esriLabelPattern.replace("{z}", z).replace("{y}", y).replace("{x}", x));
-        urls.push(cartoLightPattern.replace("{z}", z).replace("{y}", y).replace("{x}", x));
+        urls.push(osmPattern.replace("{z}", z).replace("{y}", y).replace("{x}", x));
       }
     }
   }
