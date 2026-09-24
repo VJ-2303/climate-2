@@ -24,15 +24,15 @@ This document establishes the execution blueprint for transforming HeatViz into 
 Integrate multi-day weather forecasting and calculate the Wet-Bulb Globe Temperature (WBGT) index.
 
 ### Tasks
-- [ ] **1.1 Create `api/weather.py`**:
+- [x] **1.1 Create `api/weather.py`**:
   - Implement Australian Bureau of Meteorology / Liljegren simplified WBGT formula:
     $$e = \frac{\text{RH}}{100} \times 6.105 \times \exp\left(\frac{17.27 \times T}{237.7 + T}\right)$$
     $$\text{WBGT} = 0.567 \times T + 0.393 \times e + 3.94$$
   - Integrate Open-Meteo API for coordinates `(-1.317, 36.789)` to retrieve 5-day hourly/daily metrics: $T_{\max}$, $T_{\min}$, Relative Humidity, Wind Speed, Solar Radiation.
   - Implement 1-hour cache layer with fallback to `data/fallback_forecast.json` if network is unavailable.
-- [ ] **1.2 Create `data/fallback_forecast.json`**:
+- [x] **1.2 Create `data/fallback_forecast.json`**:
   - Pre-generate realistic 5-day heatwave scenario data for Kibera (Peak day reaching 34.5°C with 65% humidity).
-- [ ] **1.3 Add FastAPI Endpoints in `api/main.py`**:
+- [x] **1.3 Add FastAPI Endpoints in `api/main.py`**:
   - `GET /api/forecast/summary`: Returns 5-day daily macro weather + baseline WBGT + settlement advisory.
   - `GET /api/forecast/days`: Returns structured daily timeline for map day-scrubber.
 
@@ -47,15 +47,15 @@ Integrate multi-day weather forecasting and calculate the Wet-Bulb Globe Tempera
 Provide mathematical explainability for microclimate drivers using Shapley Additive exPlanations.
 
 ### Tasks
-- [ ] **2.1 Add SHAP Dependency**:
+- [x] **2.1 Add SHAP Dependency**:
   - Verify and install `shap` in virtual environment.
-- [ ] **2.2 Create `scripts/08_compute_shap.py`**:
+- [x] **2.2 Create `scripts/08_compute_shap.py`**:
   - Load `models/module1_xgb.json` and 100m/20m feature matrices.
   - Initialize `shap.TreeExplainer(model)`.
   - Compute SHAP values for each of the 18,040 blocks.
   - Extract top positive heat drivers (e.g. `+1.4°C from Metal Roofs (NDBI)`, `+0.9°C from Lack of Tree Canopy (NDVI)`).
   - Save to `data/processed/block_shap_explanations.json`.
-- [ ] **2.3 Integrate SHAP into `07_score_export.py` & `api/main.py`**:
+- [x] **2.3 Integrate SHAP into `07_score_export.py` & `api/main.py`**:
   - Attach top 3 SHAP quantitative feature contributions directly to block intelligence payload (`/api/blocks/{block_id}`).
 
 ### Verification
@@ -69,7 +69,7 @@ Provide mathematical explainability for microclimate drivers using Shapley Addit
 Translate hyper-local WBGT and demographic vulnerability into actionable health impact risk tiers and dynamic public health advisories.
 
 ### Tasks
-- [ ] **3.1 Upgrade `api/rules.py`**:
+- [x] **3.1 Upgrade `api/rules.py`**:
   - Implement `evaluate_5day_health_trajectory(block_props, weather_forecast)`:
     - For Day 1 to 5: compute `local_wbgt = day_base_wbgt + (temp_anomaly * 0.4)`.
     - Classify Health Risk Tier:
@@ -80,7 +80,7 @@ Translate hyper-local WBGT and demographic vulnerability into actionable health 
     - Modulate tier based on social sensitivity (population density + metal roof concentration).
   - Implement `generate_automated_health_advisory(block_id, local_wbgt, shap_factors)`:
     - Generate human-readable dynamic advisory tailored to public and officers.
-- [ ] **3.2 Expose Day-by-Day Block Attributes Endpoint**:
+- [x] **3.2 Expose Day-by-Day Block Attributes Endpoint**:
   - `GET /api/layers/forecast_day_{day}/attributes`: Returns `{block_id: day_risk_score}` for instant choropleth recoloring across Days 1–5.
 
 ### Verification
@@ -94,18 +94,18 @@ Translate hyper-local WBGT and demographic vulnerability into actionable health 
 Deliver targeted role-based user experiences for disaster managers and local citizens.
 
 ### Tasks
-- [ ] **4.1 Build Officer Command Center (`web/officer.html` & `web/officer.js`)**:
+- [x] **4.1 Build Officer Command Center (`web/officer.html` & `web/officer.js`)**:
   - Port core map engine from `web/index.html`.
   - Add **5-Day Heatwave Forecast Scrubber** (Day 1 to 5 buttons/slider) that instantly recolors the 18,040 canvas blocks using `/api/layers/forecast_day_{day}/attributes`.
   - Integrate SHAP feature waterfall breakdown in the sector inspection drawer.
   - Add **Automated Advisory & SMS Dispatch Modal** allowing officers to preview and simulate sending targeted bulk SMS warnings to at-risk sectors.
   - Add Top Header Switcher linking to `/public`.
-- [ ] **4.2 Build Citizen Public Portal (`web/public.html` & `web/public.js`)**:
+- [x] **4.2 Build Citizen Public Portal (`web/public.html` & `web/public.js`)**:
   - Clean, accessible, mobile-first interface.
   - "Find My Risk" geolocation button.
   - Plain-language advisory cards: "What this heat means for your body today", "When to stop strenuous work", and "Nearest Cool Spots / Water Points".
   - One-click USSD/SMS alert subscription simulator.
-- [ ] **4.3 Update FastAPI Route Handlers (`api/main.py`)**:
+- [x] **4.3 Update FastAPI Route Handlers (`api/main.py`)**:
   - `/` and `/officer` $\rightarrow$ `web/officer.html`.
   - `/public` $\rightarrow$ `web/public.html`.
 
