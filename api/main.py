@@ -194,6 +194,37 @@ def layer(name: str) -> FileResponse:
     return geojson_response(LAYERS_DIR / f"{name}.geojson")
 
 
+@app.get("/api/layers/forecast_day_{day}/attributes")
+def get_forecast_day_attributes(day: int) -> JSONResponse:
+    """Returns day-specific physiological heat risk scores (0..100) across all blocks for map day-scrubber."""
+    if day < 1 or day > 5:
+        raise HTTPException(status_code=400, detail="Forecast day must be between 1 and 5")
+
+    if not blocks_db:
+        load_dataset_into_memory()
+
+    from api.weather import get_5day_forecast
+    forecast = get_5day_forecast()
+    daily = forecast.get("daily", [])
+    day_item = next((d for d in daily if d.get("day") == day), daily[0] if daily else {})
+    base_wbgt = float(day_item.get("wbgt_max", 30.0))
+
+    attr_map = {}
+    for bid, props in blocks_db.items():
+        anomaly = float(props.get("temp_anomaly_celsius", 0.0))
+        pop_norm = float(props.get("population_density", 50.0))
+        bldg_norm = float(props.get("building_density", 50.0))
+        local_wbgt = base_wbgt + (anomaly * 0.4)
+        base_score = min(100.0, max(0.0, (local_wbgt - 24.0) * 10.0))
+        risk_score = int(round(min(100.0, max(0.0, base_score * 0.75 + (pop_norm * 0.15) + (bldg_norm * 0.10)))))
+        attr_map[bid] = risk_score
+
+    return JSONResponse(
+        content=attr_map,
+        headers={"Cache-Control": "public, max-age=1800"}
+    )
+
+
 @app.get("/api/layers/{name}/attributes")
 def layer_attributes(name: str) -> JSONResponse:
     """Returns lightweight key-value dictionary {block_id: score} for ultra-fast in-place layer switching."""
@@ -233,6 +264,9 @@ def get_block_intelligence(block_id: str) -> JSONResponse:
         if not props:
             raise HTTPException(status_code=404, detail=f"Block {block_id} not found in database.")
 
+    shap_info = shap_db.get(block_id, {})
+    shap_factors = shap_info.get("factors", [])
+
     payload = build_block_intelligence(
         block_id=block_id,
         props=props,
@@ -240,11 +274,11 @@ def get_block_intelligence(block_id: str) -> JSONResponse:
         block_to_grid=block_to_grid,
         grid_to_block=grid_to_block,
         blocks_db=blocks_db,
+        shap_factors=shap_factors,
     )
 
     # Attach explainable AI (SHAP) feature attributions
-    shap_info = shap_db.get(block_id, {})
-    payload["shap_factors"] = shap_info.get("factors", [])
+    payload["shap_factors"] = shap_factors
     payload["shap_base_temp"] = shap_info.get("base_value", 29.4)
 
     return JSONResponse(

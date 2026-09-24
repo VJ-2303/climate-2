@@ -5,7 +5,7 @@ land-cover categorization, physical heat root-cause analysis, and targeted inter
 """
 
 import bisect
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Tuple, Optional
 
 
 def calculate_percentile(score: int, all_scores: List[int]) -> int:
@@ -437,6 +437,8 @@ def build_block_intelligence(
     block_to_grid: Dict[str, Tuple[int, int]],
     grid_to_block: Dict[Tuple[int, int], str],
     blocks_db: Dict[str, Dict[str, Any]],
+    forecast: Optional[Dict[str, Any]] = None,
+    shap_factors: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
     """Constructs complete structured physical climate intelligence payload for a sector."""
     hvi_score = props.get("hvi_score", 0)
@@ -470,7 +472,7 @@ def build_block_intelligence(
         temp_anomaly=diag["temp_anomaly_celsius"]
     )
 
-    return {
+    payload = {
         "block_id": block_id,
         "risk_class": risk_class,
         "is_safe": diag["is_safe"],
@@ -529,4 +531,116 @@ def build_block_intelligence(
             "distance_to_green": props.get("distance_to_green", 0),
             "distance_to_water": props.get("distance_to_water", 0),
         },
+    }
+
+    # 5-Day Health Risk Trajectory & Automated Advisory (ThermalGuard SIH26083)
+    if forecast is None:
+        try:
+            from api.weather import get_5day_forecast
+            forecast = get_5day_forecast()
+        except Exception:
+            forecast = {"daily": []}
+
+    trajectory = evaluate_5day_health_trajectory(props, forecast)
+    current_day_wbgt = trajectory[0]["local_wbgt"] if trajectory else diag["surface_temp_celsius"]
+    current_risk_tier = trajectory[0]["health_risk_tier"] if trajectory else risk_class
+    advisory = generate_automated_health_advisory(
+        block_id=block_id,
+        local_wbgt=current_day_wbgt,
+        shap_factors=shap_factors or [],
+        risk_tier=current_risk_tier
+    )
+
+    payload["forecast_trajectory"] = trajectory
+    payload["automated_advisory"] = advisory
+    return payload
+
+
+def evaluate_5day_health_trajectory(props: Dict[str, Any], forecast: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Evaluates 5-day physiological health risk trajectory for a specific 50m sector."""
+    anomaly = float(props.get("temp_anomaly_celsius", 0.0))
+    pop_norm = float(props.get("population_density", 50.0))
+    bldg_norm = float(props.get("building_density", 50.0))
+    daily_forecasts = forecast.get("daily", [])
+
+    trajectory = []
+    for day_info in daily_forecasts:
+        day_num = day_info.get("day", len(trajectory) + 1)
+        base_wbgt = float(day_info.get("wbgt_max", 30.0))
+        # Microclimate downscaling of WBGT: Sector anomaly scales WBGT by ~0.4
+        local_wbgt = round(base_wbgt + (anomaly * 0.4), 1)
+
+        if local_wbgt >= 32.2:
+            tier = "Critical"
+            risk_label = "Hospitalization Surge Hazard"
+        elif local_wbgt >= 30.0:
+            tier = "High"
+            risk_label = "Severe Heat Exhaustion Threat"
+        elif local_wbgt >= 28.0:
+            tier = "Moderate"
+            risk_label = "Occupational Heat Stress"
+        else:
+            tier = "Low"
+            risk_label = "Temperate Physiological Baseline"
+
+        base_score = min(100.0, max(0.0, (local_wbgt - 24.0) * 10.0))
+        risk_score = int(round(min(100.0, max(0.0, base_score * 0.75 + (pop_norm * 0.15) + (bldg_norm * 0.10)))))
+
+        trajectory.append({
+            "day": day_num,
+            "date": day_info.get("date", f"Day {day_num}"),
+            "base_wbgt": base_wbgt,
+            "local_wbgt": local_wbgt,
+            "health_risk_tier": tier,
+            "risk_label": risk_label,
+            "risk_score": risk_score,
+            "advisory": f"{tier}: Local WBGT reaches {local_wbgt:.1f}°C. {risk_label}."
+        })
+
+    return trajectory
+
+
+def generate_automated_health_advisory(
+    block_id: str,
+    local_wbgt: float,
+    shap_factors: List[Dict[str, Any]],
+    risk_tier: str
+) -> Dict[str, str]:
+    """Generates automated plain-language public health advisories for citizens and response officers."""
+    primary_driver = shap_factors[0]["name"] if shap_factors else "Dense built-up surface"
+    driver_contrib = shap_factors[0]["contribution_celsius"] if shap_factors else "+1.5°C"
+
+    if risk_tier == "Critical":
+        headline = f"CRITICAL HEAT EMERGENCY: Sector {block_id} WBGT {local_wbgt:.1f}°C"
+        citizen_action = (
+            "Dangerous physiological heat stress. Cease all outdoor manual labor between 11 AM - 4 PM. "
+            "Hydrate continuously (minimum 1 liter per 2 hours) and move children and elderly to shaded communal centers."
+        )
+        officer_directive = (
+            f"Activate emergency hydration points and shade structures. Primary driver is {primary_driver} ({driver_contrib}). "
+            "Dispatch community health volunteers for door-to-door welfare checks on high-density households."
+        )
+    elif risk_tier == "High":
+        headline = f"HIGH HEAT STRESS WARNING: Sector {block_id} WBGT {local_wbgt:.1f}°C"
+        citizen_action = (
+            "High risk of heat exhaustion and cramps. Schedule heavy work before 10 AM. "
+            "Keep indoor corrugated metal dwellings ventilated by opening opposing doors/windows."
+        )
+        officer_directive = (
+            f"Alert local clinic teams for surge in dehydration cases. Primary driver is {primary_driver} ({driver_contrib}). "
+            "Ensure neighborhood water kiosks maintain adequate public supply."
+        )
+    elif risk_tier == "Moderate":
+        headline = f"MODERATE THERMAL STRAIN: Sector {block_id} WBGT {local_wbgt:.1f}°C"
+        citizen_action = "Take regular shaded resting breaks and drink fluids regularly throughout the afternoon."
+        officer_directive = f"Monitor microclimate trends. Sector driven primarily by {primary_driver} ({driver_contrib})."
+    else:
+        headline = f"NORMAL PHYSIOLOGICAL CONDITIONS: Sector {block_id} WBGT {local_wbgt:.1f}°C"
+        citizen_action = "Standard seasonal temperatures. Maintain baseline hydration."
+        officer_directive = "No emergency interventions required."
+
+    return {
+        "headline": headline,
+        "citizen_action": citizen_action,
+        "officer_directive": officer_directive
     }
