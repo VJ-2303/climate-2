@@ -1,0 +1,269 @@
+// ThermalGuard — Officer Command Center extensions
+// Runs after app.js; reuses its global map engine (map, currentLayer, openSidebar, blockIntelligenceCache).
+
+(function () {
+  "use strict";
+
+  const TIER_COLORS = { Low: "#1a9850", Medium: "#ffffbf", High: "#f46d43", Critical: "#d73027" };
+
+  let forecastDays = [];
+  let forecastAttrMap = null;
+  let activeForecastDay = null;
+  let smsTargetBlockId = null;
+
+  function scoreColor(score) {
+    if (score <= 30) return TIER_COLORS.Low;
+    if (score <= 55) return TIER_COLORS.Medium;
+    if (score <= 75) return TIER_COLORS.High;
+    return TIER_COLORS.Critical;
+  }
+
+  // ---------- 5-Day Forecast Scrubber ----------
+
+  async function initOfficer() {
+    try {
+      const res = await fetch("/api/forecast/days");
+      if (!res.ok) return;
+      const data = await res.json();
+      forecastDays = data.days || [];
+
+      const scrubber = document.getElementById("forecast-scrubber");
+      if (!scrubber) return;
+      scrubber.innerHTML = "";
+
+      const base = document.createElement("button");
+      base.className = "segment-btn active";
+      base.textContent = "HVI (Current)";
+      base.addEventListener("click", () => resetForecastView(base));
+      scrubber.appendChild(base);
+
+      forecastDays.forEach((d) => {
+        const b = document.createElement("button");
+        b.className = "segment-btn";
+        b.dataset.day = d.day;
+        b.innerHTML = `Day ${d.day}<br><small>${Number(d.wbgt_max).toFixed(1)}°C WBGT</small>`;
+        b.addEventListener("click", () => selectForecastDay(d.day, b));
+        scrubber.appendChild(b);
+      });
+    } catch (err) {
+      console.warn("Officer forecast scrubber init failed:", err);
+    }
+  }
+
+  async function selectForecastDay(day, btn) {
+    document.querySelectorAll("#forecast-scrubber .segment-btn").forEach((b) => b.classList.remove("active"));
+    if (btn) btn.classList.add("active");
+    try {
+      const res = await fetch(`/api/layers/forecast_day_${day}/attributes`);
+      if (!res.ok) return;
+      forecastAttrMap = await res.json();
+      activeForecastDay = day;
+      if (typeof currentLayer !== "undefined" && currentLayer) {
+        currentLayer.setStyle((feature) => {
+          const bid = feature.properties.block_id;
+          const score = forecastAttrMap[bid] !== undefined ? forecastAttrMap[bid] : 0;
+          return { stroke: false, fillOpacity: 0.65, fillColor: scoreColor(score) };
+        });
+      }
+      const label = document.getElementById("active-layer-name");
+      if (label) label.textContent = `Day ${day} WBGT Risk Forecast`;
+    } catch (err) {
+      console.warn("Forecast day load failed:", err);
+    }
+  }
+
+  function resetForecastView(btn) {
+    document.querySelectorAll("#forecast-scrubber .segment-btn").forEach((b) => b.classList.remove("active"));
+    if (btn) btn.classList.add("active");
+    activeForecastDay = null;
+    forecastAttrMap = null;
+    if (typeof currentLayer !== "undefined" && currentLayer) {
+      currentLayer.setStyle((feature) => ({
+        stroke: false,
+        fillOpacity: 0.6,
+        fillColor: (typeof RISK_COLORS !== "undefined" && RISK_COLORS[feature.properties.risk_class]) || "#94a3b8",
+      }));
+    }
+    const label = document.getElementById("active-layer-name");
+    if (label) label.textContent = "Heat Vulnerability (HVI)";
+  }
+
+  // ---------- Sector Inspector: SHAP Waterfall + 5-Day Sparkline + SMS ----------
+
+  function wrapOpenSidebar() {
+    const original = window.openSidebar;
+    if (!original) return;
+    window.openSidebar = async function (props) {
+      await original(props);
+      renderOfficerExtras(props.block_id);
+    };
+  }
+
+  async function renderOfficerExtras(blockId) {
+    const detail = document.getElementById("sidebar-detail");
+    if (!detail) return;
+
+    let data = (typeof blockIntelligenceCache !== "undefined") ? blockIntelligenceCache[blockId] : null;
+    if (!data) {
+      try {
+        const res = await fetch(`/api/blocks/${blockId}`);
+        if (res.ok) data = await res.json();
+      } catch (err) {
+        console.warn("Officer extras fetch failed:", err);
+      }
+    }
+    if (!data) return;
+
+    // Remove previous officer extras (re-selecting another sector)
+    const prev = detail.querySelector("#officer-extras");
+    if (prev) prev.remove();
+
+    const wrap = document.createElement("div");
+    wrap.id = "officer-extras";
+    wrap.style.cssText = "margin-top: 16px; border-top: 1px solid #e2e8f0; padding-top: 12px;";
+
+    // SHAP feature attribution waterfall
+    const shapFactors = data.shap_factors || [];
+    if (shapFactors.length > 0) {
+      const maxAbs = Math.max(...shapFactors.map((f) => Math.abs(f.shap_value)), 0.01);
+      const sec = document.createElement("div");
+      sec.innerHTML = `<div style="font-size: 12px; font-weight: 700; color: #334155; margin-bottom: 6px;">
+        AI Heat Drivers (SHAP) — base ${Number(data.shap_base_temp || 29.4).toFixed(1)}°C</div>`;
+      shapFactors.forEach((f) => {
+        const val = Number(f.shap_value);
+        const row = document.createElement("div");
+        row.style.cssText = "display: flex; align-items: center; gap: 6px; margin-bottom: 4px;";
+        row.innerHTML = `
+          <span style="flex: 1; font-size: 11px; color: #475569;">${f.name}</span>
+          <div style="width: 90px; height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden;">
+            <div style="width: ${Math.round((Math.abs(val) / maxAbs) * 100)}%; height: 100%; background: ${val >= 0 ? "#d73027" : "#1a9850"};"></div>
+          </div>
+          <span style="width: 52px; text-align: right; font-size: 11px; font-weight: 600; color: ${val >= 0 ? "#d73027" : "#1a9850"};">${f.contribution_celsius}</span>`;
+        sec.appendChild(row);
+      });
+      wrap.appendChild(sec);
+    }
+
+    // 5-day health risk trajectory sparkline
+    const traj = data.forecast_trajectory || [];
+    if (traj.length > 0) {
+      const W = 260, H = 60, PAD = 6;
+      const pts = traj.map((t, i) => {
+        const x = PAD + (i / (traj.length - 1)) * (W - 2 * PAD);
+        const y = H - PAD - (t.risk_score / 100) * (H - 2 * PAD);
+        return { x, y, t };
+      });
+      const sec = document.createElement("div");
+      sec.style.marginTop = "12px";
+      sec.innerHTML = `<div style="font-size: 12px; font-weight: 700; color: #334155; margin-bottom: 6px;">
+        5-Day Health Risk Trajectory (local WBGT)</div>`;
+      const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      svg.setAttribute("width", W);
+      svg.setAttribute("height", H);
+      svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+      const poly = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+      poly.setAttribute("points", pts.map((p) => `${p.x},${p.y}`).join(" "));
+      poly.setAttribute("fill", "none");
+      poly.setAttribute("stroke", "#334155");
+      poly.setAttribute("stroke-width", "2");
+      svg.appendChild(poly);
+      pts.forEach((p) => {
+        const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        c.setAttribute("cx", p.x);
+        c.setAttribute("cy", p.y);
+        c.setAttribute("r", "4");
+        c.setAttribute("fill", TIER_COLORS[p.t.health_risk_tier] || "#94a3b8");
+        const title = document.createElementNS("http://www.w3.org/2000/svg", "title");
+        title.textContent = `Day ${p.t.day}: ${p.t.health_risk_tier} — WBGT ${p.t.local_wbgt}°C (score ${p.t.risk_score})`;
+        c.appendChild(title);
+        svg.appendChild(c);
+      });
+      sec.appendChild(svg);
+      const legend = document.createElement("div");
+      legend.style.cssText = "display: flex; gap: 8px; margin-top: 4px;";
+      legend.innerHTML = traj
+        .map((t) => `<span style="font-size: 10px; color: #475569;">D${t.day} ${t.health_risk_tier}</span>`)
+        .join("");
+      sec.appendChild(legend);
+      wrap.appendChild(sec);
+    }
+
+    // SMS dispatch trigger
+    const btnRow = document.createElement("div");
+    btnRow.style.cssText = "margin-top: 12px;";
+    const smsBtn = document.createElement("button");
+    smsBtn.className = "btn btn-primary";
+    smsBtn.style.width = "100%";
+    smsBtn.textContent = "📡 Dispatch SMS Alert to This Sector";
+    smsBtn.addEventListener("click", () => openSmsModal(data));
+    btnRow.appendChild(smsBtn);
+    wrap.appendChild(btnRow);
+
+    detail.appendChild(wrap);
+  }
+
+  // ---------- SMS Dispatch Modal ----------
+
+  function openSmsModal(data) {
+    smsTargetBlockId = data.block_id;
+    const modal = document.getElementById("sms-modal");
+    if (!modal) return;
+    document.getElementById("sms-block-id").textContent =
+      `${data.block_id} — ${data.risk_class || "Unknown"} risk, ~${data.population || 0} residents`;
+    const advisory = data.automated_advisory;
+    const msg = document.getElementById("sms-message");
+    msg.value = typeof advisory === "string"
+      ? advisory
+      : (advisory && advisory.text) ||
+        `Heat advisory for sector ${data.block_id}. ${data.summary || "Stay hydrated and limit midday exposure."}`;
+    document.getElementById("sms-dispatch-result").textContent = "";
+    modal.style.display = "flex";
+  }
+
+  function closeSmsModal() {
+    const modal = document.getElementById("sms-modal");
+    if (modal) modal.style.display = "none";
+  }
+
+  async function dispatchSms() {
+    const resultEl = document.getElementById("sms-dispatch-result");
+    if (!smsTargetBlockId) return;
+    resultEl.textContent = "Dispatching…";
+    try {
+      const res = await fetch("/api/alerts/dispatch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          block_id: smsTargetBlockId,
+          recipient_group: document.getElementById("sms-recipient-group").value,
+          message: document.getElementById("sms-message").value,
+        }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const audit = await res.json();
+      resultEl.textContent =
+        `✓ ${audit.audit_id} — ${audit.recipients_count} recipients via ${audit.channels.join(", ")}`;
+    } catch (err) {
+      resultEl.textContent = `Dispatch failed: ${err.message}`;
+    }
+  }
+
+  function setupOfficerEvents() {
+    const closeBtn = document.getElementById("btn-sms-modal-close");
+    if (closeBtn) closeBtn.addEventListener("click", closeSmsModal);
+    const dispatchBtn = document.getElementById("btn-sms-dispatch");
+    if (dispatchBtn) dispatchBtn.addEventListener("click", dispatchSms);
+    const modal = document.getElementById("sms-modal");
+    if (modal) {
+      modal.addEventListener("click", (e) => {
+        if (e.target === modal) closeSmsModal();
+      });
+    }
+  }
+
+  document.addEventListener("DOMContentLoaded", () => {
+    wrapOpenSidebar();
+    setupOfficerEvents();
+    initOfficer();
+  });
+})();

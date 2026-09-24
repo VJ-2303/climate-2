@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ThermalGuard — Officer Command Center (Kibera)</title>
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <!-- Leaflet.draw CSS (Feature 2 - Zone Planner) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
+
+  <!-- Custom Styles -->
+  <link rel="stylesheet" href="/static/style.css?v=offline_v1" />
+</head>
+<body>
+  <div class="app-layout">
+    <!-- Top Global Header -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <div class="brand-group">
+          <div class="brand-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M14 4v10.54a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0Z"/>
+            </svg>
+          </div>
+          <div class="brand-text">
+            <span class="brand-title">ThermalGuard</span>
+            <div class="brand-sub-row">
+              <span class="brand-location">Officer Command · Kibera</span>
+              <span class="brand-temp-pill" id="topbar-avg-temp">Avg: --°C</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Overview Dashboard Toggle -->
+        <button class="btn btn-overview" id="btn-overview" title="Settlement Summary Dashboard">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="7" height="7" rx="1"/>
+            <rect x="14" y="3" width="7" height="7" rx="1"/>
+            <rect x="3" y="14" width="7" height="7" rx="1"/>
+            <rect x="14" y="14" width="7" height="7" rx="1"/>
+          </svg>
+          <span>Overview</span>
+        </button>
+
+        <!-- Quick Segmented Risk Filter -->
+        <div class="segmented-control" id="risk-segmented-control" role="tablist" aria-label="Risk Filter">
+          <button class="segment-btn active" data-risk="All">All Sectors</button>
+          <button class="segment-btn segment-critical" data-risk="Critical">Critical</button>
+          <button class="segment-btn segment-high" data-risk="High">High</button>
+          <button class="segment-btn segment-medium" data-risk="Medium">Medium</button>
+          <button class="segment-btn segment-low" data-risk="Low">Low / Safe</button>
+        </div>
+
+        <!-- 5-Day Heatwave Forecast Scrubber (populated by officer.js) -->
+        <div class="segmented-control" id="forecast-scrubber" role="tablist" aria-label="5-Day Heatwave Forecast Scrubber"></div>
+      </div>
+
+      <div class="topbar-right">
+        <!-- Citizen Portal Switcher -->
+        <a class="btn btn-outline" href="/public" id="btn-citizen-portal" title="Open Citizen Heat Portal">Citizen Portal</a>
+        <!-- Search Sector -->
+        <div class="search-box">
+          <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/>
+            <path d="m21 21-4.35-4.35"/>
+          </svg>
+          <input type="text" id="search-input" placeholder="Search sector (e.g. KIB-0234)..." autocomplete="off" spellcheck="false" />
+          <button class="search-clear-btn" id="search-clear" title="Clear search" style="display: none;">✕</button>
+        </div>
+
+        <!-- Layer Selector Dropdown Trigger -->
+        <div class="layer-dropdown-container">
+          <button class="btn btn-outline" id="layer-menu-btn" title="Change Map Layer">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="12 2 2 7 12 12 22 7 12 2"/>
+              <polyline points="2 17 12 22 22 17"/>
+              <polyline points="2 12 12 17 22 12"/>
+            </svg>
+            <span id="active-layer-name">Heat Vulnerability (HVI)</span>
+            <span class="dropdown-arrow">▾</span>
+          </button>
+
+          <!-- Layer Dropdown Menu -->
+          <div class="layer-dropdown-menu" id="layer-dropdown-menu" style="display: none;">
+            <div class="menu-section-header">Composite Index</div>
+            <label class="menu-layer-item active" data-layer="hvi">
+              <input type="radio" name="layer" value="hvi" checked />
+              <div class="menu-layer-info">
+                <span class="menu-layer-title">Heat Vulnerability Index (HVI)</span>
+                <span class="menu-layer-desc">Composite thermal risk</span>
+              </div>
+            </label>
+
+            <div class="menu-section-header">Environmental Drivers</div>
+            <label class="menu-layer-item" data-layer="ai_heat_exposure_blocks">
+              <input type="radio" name="layer" value="ai_heat_exposure_blocks" />
+              <div class="menu-layer-info">
+                <span class="menu-layer-title">Surface Heat Exposure</span>
+                <span class="menu-layer-desc">AI-downscaled 50m thermal load</span>
+              </div>
+            </label>
+
+            <label class="menu-layer-item" data-layer="ndvi_blocks">
+              <input type="radio" name="layer" value="ndvi_blocks" />
+              <div class="menu-layer-info">
+                <span class="menu-layer-title">Tree Canopy & Greenery (NDVI)</span>
+                <span class="menu-layer-desc">Vegetative shade buffer</span>
+              </div>
+            </label>
+
+            <label class="menu-layer-item" data-layer="ndbi_blocks">
+              <input type="radio" name="layer" value="ndbi_blocks" />
+              <div class="menu-layer-info">
+                <span class="menu-layer-title">Tin Roofs & Impervious (NDBI)</span>
+                <span class="menu-layer-desc">Heat-trapping structures</span>
+              </div>
+            </label>
+
+            <label class="menu-layer-item" data-layer="building_density_blocks">
+              <input type="radio" name="layer" value="building_density_blocks" />
+              <div class="menu-layer-info">
+                <span class="menu-layer-title">Building Footprint Density</span>
+                <span class="menu-layer-desc">Structure clustering & roof area</span>
+              </div>
+            </label>
+
+            <div class="menu-section-header">Community Factors</div>
+            <label class="menu-layer-item" data-layer="population_density_blocks">
+              <input type="radio" name="layer" value="population_density_blocks" />
+              <div class="menu-layer-info">
+                <span class="menu-layer-title">Population Density</span>
+                <span class="menu-layer-desc">Resident exposure concentration</span>
+              </div>
+            </label>
+
+            <label class="menu-layer-item" data-layer="cooling_deficit_blocks">
+              <input type="radio" name="layer" value="cooling_deficit_blocks" />
+              <div class="menu-layer-info">
+                <span class="menu-layer-title">Cooling Access Deficit</span>
+                <span class="menu-layer-desc">Distance to parks & water points</span>
+              </div>
+            </label>
+
+            <label class="menu-layer-item" data-layer="social_sensitivity_blocks">
+              <input type="radio" name="layer" value="social_sensitivity_blocks" />
+              <div class="menu-layer-info">
+                <span class="menu-layer-title">Social Vulnerability & Sensitivity</span>
+                <span class="menu-layer-desc">Demographic heat susceptibility</span>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <!-- Offline Satellite Basemap Cache Trigger -->
+        <button id="btn-offline-cache" class="btn btn-outline" title="Pre-download Kibera Satellite Map for Instant Offline Loading">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          <span id="offline-cache-label">Offline Basemap</span>
+          <span id="offline-cache-badge" class="offline-badge">Ready</span>
+        </button>
+
+        <!-- Export Dataset -->
+        <button id="export-btn" class="btn btn-primary" title="Export full GeoJSON dataset">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          <span>Export GeoJSON</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Settlement Overview Left Sidebar -->
+    <aside class="overview-sidebar" id="overview-sidebar" aria-label="Settlement Summary Dashboard">
+      <div class="ov-header">
+        <div class="ov-header-left">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="7" height="7" rx="1"/>
+            <rect x="14" y="3" width="7" height="7" rx="1"/>
+            <rect x="3" y="14" width="7" height="7" rx="1"/>
+            <rect x="14" y="14" width="7" height="7" rx="1"/>
+          </svg>
+          <span class="ov-title">Settlement Overview</span>
+        </div>
+        <button class="icon-btn" id="btn-overview-close" title="Close Overview">✕</button>
+      </div>
+
+      <div class="ov-body" id="ov-body">
+        <!-- KPI Cards Row -->
+        <div class="ov-kpi-grid" id="ov-kpi-grid">
+          <div class="ov-kpi-card">
+            <span class="ov-kpi-label">Settlement Score</span>
+            <span class="ov-kpi-value" id="ov-mean-hvi">--</span>
+            <span class="ov-kpi-sub">mean HVI / 100</span>
+          </div>
+          <div class="ov-kpi-card">
+            <span class="ov-kpi-label">Avg Surface Temp</span>
+            <span class="ov-kpi-value ov-kpi-temp" id="ov-mean-temp">--°C</span>
+            <span class="ov-kpi-sub">settlement-wide thermal baseline</span>
+          </div>
+          <div class="ov-kpi-card">
+            <span class="ov-kpi-label">At-Risk Population</span>
+            <span class="ov-kpi-value ov-kpi-alert" id="ov-atrisk-pop">--</span>
+            <span class="ov-kpi-sub">in Critical + High zones</span>
+          </div>
+          <div class="ov-kpi-card">
+            <span class="ov-kpi-label">Critical Sectors</span>
+            <span class="ov-kpi-value ov-kpi-critical" id="ov-critical-count">--</span>
+            <span class="ov-kpi-sub">require urgent intervention</span>
+          </div>
+          <div class="ov-kpi-card">
+            <span class="ov-kpi-label">Total Sectors</span>
+            <span class="ov-kpi-value" id="ov-total-blocks">--</span>
+            <span class="ov-kpi-sub">50m × 50m blocks analyzed</span>
+          </div>
+          <div class="ov-kpi-card">
+            <span class="ov-kpi-label">Resilient Sectors</span>
+            <span class="ov-kpi-value ov-kpi-safe" id="ov-safe-count">--</span>
+            <span class="ov-kpi-sub">Low / resilient microclimate</span>
+          </div>
+        </div>
+
+        <!-- Risk Distribution Bar -->
+        <div class="ov-section">
+          <div class="ov-section-label">Risk Distribution</div>
+          <div class="ov-risk-dist" id="ov-risk-dist">
+            <div class="ov-dist-bar" id="ov-dist-bar"></div>
+            <div class="ov-dist-legend" id="ov-dist-legend"></div>
+          </div>
+        </div>
+
+        <!-- Dominant Intervention -->
+        <div class="ov-section">
+          <div class="ov-section-label">Top Intervention Needed</div>
+          <div class="ov-intervention-badge" id="ov-top-intervention">--</div>
+          <div class="ov-intervention-breakdown" id="ov-intervention-breakdown"></div>
+        </div>
+
+        <!-- Top 5 Priority Sectors -->
+        <div class="ov-section">
+          <div class="ov-section-label">Top 5 Priority Sectors</div>
+          <ol class="ov-priority-list" id="ov-priority-list"></ol>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Workspace -->
+    <main class="workspace">
+      <!-- Interactive Leaflet Map Area -->
+      <div class="map-viewport">
+        <div id="map"></div>
+
+        <!-- Floating Vertical Threshold Filter Slider (Left Side) -->
+        <div class="floating-panel vertical-slider-panel" id="threshold-panel">
+          <div class="slider-panel-header">
+            <span class="slider-title">Threshold</span>
+            <span class="slider-val-badge" id="slider-val-display">&ge; 0</span>
+          </div>
+          
+          <div class="slider-track-wrapper">
+            <span class="slider-bound-label">100</span>
+            <div class="slider-input-container">
+              <input 
+                type="range" 
+                id="threshold-slider" 
+                min="0" 
+                max="100" 
+                value="0" 
+                step="1"
+                orient="vertical"
+                class="vertical-slider-input"
+                aria-label="Score threshold filter"
+              />
+            </div>
+            <span class="slider-bound-label">0</span>
+          </div>
+
+          <button class="slider-reset-btn" id="slider-reset-btn" title="Reset filter to 0">Reset</button>
+        </div>
+
+        <!-- Floating Basemap Toggle Bar (Default Map vs Satellite View) -->
+        <div class="floating-panel basemap-toggle-panel" id="basemap-toggle" role="group" aria-label="Basemap Surface Layer">
+          <button class="basemap-btn active" data-basemap="default" id="btn-basemap-default" title="Default Street Map (OpenStreetMap)">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/>
+              <line x1="8" y1="2" x2="8" y2="18"/>
+              <line x1="16" y1="6" x2="16" y2="22"/>
+            </svg>
+            <span>Default</span>
+          </button>
+          <button class="basemap-btn" data-basemap="satellite" id="btn-basemap-satellite" title="High-Resolution Satellite Imagery">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/>
+              <path d="M2 12h20"/>
+            </svg>
+            <span>Satellite</span>
+          </button>
+        </div>
+
+        <!-- Floating Map Legend Card -->
+        <div class="floating-panel map-legend-card" id="legend">
+          <div class="legend-header">
+            <span class="legend-title" id="legend-title">Risk Scale</span>
+            <span class="legend-unit" id="legend-unit">Score (0–100)</span>
+          </div>
+          <div id="legend-content" class="legend-bar-container"></div>
+        </div>
+
+        <!-- Floating Zoom / Reset View Control -->
+        <div class="map-quick-controls">
+          <button class="map-btn" id="btn-reset-view" title="Reset View to Kibera">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+              <path d="M3 3v5h5"/>
+            </svg>
+          </button>
+          <!-- Feature 2 - Draw Zone Intervention Planner -->
+          <button class="map-btn draw-zone-btn" id="btn-draw-zone" title="Draw Zone — Intervention Planner">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="3 11 22 2 13 21 11 13 3 11"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Off-Canvas Clean Sector Profile Drawer -->
+      <aside class="inspector-drawer" id="sidebar" aria-label="Sector Profile">
+        <!-- Drawer Header -->
+        <div class="drawer-top">
+          <span class="drawer-heading">Sector Intelligence</span>
+          <button class="icon-btn close-sidebar-btn" id="sidebar-close" title="Close Panel (Esc)">✕</button>
+        </div>
+
+        <!-- Drawer Content Body -->
+        <div class="drawer-body" id="drawer-body">
+          <!-- Loading State -->
+          <div id="drawer-loading" class="drawer-loading-skeleton" style="display: none;">
+            <div class="skeleton-shimmer skeleton-hero"></div>
+            <div class="skeleton-shimmer skeleton-card"></div>
+            <div class="skeleton-shimmer skeleton-card"></div>
+          </div>
+
+          <!-- Loaded Detail State -->
+          <div id="sidebar-detail" class="drawer-detail-state">
+            
+            <!-- Sector Header Card -->
+            <div class="sector-hero-card">
+              <div class="sector-meta-row">
+                <div class="sector-id-group">
+                  <span class="sector-prefix">SECTOR</span>
+                  <span id="detail-block-id" class="sector-id-val">KIB-0000</span>
+                </div>
+                <span id="detail-risk-badge" class="risk-badge risk-critical">CRITICAL RISK</span>
+              </div>
+
+              <div class="sector-kpi-row">
+                <div class="sector-kpi-item">
+                  <span class="kpi-label">HVI Score</span>
+                  <span class="kpi-val" id="detail-hvi-score">0<span class="kpi-max">/100</span></span>
+                </div>
+                <div class="sector-kpi-divider"></div>
+                <div class="sector-kpi-item">
+                  <span class="kpi-label">Surface Temp</span>
+                  <span class="kpi-val temp-kpi-val" id="detail-surface-temp">--°C</span>
+                </div>
+                <div class="sector-kpi-divider"></div>
+                <div class="sector-kpi-item">
+                  <span class="kpi-label">Anomaly</span>
+                  <span class="kpi-val temp-kpi-anomaly" id="detail-temp-anomaly">--</span>
+                </div>
+                <div class="sector-kpi-divider"></div>
+                <div class="sector-kpi-item">
+                  <span class="kpi-label">Residents</span>
+                  <span class="kpi-val" id="detail-population">~0</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Case A: Safe / Low Risk View (Only shown when block is safe) -->
+            <div id="safe-state-card" class="safe-status-box" style="display: none;">
+              <div class="safe-status-header">
+                <div class="safe-badge">SAFE / RESILIENT CONDITIONS</div>
+              </div>
+              <p class="safe-status-headline" id="safe-headline">This area is within safe microclimate thresholds.</p>
+              <p class="safe-status-desc" id="safe-desc">
+                Healthy tree canopy and balanced surface temperatures keep this area comfortable.
+              </p>
+              <div class="safe-reassurance-note">
+                ✓ No active municipal heat interventions are required.
+              </div>
+            </div>
+
+            <!-- Case B: High / Critical / Medium Risk View -->
+            <div id="risk-state-content" class="risk-content-group">
+              <!-- Compound Typology Headline Card -->
+              <div class="profile-card archetype-summary-card">
+                <div class="card-section-label">Microclimate Typology</div>
+                <div class="archetype-name-text" id="detail-archetype-title">Critical Thermal Trap & Settlement</div>
+                <p class="card-summary-text" id="detail-summary">
+                  Loading analysis...
+                </p>
+              </div>
+
+              <!-- Key Causes / Why is this hot? -->
+              <div class="profile-card" id="card-causes">
+                <div class="card-section-label">Primary Root Causes</div>
+                <ul class="clean-bullet-list" id="detail-causes-list">
+                  <!-- Populated via JS -->
+                </ul>
+              </div>
+
+              <!-- Recommended Priority Actions -->
+              <div class="profile-card" id="card-actions">
+                <div class="card-section-label">3-Phase Action Plan</div>
+                <ol class="action-steps-list" id="detail-actions-list">
+                  <!-- Populated via JS -->
+                </ol>
+              </div>
+            </div>
+
+            <!-- Technical Sensor Readings Accordion -->
+            <div class="technical-accordion">
+              <button class="accordion-toggle-btn" id="btn-toggle-factors">
+                <span>Environmental Sensor Indices</span>
+                <span id="factors-toggle-chevron">▾</span>
+              </button>
+              <div class="factors-card-list" id="detail-factors-list" style="display: none;">
+                <!-- Populated dynamically via JS -->
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- Feature 2 — Zone Intervention Report Modal -->
+    <div class="zone-modal-overlay" id="zone-modal" style="display:none;" role="dialog" aria-modal="true" aria-label="Zone Intervention Report">
+      <div class="zone-modal-card">
+        <div class="zone-modal-header">
+          <div class="zone-modal-title-group">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="3 11 22 2 13 21 11 13 3 11"/>
+            </svg>
+            <span class="zone-modal-title">Zone Intervention Report</span>
+          </div>
+          <button class="icon-btn" id="btn-zone-close" title="Clear Zone">✕</button>
+        </div>
+
+        <!-- Zone KPI Row -->
+        <div class="zone-kpi-row">
+          <div class="zone-kpi">
+            <span class="zone-kpi-label">Sectors in Zone</span>
+            <span class="zone-kpi-val" id="zm-block-count">--</span>
+          </div>
+          <div class="zone-kpi">
+            <span class="zone-kpi-label">At-Risk Population</span>
+            <span class="zone-kpi-val zone-kpi-danger" id="zm-atrisk-pop">--</span>
+          </div>
+          <div class="zone-kpi">
+            <span class="zone-kpi-label">Mean HVI Score</span>
+            <span class="zone-kpi-val" id="zm-mean-hvi">--</span>
+          </div>
+        </div>
+
+        <!-- Risk Tier Breakdown -->
+        <div class="zone-modal-section">
+          <div class="zone-modal-section-label">Risk Tier Breakdown</div>
+          <div class="zone-tier-bars" id="zm-tier-bars"></div>
+        </div>
+
+        <!-- Dominant Intervention -->
+        <div class="zone-modal-section">
+          <div class="zone-modal-section-label">Dominant Intervention Needed</div>
+          <div class="zone-dominant-intv" id="zm-dominant-intv">--</div>
+        </div>
+
+        <!-- Kibera Settlement Baseline Temperature -->
+        <div class="zone-modal-section">
+          <div class="zone-modal-section-label">Settlement Temperature Baseline</div>
+          <div class="zone-baseline-row">
+            <div class="zone-baseline-item">
+              <span class="zone-baseline-label">Kibera Avg Temp</span>
+              <span class="zone-baseline-val" id="zm-kibera-avg-temp">--</span>
+            </div>
+            <div class="zone-baseline-divider"></div>
+            <div class="zone-baseline-item">
+              <span class="zone-baseline-label">Zone Avg Temp</span>
+              <span class="zone-baseline-val" id="zm-zone-avg-temp">--</span>
+            </div>
+            <div class="zone-baseline-divider"></div>
+            <div class="zone-baseline-item">
+              <span class="zone-baseline-label">Zone &Delta; vs Settlement</span>
+              <span class="zone-baseline-val zone-baseline-delta" id="zm-temp-delta">--</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="zone-modal-footer">
+          <span class="zone-modal-note">Sectors highlighted in yellow on map</span>
+          <button class="btn btn-outline" id="btn-zone-clear">Clear Zone</button>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Feature: Offline Basemap Downloader Modal -->
+    <div class="zone-modal-overlay" id="offline-cache-modal" style="display:none;" role="dialog" aria-modal="true" aria-label="Offline Map Cache">
+      <div class="zone-modal-card offline-cache-card">
+        <div class="zone-modal-header">
+          <div class="zone-modal-title-group">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/>
+              <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            <span class="zone-modal-title">Offline Map Cache Manager</span>
+          </div>
+          <button class="icon-btn" id="btn-offline-modal-close" title="Close">✕</button>
+        </div>
+
+        <div class="offline-modal-body">
+          <p class="offline-modal-desc">
+            Pre-download high-resolution satellite imagery and reference labels for <strong>Kibera + 2km Buffer Zone</strong> directly into your browser's local cache. Once downloaded, the map will load instantly with <strong>zero internet latency</strong> and remain 100% accessible offline in the field.
+          </p>
+
+          <div class="offline-specs-grid">
+            <div class="offline-spec-item">
+              <span class="offline-spec-label">Target Area</span>
+              <span class="offline-spec-val">Kibera + Buffer (5km × 5km)</span>
+            </div>
+            <div class="offline-spec-item">
+              <span class="offline-spec-label">Zoom Levels</span>
+              <span class="offline-spec-val">Zooms 13 to 17 (Rooftop Detail)</span>
+            </div>
+            <div class="offline-spec-item">
+              <span class="offline-spec-label">Total Tile Count</span>
+              <span class="offline-spec-val" id="offline-spec-count">~440 tiles</span>
+            </div>
+            <div class="offline-spec-item">
+              <span class="offline-spec-label">Estimated Cache Size</span>
+              <span class="offline-spec-val" id="offline-spec-size">~9.5 MB</span>
+            </div>
+          </div>
+
+          <!-- Progress Bar Section -->
+          <div class="offline-progress-section" id="offline-progress-section" style="display: none;">
+            <div class="offline-progress-header">
+              <span class="offline-progress-status" id="offline-progress-status">Downloading satellite tiles...</span>
+              <span class="offline-progress-pct" id="offline-progress-pct">0%</span>
+            </div>
+            <div class="offline-progress-bar-bg">
+              <div class="offline-progress-bar-fill" id="offline-progress-bar-fill" style="width: 0%;"></div>
+            </div>
+            <div class="offline-progress-detail" id="offline-progress-detail">0 of 0 tiles cached</div>
+          </div>
+
+          <!-- Status Box -->
+          <div class="offline-status-box" id="offline-status-box">
+            <div class="offline-status-dot" id="offline-status-dot"></div>
+            <span class="offline-status-text" id="offline-status-text">Status: Ready to pre-download.</span>
+          </div>
+        </div>
+
+        <div class="zone-modal-footer offline-modal-footer">
+          <button class="btn btn-outline btn-danger-outline" id="btn-clear-cache" title="Clear local tile cache">Clear Cache</button>
+          <div class="modal-actions-right">
+            <button class="btn btn-outline" id="btn-close-offline-modal">Close</button>
+            <button class="btn btn-primary" id="btn-start-cache-download">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              <span id="btn-start-cache-label">Download &amp; Cache Map</span>
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Global Loading Overlay -->
+    <div id="loading-overlay" class="loading-curtain">
+      <div class="loading-dialog">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Loading Kibera Climate Map...</div>
+        <div class="loading-subtext">Rendering 18,040 50m sectors</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Leaflet JS CDN -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- Leaflet.draw plugin (Feature 2 - Zone Planner) -->
+  <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+  <!-- Turf.js — point-in-polygon for zone intersection (Feature 2) -->
+  <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+  <!-- SMS Emergency Dispatch Modal -->
+  <div class="zone-modal-overlay" id="sms-modal" style="display:none;" role="dialog" aria-modal="true" aria-label="SMS Emergency Dispatch">
+    <div class="zone-modal-card">
+      <div class="zone-modal-header">
+        <div class="zone-modal-title-group">
+          <span class="zone-modal-title">SMS Emergency Dispatch</span>
+        </div>
+        <button class="icon-btn" id="btn-sms-modal-close" title="Close">✕</button>
+      </div>
+      <div class="zone-modal-section">
+        <div class="zone-modal-section-label">Target Sector</div>
+        <div id="sms-block-id" style="font-weight: 600; font-size: 14px;">—</div>
+      </div>
+      <div class="zone-modal-section">
+        <div class="zone-modal-section-label">Recipient Group</div>
+        <select id="sms-recipient-group" style="width: 100%; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px;">
+          <option value="vulnerable_households">Vulnerable Households</option>
+          <option value="community_health_volunteers">Community Health Volunteers</option>
+          <option value="all_residents">All Sector Residents</option>
+        </select>
+      </div>
+      <div class="zone-modal-section">
+        <div class="zone-modal-section-label">Advisory Message</div>
+        <textarea id="sms-message" rows="4" style="width: 100%; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px; box-sizing: border-box;"></textarea>
+      </div>
+      <div class="zone-modal-footer">
+        <span id="sms-dispatch-result" style="font-size: 12px; color: #475569;"></span>
+        <button class="btn btn-primary" id="btn-sms-dispatch">Dispatch Alert</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Application JS -->
+  <script src="/static/app.js?v=offline_v4"></script>
+  <!-- Officer Command Center extensions -->
+  <script src="/static/officer.js?v=1"></script>
+</body>
+</html>
+
