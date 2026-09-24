@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ThermalGuard — Citizen Heat Safety Portal (Madurai)</title>
+  <meta name="description" content="Check hyperlocal urban heat vulnerability, danger hours, health advisories, and microclimate intelligence for your location in Madurai.">
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <!-- Core Theme Stylesheet -->
+  <link rel="stylesheet" href="/static/style.css?v=public_v3" />
+
+  <style>
+    /* ─── Layout & Map ─── */
+    .app-layout {
+      position: relative;
+      height: 100vh;
+      width: 100vw;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .map-container {
+      position: relative;
+      flex: 1;
+      width: 100%;
+      height: calc(100vh - var(--header-height));
+      overflow: hidden;
+    }
+
+    #map {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+      background: #090d16;
+    }
+
+    /* Topbar Location Chip */
+    .location-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      color: #1d4ed8;
+      font-size: 0.80rem;
+      font-weight: 600;
+      padding: 4px 12px;
+      border-radius: 20px;
+      white-space: nowrap;
+      animation: chipPop 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .location-chip svg { color: #2563eb; flex-shrink: 0; }
+    @keyframes chipPop {
+      0% { opacity: 0; transform: scale(0.92); }
+      100% { opacity: 1; transform: scale(1); }
+    }
+
+    /* Floating "My Location" Button */
+    .btn-my-location {
+      position: absolute;
+      bottom: 22px;
+      right: 92px;
+      z-index: 1050;
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 50%, #3b82f6 100%);
+      color: #ffffff;
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      border-radius: 30px;
+      padding: 10px 20px;
+      font-family: var(--font-sans);
+      font-size: 0.88rem;
+      font-weight: 700;
+      letter-spacing: 0.01em;
+      cursor: pointer;
+      box-shadow: 0 4px 18px rgba(37, 99, 235, 0.42), 0 2px 6px rgba(0, 0, 0, 0.15);
+      transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .btn-my-location:hover {
+      transform: translateY(-2px) scale(1.02);
+      box-shadow: 0 6px 24px rgba(37, 99, 235, 0.55), 0 3px 8px rgba(0, 0, 0, 0.2);
+    }
+    .btn-my-location:active { transform: translateY(0) scale(0.98); }
+    .btn-my-location svg {
+      width: 17px; height: 17px;
+      flex-shrink: 0;
+      animation: targetPulse 2.5s infinite;
+    }
+    @keyframes targetPulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.15); }
+    }
+
+    /* Pulsing Beacon Marker on Map */
+    .pulse-marker-container {
+      position: relative;
+      width: 24px; height: 24px;
+    }
+    .pulse-marker-center {
+      position: absolute;
+      top: 5px; left: 5px;
+      width: 14px; height: 14px;
+      background: #2563eb;
+      border: 2.5px solid #ffffff;
+      border-radius: 50%;
+      box-shadow: 0 0 8px rgba(0, 0, 0, 0.4);
+    }
+    .pulse-marker-ring {
+      position: absolute;
+      top: 0; left: 0;
+      width: 24px; height: 24px;
+      border-radius: 50%;
+      background: rgba(37, 99, 235, 0.4);
+      animation: beaconRing 2s ease-out infinite;
+    }
+    @keyframes beaconRing {
+      0% { transform: scale(0.5); opacity: 1; }
+      100% { transform: scale(2.2); opacity: 0; }
+    }
+
+    /* ─── Streamlined Citizen Drawer Content ─── */
+    .citizen-hero-card {
+      background: #ffffff;
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .citizen-place-header {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .citizen-place-tag {
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #3b82f6;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .citizen-place-name {
+      font-size: 1.15rem;
+      font-weight: 800;
+      color: var(--text-main);
+      letter-spacing: -0.02em;
+      line-height: 1.25;
+    }
+    .citizen-place-sub {
+      font-size: 0.76rem;
+      color: var(--text-subtle);
+      font-weight: 500;
+    }
+
+    /* Alert Banner (Big & Clear) */
+    .citizen-alert-banner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 14px;
+      border-radius: var(--radius-xs);
+      font-weight: 700;
+      font-size: 0.85rem;
+    }
+    .citizen-alert-banner.risk-critical { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+    .citizen-alert-banner.risk-high { background: #ffedd5; color: #c2410c; border: 1px solid #fed7aa; }
+    .citizen-alert-banner.risk-medium { background: #fef9c3; color: #854d0e; border: 1px solid #fef08a; }
+    .citizen-alert-banner.risk-low { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+
+    /* Quick Temp Stats */
+    .citizen-temp-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .citizen-temp-box {
+      background: #f8fafc;
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-xs);
+      padding: 10px 12px;
+      text-align: center;
+    }
+    .citizen-temp-num {
+      font-family: var(--font-mono);
+      font-size: 1.30rem;
+      font-weight: 800;
+      color: var(--text-main);
+      line-height: 1.1;
+    }
+    .citizen-temp-sub {
+      font-size: 0.68rem;
+      font-weight: 600;
+      color: var(--text-subtle);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-top: 4px;
+    }
+
+    /* Danger Hours Pill */
+    .danger-hours-card {
+      background: #fff1f2;
+      border: 1px solid #ffe4e6;
+      border-left: 4px solid #f43f5e;
+      border-radius: var(--radius-sm);
+      padding: 12px 14px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .danger-hours-icon {
+      font-size: 1.5rem;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+    .danger-hours-content {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .danger-hours-label {
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #be123c;
+    }
+    .danger-hours-val {
+      font-size: 0.92rem;
+      font-weight: 800;
+      color: #9f1239;
+    }
+    .danger-hours-hint {
+      font-size: 0.74rem;
+      color: #e11d48;
+    }
+
+    /* Action Checklist */
+    .action-checklist-card {
+      background: #ffffff;
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      padding: 14px 16px;
+      box-shadow: var(--shadow-sm);
+    }
+    .action-card-title {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-subtle);
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .action-checklist {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 9px;
+    }
+    .action-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 0.82rem;
+      line-height: 1.45;
+      color: var(--text-main);
+    }
+    .action-item-icon {
+      flex-shrink: 0;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: #f1f5f9;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+    }
+
+    /* Neighborhood Microclimate Glance Badges */
+    .quick-badges-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+    }
+    .quick-badge {
+      background: #f8fafc;
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-xs);
+      padding: 8px 6px;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+    }
+    .quick-badge-icon { font-size: 1.05rem; }
+    .quick-badge-title {
+      font-size: 0.64rem;
+      font-weight: 600;
+      color: var(--text-subtle);
+      text-transform: uppercase;
+    }
+    .quick-badge-val {
+      font-size: 0.76rem;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    /* 5-Day Outlook Strip */
+    .forecast-strip-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 5px;
+    }
+    .forecast-pill {
+      background: #f8fafc;
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-xs);
+      padding: 7px 3px;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+    }
+    .forecast-pill.active-today {
+      border-color: #3b82f6;
+      background: #eff6ff;
+    }
+    .forecast-pill-day {
+      font-size: 0.65rem;
+      font-weight: 700;
+      color: var(--text-subtle);
+      text-transform: uppercase;
+    }
+    .forecast-pill-wbgt {
+      font-family: var(--font-mono);
+      font-size: 0.88rem;
+      font-weight: 800;
+      color: var(--text-main);
+    }
+    .forecast-pill-tag {
+      font-size: 0.58rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      padding: 1px 3px;
+      border-radius: 2px;
+      letter-spacing: -0.01em;
+    }
+    .tag-critical { background: #fee2e2; color: #991b1b; }
+    .tag-high { background: #ffedd5; color: #c2410c; }
+    .tag-medium { background: #fef9c3; color: #854d0e; }
+    .tag-low { background: #dcfce7; color: #166534; }
+
+    /* Collapsible Technical Details (Clean & Out of the way) */
+    .tech-details-accordion {
+      background: #ffffff;
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+      margin-top: 4px;
+    }
+    .tech-details-accordion summary {
+      padding: 10px 14px;
+      font-size: 0.76rem;
+      font-weight: 700;
+      color: var(--text-subtle);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+      user-select: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #f8fafc;
+      transition: background 0.15s;
+    }
+    .tech-details-accordion summary:hover {
+      background: #f1f5f9;
+      color: var(--text-main);
+    }
+    .tech-accordion-body {
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      border-top: 1px solid var(--border-subtle);
+      font-size: 0.80rem;
+    }
+    .tech-section-label {
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: var(--text-subtle);
+      margin-bottom: 6px;
+    }
+
+    /* SHAP Pills inside tech accordion */
+    .shap-driver-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #f8fafc;
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-xs);
+      padding: 6px 10px;
+      margin-bottom: 5px;
+      font-size: 0.78rem;
+    }
+    .shap-driver-val {
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+      font-weight: 700;
+      padding: 1px 6px;
+      border-radius: 3px;
+    }
+    .shap-driver-val.warming { color: #b91c1c; background: #fee2e2; }
+    .shap-driver-val.cooling { color: #047857; background: #d1fae5; }
+
+    /* Mobile rules */
+    @media (max-width: 768px) {
+      .topbar { padding: 0 10px; }
+      .segmented-control { display: none; }
+      .btn-my-location {
+        bottom: 74px; right: 14px;
+        padding: 8px 14px; font-size: 0.80rem;
+      }
+      .vertical-slider-panel { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="app-layout">
+    <!-- ═══ TOP APP BAR ═══ -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <!-- Brand Group -->
+        <div class="brand-group">
+          <div class="brand-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M14 4v10.54a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0Z"/>
+            </svg>
+          </div>
+          <div class="brand-text">
+            <span class="brand-title">ThermalGuard</span>
+            <div class="brand-sub-row">
+              <span class="brand-location">Citizen Safety Portal · Madurai</span>
+              <span class="brand-temp-pill" id="topbar-avg-temp">Avg: 49.2°C</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quick Segmented Risk Filter -->
+        <div class="segmented-control" id="risk-segmented-control" role="tablist" aria-label="Risk Filter">
+          <button class="segment-btn active" data-risk="All">All Sectors</button>
+          <button class="segment-btn segment-critical" data-risk="Critical">Critical</button>
+          <button class="segment-btn segment-high" data-risk="High">High</button>
+          <button class="segment-btn segment-medium" data-risk="Medium">Medium</button>
+          <button class="segment-btn segment-low" data-risk="Low">Low / Safe</button>
+        </div>
+
+        <!-- Dynamic Location Chip -->
+        <div class="location-chip" id="location-chip" style="display: none;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+            <circle cx="12" cy="10" r="3"/>
+          </svg>
+          <span id="location-chip-text">Pasumalai (Sector KIB-27897)</span>
+        </div>
+      </div>
+
+      <div class="topbar-right">
+        <!-- Search Sector -->
+        <div class="search-box">
+          <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/>
+            <path d="m21 21-4.35-4.35"/>
+          </svg>
+          <input type="text" id="search-input" placeholder="Search sector (e.g. KIB-27897)..." autocomplete="off" spellcheck="false" />
+          <button class="search-clear-btn" id="search-clear" title="Clear search" style="display: none;">✕</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- ═══ MAP WORKSPACE ═══ -->
+    <main class="map-container" id="map-container">
+      <div id="map"></div>
+
+      <!-- Floating Vertical Threshold Filter Slider (Left Side) -->
+      <div class="floating-panel vertical-slider-panel" id="threshold-panel">
+        <div class="slider-panel-header">
+          <span class="slider-title">Threshold</span>
+          <span class="slider-val-badge" id="slider-current-val">≥ 0</span>
+        </div>
+        <div class="slider-track-wrapper">
+          <span class="slider-bound-label">100</span>
+          <div class="slider-input-container">
+            <input 
+              type="range" 
+              id="threshold-slider" 
+              min="0" 
+              max="100" 
+              value="0" 
+              step="1"
+              orient="vertical"
+              class="vertical-slider-input"
+              aria-label="HVI Score threshold filter"
+            />
+          </div>
+          <span class="slider-bound-label">0</span>
+        </div>
+        <button class="slider-reset-btn" id="slider-reset-btn" title="Reset filter to 0">Reset</button>
+      </div>
+
+      <!-- Floating Basemap Toggle Bar (Default Map vs Satellite View) -->
+      <div class="floating-panel basemap-toggle-panel" id="basemap-toggle" role="group" aria-label="Basemap Surface Layer">
+        <button class="basemap-btn active" data-basemap="default" id="btn-basemap-default" title="Default Street Map (OpenStreetMap)">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/>
+            <line x1="8" y1="2" x2="8" y2="18"/>
+            <line x1="16" y1="6" x2="16" y2="22"/>
+          </svg>
+          <span>Default</span>
+        </button>
+        <button class="basemap-btn" data-basemap="satellite" id="btn-basemap-satellite" title="High-Resolution Satellite Imagery">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/>
+            <path d="M2 12h20"/>
+          </svg>
+          <span>Satellite</span>
+        </button>
+      </div>
+
+      <!-- Floating Map Legend Card (Bottom Left) -->
+      <div class="floating-panel map-legend-card" id="legend">
+        <div class="legend-header">
+          <span class="legend-title" id="legend-title">Risk Scale</span>
+          <span class="legend-unit" id="legend-unit">HVI Score (0–100)</span>
+        </div>
+        <div id="legend-content" class="legend-bar-container">
+          <div class="legend-row">
+            <span class="legend-swatch" style="background: #dc2626;"></span>
+            <span>Critical (86–100)</span>
+          </div>
+          <div class="legend-row">
+            <span class="legend-swatch" style="background: #f97316;"></span>
+            <span>High (71–85)</span>
+          </div>
+          <div class="legend-row">
+            <span class="legend-swatch" style="background: #eab308;"></span>
+            <span>Medium (46–70)</span>
+          </div>
+          <div class="legend-row">
+            <span class="legend-swatch" style="background: #16a34a;"></span>
+            <span>Low / Safe (0–45)</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Reset View Button (Bottom Right) -->
+      <div class="map-quick-controls">
+        <button class="map-btn" id="btn-reset-view" title="Reset View to Madurai Overview">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+            <path d="M3 3v5h5"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Prominent "My Location" Floating Button -->
+      <button class="btn-my-location" id="btn-my-location" title="Fly to My Current Location">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3.5"/>
+          <path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
+        </svg>
+        <span>My Location</span>
+      </button>
+
+      <!-- ═══ STREAMLINED CITIZEN INTELLIGENCE DRAWER ═══ -->
+      <aside class="inspector-drawer" id="sidebar" aria-label="Sector Microclimate Profile">
+        <div class="drawer-top">
+          <span class="drawer-heading">Area Heat Intelligence</span>
+          <button class="icon-btn close-sidebar-btn" id="sidebar-close" title="Close Panel (Esc)">✕</button>
+        </div>
+
+        <div class="drawer-body" id="drawer-body">
+          <!-- Loading State -->
+          <div id="drawer-loading" class="drawer-loading-skeleton" style="display: none;">
+            <div class="skeleton-shimmer skeleton-hero"></div>
+            <div class="skeleton-shimmer skeleton-card"></div>
+            <div class="skeleton-shimmer skeleton-card"></div>
+          </div>
+
+          <!-- Loaded Detail State -->
+          <div id="sidebar-detail" class="drawer-detail-state" style="display: none;">
+            
+            <!-- 1. Hero Card: Place Name + Risk Status + Key Temperatures -->
+            <div class="citizen-hero-card">
+              <div class="citizen-place-header">
+                <div class="citizen-place-tag">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+                    <circle cx="12" cy="10" r="3"/>
+                  </svg>
+                  <span>Your Location</span>
+                </div>
+                <div class="citizen-place-name" id="detail-place-name">Pasumalai / Palanganatham</div>
+                <div class="citizen-place-sub" id="detail-place-sub">Madurai South · Sector KIB-27897</div>
+              </div>
+
+              <!-- Main Status Banner -->
+              <div class="citizen-alert-banner risk-critical" id="detail-risk-badge">
+                <span id="detail-alert-text">⚠️ CRITICAL HEAT ALERT</span>
+                <span id="detail-hvi-score" style="font-family: var(--font-mono); font-size: 0.88rem;">HVI 89/100</span>
+              </div>
+
+              <!-- Two Glanceable Temperature Numbers -->
+              <div class="citizen-temp-row">
+                <div class="citizen-temp-box">
+                  <div class="citizen-temp-num" id="detail-surface-temp">50.7°C</div>
+                  <div class="citizen-temp-sub">Surface Temp</div>
+                </div>
+                <div class="citizen-temp-box">
+                  <div class="citizen-temp-num" id="detail-temp-anomaly" style="color: #b91c1c;">+1.5°C</div>
+                  <div class="citizen-temp-sub">vs. City Average</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Safe Status Card (Shown only when block is Low risk) -->
+            <div id="safe-state-card" class="safe-status-box" style="display: none;">
+              <div class="safe-status-header">
+                <div class="safe-badge">SAFE & RESILIENT CONDITIONS</div>
+              </div>
+              <p class="safe-status-headline" id="safe-headline">This area is thermally comfortable and within safe thresholds.</p>
+              <p class="safe-status-desc" id="safe-desc">
+                High canopy vegetation and adequate moisture provide natural evaporative cooling.
+              </p>
+              <div class="safe-reassurance-note">
+                ✓ Normal daily activities can continue with standard hydration.
+              </div>
+            </div>
+
+            <!-- Risk Content Group (Critical, High, Medium) -->
+            <div id="risk-state-content" class="risk-content-group">
+              
+              <!-- 2. Danger Hours Banner -->
+              <div class="danger-hours-card" id="card-danger-hours">
+                <div class="danger-hours-icon">⏰</div>
+                <div class="danger-hours-content">
+                  <span class="danger-hours-label">Peak Sun Danger Hours</span>
+                  <span class="danger-hours-val" id="detail-danger-hours">11:00 AM – 3:30 PM</span>
+                  <span class="danger-hours-hint">Avoid heavy exertion; stay in ventilated shade</span>
+                </div>
+              </div>
+
+              <!-- 3. What You Should Do (Clear 3-Bullet Checklist) -->
+              <div class="action-checklist-card">
+                <div class="action-card-title">
+                  <span>🛡️ What You Should Do Right Now</span>
+                </div>
+                <ul class="action-checklist">
+                  <li class="action-item">
+                    <span class="action-item-icon">💧</span>
+                    <span id="action-item-hydrate"><strong>Drink water frequently</strong> — consume ORS or water every 45–60 minutes even if not thirsty.</span>
+                  </li>
+                  <li class="action-item">
+                    <span class="action-item-icon">⛱️</span>
+                    <span id="action-item-shade"><strong>Stay in shaded areas</strong> — avoid direct asphalt or tin-roof walkways during midday sun.</span>
+                  </li>
+                  <li class="action-item">
+                    <span class="action-item-icon">🪟</span>
+                    <span id="action-item-ventilate"><strong>Keep interiors ventilated</strong> — open opposing windows to flush radiant metal-roof heat.</span>
+                  </li>
+                </ul>
+              </div>
+
+              <!-- 4. Microclimate at a Glance (3 Simple Visual Badges) -->
+              <div class="action-checklist-card" style="padding: 12px 14px;">
+                <div class="action-card-title">
+                  <span>🔍 Area Microclimate At A Glance</span>
+                </div>
+                <div class="quick-badges-row">
+                  <div class="quick-badge">
+                    <span class="quick-badge-icon">🌳</span>
+                    <span class="quick-badge-title">Tree Shade</span>
+                    <span class="quick-badge-val" id="quick-shade-badge">45% Cover</span>
+                  </div>
+                  <div class="quick-badge">
+                    <span class="quick-badge-icon">🏠</span>
+                    <span class="quick-badge-title">Roof Type</span>
+                    <span class="quick-badge-val" id="quick-roof-badge">Sheet Metal</span>
+                  </div>
+                  <div class="quick-badge">
+                    <span class="quick-badge-icon">💧</span>
+                    <span class="quick-badge-title">Cool Buffer</span>
+                    <span class="quick-badge-val" id="quick-water-badge">49m to Water</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 5. 5-Day Heat Trend Strip -->
+              <div class="action-checklist-card" style="padding: 12px 14px;">
+                <div class="action-card-title">
+                  <span>📅 5-Day Heat Forecast Trend</span>
+                </div>
+                <div class="forecast-strip-grid" id="detail-forecast-timeline">
+                  <!-- Populated via JS -->
+                </div>
+              </div>
+
+              <!-- 6. Secondary Collapsible Details for Curious Users -->
+              <details class="tech-details-accordion" id="tech-accordion">
+                <summary>
+                  <span>View Detailed Science & Sensor Data</span>
+                  <span>▾</span>
+                </summary>
+                <div class="tech-accordion-body">
+                  <!-- AI Attributions -->
+                  <div>
+                    <div class="tech-section-label">AI Model (SHAP) Factor Impacts</div>
+                    <div id="detail-shap-list"></div>
+                  </div>
+
+                  <!-- Physical Causes -->
+                  <div>
+                    <div class="tech-section-label">Physical Heat Sources</div>
+                    <ul class="clean-bullet-list" id="detail-causes-list"></ul>
+                  </div>
+
+                  <!-- Municipal Actions -->
+                  <div>
+                    <div class="tech-section-label">Planned Municipal Solutions</div>
+                    <ol class="action-steps-list" id="detail-actions-list"></ol>
+                  </div>
+                </div>
+              </details>
+
+            </div>
+
+          </div>
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- Public Citizen Portal Logic -->
+  <script src="/static/public.js?v=public_v3"></script>
+</body>
+</html>
