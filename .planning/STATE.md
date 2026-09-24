@@ -22,8 +22,8 @@ See: `.planning/PROJECT.md` (updated 2026-09-24)
 
 Phase: 6 of 7 (Officer Command Center & Emergency Dispatch) completed  
 Next Phase: Phase 7 (Production Optimization & Vector Tiling)  
-Status: Core platform operational; test suite 100% passing (28/28 tests)  
-Last activity: 2026-09-24 — Completed documentation ingest from SPEC.md and AGENTS.md, created planning scaffold.
+Status: Core platform operational; test suite 100% passing (29/29 tests); Citizen Portal plain-language temperature UX complete  
+Last activity: 2026-09-25 — Implemented 3-card glanceable air vs roof heat UX across citizen & officer portals.
 
 Progress: [████████░░] 86%
 
@@ -34,7 +34,7 @@ Progress: [████████░░] 86%
 - Downscaling Resolution: 20m raster cells from 100m Landsat thermal imagery
 - API Query Latency: <10ms per block intelligence profile
 - GeoJSON Compression: 88% network bandwidth reduction via GZip
-- Automated Test Suite: 28 tests passing in ~14s
+- Automated Test Suite: 29 tests passing in ~15s
 
 ## Accumulated Context
 
