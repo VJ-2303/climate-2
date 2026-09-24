@@ -55,3 +55,81 @@ def test_send_twilio_sms_live_failure_handling(mock_client_class, monkeypatch):
     assert res["success"] is False
     assert res["mode"] == "live"
     assert "Authenticate" in res["error"]
+
+@patch("api.sms.Client")
+def test_endpoint_single_facility_dispatches_twilio(mock_client_class):
+    mock_client = MagicMock()
+    mock_msg = MagicMock()
+    mock_msg.sid = "SM_MOCK_SINGLE_12345"
+    mock_msg.status = "queued"
+    mock_client.messages.create.return_value = mock_msg
+    mock_client_class.return_value = mock_client
+
+    from fastapi.testclient import TestClient
+    from api.main import app
+
+    client = TestClient(app)
+    # Ensure facility has a verified contact
+    client.put("/api/admin/facilities/FAC-Z1-001/contact", json={
+        "contact_person": "Dean Testing",
+        "phone": "+91 94431 00001"
+    })
+
+    res = client.post("/api/admin/alerts/dispatch", json={"facility_id": "FAC-Z1-001"})
+    assert res.status_code == 200
+    data = res.json()
+    assert data["status"] == "dispatched"
+    assert "twilio_dispatches" in data
+    assert len(data["twilio_dispatches"]) == 1
+    assert data["twilio_dispatches"][0]["to"] == "+919443100001"
+    assert data["twilio_dispatches"][0]["sid"] == "SM_MOCK_SINGLE_12345"
+    assert mock_client.messages.create.called
+
+@patch("api.sms.Client")
+def test_endpoint_bulk_category_dispatches_twilio(mock_client_class):
+    mock_client = MagicMock()
+    mock_msg = MagicMock()
+    mock_msg.sid = "SM_MOCK_BULK_67890"
+    mock_msg.status = "queued"
+    mock_client.messages.create.return_value = mock_msg
+    mock_client_class.return_value = mock_client
+
+    from fastapi.testclient import TestClient
+    from api.main import app
+
+    client = TestClient(app)
+    res = client.post("/api/admin/alerts/dispatch", json={"zone_id": 1, "category": "Hospital / Clinic"})
+    assert res.status_code == 200
+    data = res.json()
+    assert data["status"] == "dispatched"
+    assert "twilio_dispatches" in data
+    assert len(data["twilio_dispatches"]) >= 1
+    for item in data["twilio_dispatches"]:
+        assert item["to"].startswith("+")
+        assert item["sid"] == "SM_MOCK_BULK_67890"
+    assert mock_client.messages.create.call_count >= 1
+
+@patch("api.sms.Client")
+def test_endpoint_sector_alert_dispatches_twilio(mock_client_class):
+    mock_client = MagicMock()
+    mock_msg = MagicMock()
+    mock_msg.sid = "SM_MOCK_SECTOR_11223"
+    mock_msg.status = "queued"
+    mock_client.messages.create.return_value = mock_msg
+    mock_client_class.return_value = mock_client
+
+    from fastapi.testclient import TestClient
+    from api.main import app
+
+    client = TestClient(app)
+    res = client.post("/api/alerts/dispatch", json={
+        "block_id": "KIB-0001",
+        "message": "Extreme heat warning",
+        "phone_number": "+91 98421 99999"
+    })
+    assert res.status_code == 200
+    data = res.json()
+    assert data["status"] == "dispatched"
+    assert data["recipient_phone"] == "+919842199999"
+    assert data["twilio_sid"] == "SM_MOCK_SECTOR_11223"
+    assert mock_client.messages.create.called

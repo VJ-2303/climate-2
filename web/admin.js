@@ -545,6 +545,29 @@
     document.getElementById("res-alert-msg-en").textContent = audit.message_en;
     document.getElementById("res-alert-msg-ta").textContent = audit.message_ta;
 
+    const twilioEl = document.getElementById("res-twilio-status");
+    if (twilioEl) {
+      const dispatches = audit.twilio_dispatches || [];
+      if (dispatches.length > 0) {
+        const liveDispatches = dispatches.filter((d) => d.mode === "live");
+        if (liveDispatches.length > 0) {
+          const successCount = liveDispatches.filter((d) => d.success).length;
+          if (successCount > 0) {
+            const firstSid = liveDispatches.find((d) => d.success)?.sid || "Queued";
+            twilioEl.innerHTML = `<span style="color:#16a34a; font-weight:700;">Live Twilio Delivered</span> &bull; ${successCount}/${dispatches.length} sent (SID: ${firstSid})`;
+          } else {
+            const err = liveDispatches[0].error || "Carrier response received";
+            twilioEl.innerHTML = `<span style="color:#eab308; font-weight:700;">Twilio Endpoint Called (${dispatches.length})</span> &bull; <span style="font-size:10px; color:#64748b;">${err}</span>`;
+          }
+        } else {
+          const firstSid = dispatches[0].sid || "Simulated";
+          twilioEl.innerHTML = `<span style="color:#0284c7; font-weight:700;">Simulated Delivery</span> &bull; ${dispatches.length} targets (${firstSid})`;
+        }
+      } else {
+        twilioEl.textContent = "Dispatched via Gateway";
+      }
+    }
+
     modal.style.display = "flex";
   }
 
