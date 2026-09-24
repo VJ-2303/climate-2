@@ -3678,12 +3678,6 @@ body.citizen-openweather-body {
   color: #0284c7;
 }
 
-.facility-contact-missing {
-  font-size: 11px;
-  color: #dc2626;
-  margin-top: 4px;
-  font-weight: 500;
-}
 
 .facility-last-alert {
   font-size: 10px;

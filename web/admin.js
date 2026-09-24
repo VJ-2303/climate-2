@@ -282,7 +282,7 @@
              <span class="facility-contact-sep">&bull;</span>
              <span class="facility-contact-phone">${f.phone}</span>
            </div>`
-        : `<div class="facility-contact-missing">No phone registered &bull; Alerting locked until contact added</div>`;
+        : "";
 
       const lastAlertInfo = f.last_alert_time
         ? `<div class="facility-last-alert">Last Alert: ${f.last_alert_time}</div>`
@@ -382,9 +382,7 @@
         <div class="facility-popup-content">
           <div class="facility-popup-title">${f.name}</div>
           <div class="facility-popup-meta" style="color:${color};">${f.category} &bull; <span style="color:#64748b;font-weight:400;">${f.address || "Madurai"}</span></div>
-          <div class="facility-popup-contact">
-            ${isVerified ? `<strong>${f.phone}</strong> &bull; ${f.contact_person || "In-Charge"}` : '<span style="color:#dc2626;font-weight:600;">No contact phone added</span>'}
-          </div>
+          ${isVerified ? `<div class="facility-popup-contact"><strong>${f.phone}</strong> &bull; ${f.contact_person || "In-Charge"}</div>` : ""}
           <div style="margin-top:8px;">
             <button class="btn btn-outline" onclick="window.adminOpenContactModal('${f.id}')" style="padding:3px 8px; font-size:11px; width:100%; justify-content:center;">
               ${isVerified ? "Edit Phone" : "Add Phone"}
