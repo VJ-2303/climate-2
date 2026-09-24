@@ -2360,3 +2360,276 @@ body.overview-open .basemap-toggle-panel {
   }
 }
 
+/* ==========================================================================
+   Citizen Public Portal — Responsive Split Layout & Curated Components
+   ========================================================================== */
+
+.citizen-topbar {
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.lang-toggle-btn {
+  font-family: var(--font-sans);
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: 4px 10px;
+}
+
+/* Main Split View */
+.citizen-main-split {
+  display: flex;
+  height: calc(100vh - var(--header-height));
+  width: 100vw;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Left Feed Pane (480px scrollable) */
+.citizen-feed-pane {
+  width: 480px;
+  min-width: 420px;
+  max-width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  background: #f8fafc;
+  border-right: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  gap: 12px;
+  z-index: 10;
+  box-shadow: 2px 0 10px rgba(0, 0, 0, 0.04);
+}
+
+/* Right Map Pane */
+.citizen-map-pane {
+  flex: 1;
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+  background: #090d16;
+}
+
+/* Feed Search & Locate Row */
+.feed-location-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.feed-search-box {
+  flex: 1;
+}
+.btn-feed-locate {
+  background: #0f172a;
+  color: #f8fafc;
+  border: 1px solid #334155;
+  border-radius: var(--radius-xs);
+  padding: 8px 12px;
+  font-family: var(--font-sans);
+  font-size: 0.80rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+.btn-feed-locate:hover {
+  background: #1e293b;
+  border-color: #475569;
+}
+.btn-feed-locate svg {
+  color: #38bdf8;
+  flex-shrink: 0;
+}
+
+/* Quick Neighborhood Chips Horizontal Scroll */
+.neighborhood-chips-scroll {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.neighborhood-chips-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.neighborhood-chip {
+  background: #ffffff;
+  border: 1px solid var(--border-subtle);
+  border-radius: 20px;
+  padding: 5px 12px;
+  font-family: var(--font-sans);
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: #475569;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+.neighborhood-chip:hover {
+  background: #f1f5f9;
+  color: var(--text-main);
+  border-color: var(--border-medium);
+}
+.neighborhood-chip.active {
+  background: #0284c7;
+  color: #ffffff;
+  border-color: #0284c7;
+  font-weight: 700;
+}
+
+/* Feed Cards Container */
+.feed-cards-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-bottom: 30px;
+}
+
+/* Heat Level Pill */
+.heat-level-pill {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 12px;
+  letter-spacing: 0.04em;
+  background: rgba(0, 0, 0, 0.08);
+}
+
+/* Danger Hours Live Status Badge */
+.danger-hours-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.danger-live-status-badge {
+  font-size: 0.65rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 7px;
+  border-radius: 10px;
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+/* Cool Spots Grid */
+.cool-spots-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.cool-spot-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #f8fafc;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xs);
+  padding: 8px 12px;
+  transition: background 0.15s;
+}
+.cool-spot-item:hover {
+  background: #f1f5f9;
+}
+.cool-spot-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.cool-spot-icon.green-spot { background: #dcfce7; color: #166534; }
+.cool-spot-icon.water-spot { background: #e0f2fe; color: #0369a1; }
+.cool-spot-icon.shelter-spot { background: #fef3c7; color: #92400e; }
+
+.cool-spot-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.cool-spot-name {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+.cool-spot-dist {
+  font-size: 0.72rem;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+/* Citizen Legend adjustments */
+.citizen-legend {
+  min-width: 190px;
+}
+
+/* Mobile Sticky Switch Bar */
+.mobile-switch-bar {
+  display: none;
+  position: fixed;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2000;
+}
+.btn-mobile-toggle {
+  background: #0f172a;
+  color: #f8fafc;
+  border: 1px solid #334155;
+  border-radius: 30px;
+  padding: 10px 20px;
+  font-family: var(--font-sans);
+  font-size: 0.88rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+}
+.btn-mobile-toggle svg {
+  color: #38bdf8;
+}
+
+/* Mobile View Rules */
+@media (max-width: 900px) {
+  .citizen-main-split {
+    flex-direction: column;
+  }
+  .citizen-feed-pane {
+    width: 100%;
+    min-width: 100%;
+    height: 100%;
+    border-right: none;
+  }
+  .citizen-map-pane {
+    display: none;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* When viewing map on mobile */
+  .citizen-main-split.viewing-map .citizen-feed-pane {
+    display: none;
+  }
+  .citizen-main-split.viewing-map .citizen-map-pane {
+    display: block;
+  }
+
+  .mobile-switch-bar {
+    display: block;
+  }
+}
+
