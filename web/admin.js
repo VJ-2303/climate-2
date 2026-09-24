@@ -112,13 +112,6 @@
       zoneNameEl.textContent = currentAuth.zone_name;
     }
 
-    const logoutBtn = document.getElementById("btn-admin-logout");
-    if (logoutBtn) logoutBtn.style.display = "inline-flex";
-
-    const autoAlertBtn = document.getElementById("btn-auto-alert-toggle");
-    if (autoAlertBtn) autoAlertBtn.style.display = "inline-flex";
-    updateAutoAlertUI(currentAuth.officer.autonomous_alerts);
-
     // If DDMA Admin, enable Zone Switcher dropdown
     const switcherContainer = document.getElementById("admin-zone-switcher-container");
     if (switcherContainer && currentAuth.role === "ddma_admin") {
@@ -126,88 +119,12 @@
       initZoneSwitcherMenu();
     }
 
-    // Render Officer Profile Card
-    renderOfficerProfileCard();
-
     // Load Facilities for this Zone (or Zone 1 default if DDMA)
     const targetZone = currentAuth.zone_id > 0 ? currentAuth.zone_id : 1;
     loadZoneFacilities(targetZone);
 
     // Show Facilities Drawer automatically
     toggleAdminPanel(true);
-  }
-
-  function updateAutoAlertUI(isActive) {
-    const dot = document.getElementById("auto-alert-dot");
-    const label = document.getElementById("auto-alert-label");
-    if (dot) dot.style.backgroundColor = isActive ? "#16a34a" : "#94a3b8";
-    if (label) label.textContent = isActive ? "Auto-Alert: ACTIVE" : "Auto-Alert: PAUSED";
-  }
-
-  async function toggleAutonomousAlerts() {
-    if (!currentAuth || currentAuth.zone_id <= 0) return;
-    const newStatus = currentAuth.officer.autonomous_alerts ? 0 : 1;
-    try {
-      const res = await fetch(`/api/admin/zones/${currentAuth.zone_id}/officer`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ autonomous_alerts: newStatus }),
-      });
-      if (res.ok) {
-        currentAuth.officer.autonomous_alerts = newStatus;
-        sessionStorage.setItem("thermalguard_admin_auth", JSON.stringify(currentAuth));
-        updateAutoAlertUI(newStatus);
-        renderOfficerProfileCard();
-        showToast(newStatus ? "Autonomous alerting activated for this Zone" : "Autonomous alerting paused");
-      }
-    } catch (e) {
-      console.warn("Toggle auto-alerts failed:", e);
-    }
-  }
-
-  // -------------------------------------------------------------------------
-  // 3. Officer Profile & Summary Cards
-  // -------------------------------------------------------------------------
-
-  function renderOfficerProfileCard() {
-    const container = document.getElementById("admin-officer-poc-card");
-    if (!container || !currentAuth) return;
-
-    const off = currentAuth.officer;
-    const isDDMA = currentAuth.role === "ddma_admin";
-    const zoneBadge = isDDMA ? "District Master Command" : currentAuth.zone_name;
-
-    container.innerHTML = `
-      <div class="admin-poc-card">
-        <div class="admin-poc-header">
-          <div>
-            <div class="admin-poc-role-label">Point of Contact (POC)</div>
-            <div class="admin-poc-name">${off.officer_name}</div>
-            <div class="admin-poc-subtitle">${off.designation} &bull; <span class="admin-poc-zone">${zoneBadge}</span></div>
-          </div>
-          ${!isDDMA ? '<button class="btn btn-outline" id="btn-edit-officer-profile" style="padding: 3px 8px; font-size: 11px;">Edit POC</button>' : ''}
-        </div>
-        <div class="admin-poc-meta-grid">
-          <div class="admin-poc-meta-item">
-            <span class="admin-poc-meta-label">Phone</span>
-            <span class="admin-poc-meta-value">${off.phone}</span>
-          </div>
-          <div class="admin-poc-meta-item">
-            <span class="admin-poc-meta-label">Email</span>
-            <span class="admin-poc-meta-value">${off.email}</span>
-          </div>
-          <div class="admin-poc-meta-item" style="grid-column: span 2;">
-            <span class="admin-poc-meta-label">Office</span>
-            <span class="admin-poc-meta-value">${off.office_address}</span>
-          </div>
-        </div>
-      </div>
-    `;
-
-    const btnEdit = document.getElementById("btn-edit-officer-profile");
-    if (btnEdit) {
-      btnEdit.addEventListener("click", () => openOfficerProfileModal());
-    }
   }
 
   async function initZoneSwitcherMenu() {
@@ -552,65 +469,6 @@
     }
   }
 
-  function openOfficerProfileModal() {
-    if (!currentAuth) return;
-    const modal = document.getElementById("officer-profile-modal");
-    if (!modal) return;
-
-    const off = currentAuth.officer;
-    document.getElementById("profile-zone-name").textContent = currentAuth.zone_name;
-    document.getElementById("input-officer-name").value = off.officer_name || "";
-    document.getElementById("input-officer-designation").value = off.designation || "";
-    document.getElementById("input-officer-phone").value = off.phone || "";
-    document.getElementById("input-officer-email").value = off.email || "";
-    document.getElementById("input-officer-address").value = off.office_address || "";
-    document.getElementById("input-officer-thresh").value = off.critical_wbgt_threshold || 38.0;
-    document.getElementById("profile-modal-error").style.display = "none";
-
-    modal.style.display = "flex";
-  }
-
-  function closeOfficerProfileModal() {
-    const modal = document.getElementById("officer-profile-modal");
-    if (modal) modal.style.display = "none";
-  }
-
-  async function saveOfficerProfile() {
-    if (!currentAuth || currentAuth.zone_id <= 0) return;
-    const errEl = document.getElementById("profile-modal-error");
-    if (errEl) errEl.style.display = "none";
-
-    const payload = {
-      officer_name: document.getElementById("input-officer-name").value.trim(),
-      designation: document.getElementById("input-officer-designation").value.trim(),
-      phone: document.getElementById("input-officer-phone").value.trim(),
-      email: document.getElementById("input-officer-email").value.trim(),
-      office_address: document.getElementById("input-officer-address").value.trim(),
-      critical_wbgt_threshold: parseFloat(document.getElementById("input-officer-thresh").value) || 38.0,
-    };
-
-    try {
-      const res = await fetch(`/api/admin/zones/${currentAuth.zone_id}/officer`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      if (!res.ok) throw new Error("Failed to update profile");
-      const updated = await res.json();
-      currentAuth.officer = updated;
-      sessionStorage.setItem("thermalguard_admin_auth", JSON.stringify(currentAuth));
-
-      renderOfficerProfileCard();
-      closeOfficerProfileModal();
-      showToast("Zonal Point of Contact profile saved");
-    } catch (err) {
-      if (errEl) {
-        errEl.textContent = err.message;
-        errEl.style.display = "block";
-      }
-    }
-  }
 
   // -------------------------------------------------------------------------
   // 7. Alerting Actions (Single & Bulk)
@@ -750,14 +608,6 @@
       });
     });
 
-    // Logout
-    const btnLogout = document.getElementById("btn-admin-logout");
-    if (btnLogout) btnLogout.addEventListener("click", handleLogout);
-
-    // Auto-alert toggle
-    const btnAuto = document.getElementById("btn-auto-alert-toggle");
-    if (btnAuto) btnAuto.addEventListener("click", toggleAutonomousAlerts);
-
     // Panel Toggle
     const btnPanel = document.getElementById("btn-admin-panel");
     if (btnPanel) btnPanel.addEventListener("click", () => toggleAdminPanel());
@@ -810,11 +660,6 @@
     const btnCloseContact = document.getElementById("btn-close-contact-modal");
     if (btnCloseContact) btnCloseContact.addEventListener("click", closeFacilityContactModal);
 
-    const btnSaveProfile = document.getElementById("btn-save-profile");
-    if (btnSaveProfile) btnSaveProfile.addEventListener("click", saveOfficerProfile);
-
-    const btnCloseProfile = document.getElementById("btn-close-profile-modal");
-    if (btnCloseProfile) btnCloseProfile.addEventListener("click", closeOfficerProfileModal);
 
     const btnCloseResult = document.getElementById("btn-close-result-modal");
     if (btnCloseResult) {

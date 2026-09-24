@@ -345,8 +345,7 @@ def evaluate_autonomous_alerts() -> Dict[str, Any]:
     dispatched = []
 
     for z in zones:
-        if not z.get("autonomous_alerts"):
-            continue
+        # Autonomous heatwave alert is always active and cannot be disabled
         thresh = float(z.get("critical_wbgt_threshold", 38.0))
         # Trigger condition: current WBGT >= threshold or composite IMD heatwave level >= 2 (Orange/Red)
         if current_wbgt >= thresh or alert_level >= 2:

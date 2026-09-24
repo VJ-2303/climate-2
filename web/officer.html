@@ -238,20 +238,6 @@
           <div class="layer-dropdown-menu" id="zone-switcher-menu" style="display:none; width:260px; right:0; left:auto;"></div>
         </div>
 
-        <!-- Auto-Alert Toggle Button -->
-        <button class="btn btn-outline" id="btn-auto-alert-toggle" style="display:none; align-items:center; gap:6px;" title="Autonomous Heatwave Dispatch Status">
-          <span id="auto-alert-dot" style="width:8px; height:8px; border-radius:50%; background:#16a34a; display:inline-block;"></span>
-          <span id="auto-alert-label">Auto-Alert: ACTIVE</span>
-        </button>
-
-        <!-- Lock / Logout Button -->
-        <button class="btn btn-outline" id="btn-admin-logout" style="display:none; align-items:center; gap:4px;" title="Lock Command Session">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-          </svg>
-          <span>Lock</span>
-        </button>
 
         <!-- Export Dataset -->
         <button id="export-btn" class="btn btn-primary" title="Export full GeoJSON dataset">
@@ -350,9 +336,6 @@
       </div>
 
       <div class="admin-panel-body">
-        <!-- Officer POC Card Container (rendered by admin.js) -->
-        <div id="admin-officer-poc-card"></div>
-
         <!-- Facilities Stats Summary Strip -->
         <div class="admin-stats-strip">
           <div class="admin-stat-item">
@@ -911,45 +894,6 @@
     </div>
   </div>
 
-  <!-- Officer Profile Modal -->
-  <div class="zone-modal-overlay" id="officer-profile-modal" style="display:none;" role="dialog" aria-modal="true" aria-label="Zonal Officer Profile">
-    <div class="zone-modal-card">
-      <div class="zone-modal-header">
-        <div class="zone-modal-title-group">
-          <span class="zone-modal-title">Zonal Point of Contact (POC)</span>
-          <div id="profile-zone-name" style="font-size:11px; color:#0284c7; font-weight:700; margin-top:2px;"></div>
-        </div>
-        <button class="icon-btn" id="btn-close-profile-modal" title="Close">✕</button>
-      </div>
-
-      <div class="zone-modal-section">
-        <label class="form-label" for="input-officer-name">Officer Name</label>
-        <input type="text" id="input-officer-name" class="form-input" />
-
-        <label class="form-label" for="input-officer-designation" style="margin-top:10px;">Designation</label>
-        <input type="text" id="input-officer-designation" class="form-input" />
-
-        <label class="form-label" for="input-officer-phone" style="margin-top:10px;">Official Mobile Number</label>
-        <input type="tel" id="input-officer-phone" class="form-input" />
-
-        <label class="form-label" for="input-officer-email" style="margin-top:10px;">Official Email</label>
-        <input type="email" id="input-officer-email" class="form-input" />
-
-        <label class="form-label" for="input-officer-address" style="margin-top:10px;">Office Address</label>
-        <input type="text" id="input-officer-address" class="form-input" />
-
-        <label class="form-label" for="input-officer-thresh" style="margin-top:10px;">Critical WBGT Threshold (°C)</label>
-        <input type="number" id="input-officer-thresh" step="0.5" min="30" max="45" class="form-input" />
-
-        <div id="profile-modal-error" class="admin-pin-error-msg" style="display:none; margin-top:10px;"></div>
-      </div>
-
-      <div class="zone-modal-footer">
-        <button class="btn btn-outline" id="btn-cancel-profile-modal" onclick="document.getElementById('officer-profile-modal').style.display='none'">Cancel</button>
-        <button class="btn btn-primary" id="btn-save-profile">Save POC Profile</button>
-      </div>
-    </div>
-  </div>
 
   <!-- Alert Dispatch Result Modal -->
   <div class="zone-modal-overlay" id="admin-dispatch-result-modal" style="display:none;" role="dialog" aria-modal="true" aria-label="Dispatch Result">
