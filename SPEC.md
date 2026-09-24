@@ -1,352 +1,137 @@
-# SPEC.md
+# SPEC.md — ThermalGuard (SIH26083)
 
-```markdown
-# HeatViz Technical Specification (SPEC.md)
+Authoritative specification. Agent contract (constants, gates, prohibitions): **AGENTS.md**.
 
-This document is the single source of truth for implementing HeatViz.
-An AI coding agent must implement EXACTLY what is written here.
-No interpretation, no substitution, no fallback logic, no alternative architecture.
-
----
-
-## 1. Project Definition
-
-HeatViz produces a block-level (50m x 50m) heat vulnerability map for Kibera, Nairobi.
-
-Pipeline summary:
-
-1. Load processed 20m rasters.
-2. Build 50m block grid inside Kibera boundary.
-3. Train Module 1 (Gradient Boosted Regression) at 100m, infer at 20m, bias-correct.
-4. Build block graph, train Module 2 (Graph Attention Network), infer contextual heat.
-5. Compute Heat Vulnerability Index (HVI), drivers, interventions.
-6. Export GeoJSON, serve via FastAPI, render via Leaflet.
+**ThermalGuard** maps 50m × 50m heat vulnerability across Kibera, Nairobi (18,040 blocks),
+issues 5-day full-WBGT heatwave early warnings, explains every score with SHAP, and drives a
+deterministic health-risk engine. Officer-only web UI (FastAPI + Leaflet).
 
 ---
 
-## 2. Immutable Constants
+## 1. System Architecture
 
-```python
-SEED = 42
-PROCESS_CRS = "EPSG:32737"
-OUTPUT_CRS = "EPSG:4326"
-WORKING_RES = 20          # meters
-BLOCK_SIZE = 50           # meters
-TRAIN_HALF_SIZE = 2500    # meters (5km x 5km training area)
-CENTER_LAT = -1.317
-CENTER_LON = 36.789
-DIST_CAP = 1000.0         # meters
-BLOCK_MIN_VALID_COVERAGE = 0.70
-MIN_TRAIN_SAMPLES = 1000  # Landsat 100m pixels
-NODATA = -9999.0
+```
+Landsat/OSM/WorldPop rasters (20m, EPSG:32737)
+  → Module 1: XGBoost 100m→20m surface-temp downscaling (+ per-cell bias correction)
+  → Module 2: GATv2 graph attention (8-neighbor blocks) → contextual heat
+  → HVI composite (exposure + social sensitivity + cooling deficit)
+  → SHAP TreeExplainer → per-block top-3 drivers
+  → Open-Meteo 5-day forecast → FULL WBGT → hyperlocal per-block downscaling
+  → Health Risk Engine (deterministic tiers, advisories, SMS dispatch)
+  → FastAPI + Leaflet officer UI
 ```
 
-These values MUST NOT be changed.
+## 2. Physics
 
----
+### 2.1 Full WBGT (ACGIH outdoor formula)
 
-## 3. Input Data Contract (data/processed/)
-
-All rasters: CRS EPSG:32737, 20m pixels, identical shape and transform.
-The agent MUST assert identical shape/transform for all 9 rasters at startup.
-
-| File | Meaning | Valid Range | Nodata |
-|---|---|---|---|
-| ndvi.tif | Vegetation index | [-1, 1] | -9999 |
-| ndwi.tif | Water index | [-1, 1] | -9999 |
-| ndbi.tif | Built-up index | [-1, 1] | -9999 |
-| landsat_st_celsius.tif | Surface temperature (Celsius) | [10, 55] | -9999 |
-| building_density.tif | Building coverage fraction | [0, 1] | 0 is valid |
-| road_density.tif | Road coverage fraction | [0, 1] | 0 is valid |
-| distance_to_green.tif | Meters to nearest green space | [0, 1000] | -9999 |
-| distance_to_water.tif | Meters to nearest water | [0, 1000] | -9999 |
-| population_density_20m.tif | People per hectare | [0, inf) | -9999 |
-
-Vector input:
-
-| File | CRS | Content |
-|---|---|---|
-| kibera_boundary.geojson | EPSG:32737 | Single closed polygon |
-
----
-
-## 4. Repository Layout (agent must create)
-
-```text
-scripts/
-    01_build_blocks.py
-    02_train_module1.py
-    03_infer_module1.py
-    04_build_graph.py
-    05_train_module2.py
-    06_infer_module2.py
-    07_score_export.py
-api/
-    main.py
-web/
-    index.html
-    app.js
-    style.css
-models/                     (created at runtime)
-data/processed/             (existing inputs + runtime outputs)
-data/output/                (final exports)
-SPEC.md
-agents.md
-memory.md
+```
+WBGT = 0.57·Tg + 0.32·ea + 0.11·Ta
+ea   = (RH/100) × 6.105 × exp(17.27·Ta / (237.7 + Ta))        # Magnus vapor pressure
+Tg   = globe temp from energy balance (Liljegren 2002):
+       εσ(Tg⁴ − Ta⁴) + h(Tg − Ta) = (1 − α)·Sr / 4
+       h = 5.65·v^0.8,  α = 0.05,  ε = 0.95,  σ = 5.67e-8      # 150mm matte-black globe
 ```
 
-Scripts run in numeric order. Each script must exit non-zero if its validation gate fails.
+Inputs per hourly step: `temperature_2m`, `relative_humidity_2m`, `direct_radiation`,
+`wind_speed_10m` (Open-Meteo). Daily peak WBGT = max over hourly pairs.
+Per-hour fallback (solar/wind missing): simplified shade formula
+`0.567·Ta + 0.393·ea + 3.94`.
 
----
+### 2.2 Risk Tiers (frozen)
 
-## 5. Dependencies
+| WBGT | Tier |
+|---|---|
+| < 28.0 | Low |
+| 28.0 – 30.0 | Moderate |
+| 30.0 – 32.0 | High |
+| > 32.0 | Critical |
 
-```text
-numpy pandas geopandas shapely pyproj rasterio scipy scikit-learn
-xgboost torch torch-geometric fastapi uvicorn
+### 2.3 Hyperlocal Downscaling
+
+```
+local_wbgt(block, day) = day_peak_wbgt + temp_anomaly_celsius × 0.4
+temp_anomaly_celsius   = block_surface_temp − 28.7   # settlement mean
 ```
 
----
+### 2.4 HVI Composite (frozen weights)
 
-## 6. Stage 1 — Block Grid (01_build_blocks.py)
-
-1. Compute TRAIN_BOUNDS in EPSG:32737 by projecting (CENTER_LON, CENTER_LAT) and adding +/- TRAIN_HALF_SIZE on both axes.
-2. Create square 50m grid covering kibera_boundary bounds, aligned so grid origin = floor(bounds_min / 50) * 50.
-3. Keep blocks whose centroid is inside the boundary polygon.
-4. Assign each 20m pixel to the block containing its pixel center.
-5. For each block and each raster, compute mean of valid assigned pixels.
-6. Coverage = valid_pixels / assigned_pixels. Drop blocks with coverage < 0.70.
-7. Block IDs: `KIB-0001 ...` assigned in row-major grid order.
-8. Save `data/processed/kibera_blocks_50m.geojson` (CRS 32737) with properties:
-   block_id, grid_i, grid_j, coverage, and mean_<layer> for all 9 rasters.
-9. Also compute and store `estimated_population = mean_population * 0.25`
-   (WorldPop values are people per hectare; block = 0.25 ha).
-
-Gate G1: block count >= 500. Else exit(1).
-
----
-
-## 7. Stage 2 — Module 1 Training (02_train_module1.py)
-
-1. Build 100m cells over TRAIN_BOUNDS (5x5 aggregation of 20m pixels).
-2. For each 100m cell compute mean of the 8 feature rasters and mean of landsat_st_celsius,
-   using only valid pixels; drop cells with coverage < 0.70 or nodata target.
-3. Feature columns (exact names):
-   mean_ndvi, mean_ndwi, mean_ndbi, mean_building_density,
-   mean_road_density, mean_distance_to_green, mean_distance_to_water,
-   mean_population_density
-   Target: target_st_celsius
-4. Gate G2: sample count >= MIN_TRAIN_SAMPLES. Else exit(1).
-5. Split 80/20 by row with SEED.
-6. Train XGBRegressor with EXACTLY:
-
-```python
-XGBRegressor(
-    objective="reg:squarederror",
-    n_estimators=400,
-    max_depth=6,
-    learning_rate=0.05,
-    subsample=0.8,
-    colsample_bytree=0.8,
-    random_state=SEED,
-    tree_method="hist",
-)
 ```
-
-7. Gate G3: validation R2 >= 0.25 AND validation MAE <= 1.5. Else exit(1).
-8. Save model to `models/module1_xgb.json`.
-9. Append metrics to memory.md.
-
----
-
-## 8. Stage 3 — Module 1 Inference + Bias Correction (03_infer_module1.py)
-
-1. Predict at every valid 20m pixel inside TRAIN_BOUNDS using its own feature values.
-2. For each 100m cell: correction = target_100m - mean(predictions in cell).
-3. corrected_20m = prediction + correction (per pixel, using its cell).
-4. Save `data/processed/ai_heat_base_20m.tif` (CRS 32737, nodata -9999).
-5. Gate G4: max abs difference between cell-mean corrected values and target_100m <= 0.01.
-
----
-
-## 9. Stage 4 — Graph Construction (04_build_graph.py)
-
-1. Build graphs for (a) TRAIN area blocks and (b) Kibera blocks, using the same procedure:
-   - Nodes = valid 50m blocks from Stage 1 logic (training area uses TRAIN_BOUNDS grid).
-   - Node features (9): mean_ai_heat_base, mean_ndvi, mean_ndwi, mean_ndbi,
-     mean_building_density, mean_road_density, mean_distance_to_green,
-     mean_distance_to_water, mean_population_density.
-     (mean_ai_heat_base obtained by aggregating ai_heat_base_20m.tif per block.)
-   - Edges = 8-neighborhood via (grid_i, grid_j); undirected; include self-loops.
-2. Normalize node features with percentile (2, 98) computed on TRAIN blocks,
-   then divide by 100 (range 0-1). Apply same scaler to Kibera blocks.
-3. Target per node = normalized mean_ai_heat_base (0-1).
-4. Save PyG objects to `models/graph_train.pt` and `models/graph_kibera.pt`.
-
----
-
-## 10. Stage 5 — Module 2 Training (05_train_module2.py)
-
-Model (exact):
-
-```python
-class HeatGAT(torch.nn.Module):
-    # GATv2Conv(in=9, out=32, heads=4) -> ELU -> Dropout(0.1)
-    # GATv2Conv(in=128, out=16, heads=2, concat=False) -> ELU -> Dropout(0.1)
-    # Linear(16, 1) -> Sigmoid
-```
-
-Training:
-
-```text
-Optimizer: Adam, lr=0.005
-Epochs: 200, early stopping patience 20 on validation loss
-Split: 80/20 nodes, SEED
-Loss = 0.9 * MSE(pred, target) + 0.1 * mean_over_edges((pred_i - pred_j)^2)
-```
-
-Gate G5: validation Pearson correlation(pred, target) >= 0.90. Else exit(1).
-Save `models/module2_gat.pt`.
-
----
-
-## 11. Stage 6 — Module 2 Inference (06_infer_module2.py)
-
-1. Load graph_kibera.pt and model.
-2. Output contextual_heat_01 = model(x, edge_index).
-3. contextual_ai_heat = contextual_heat_01 * 100.
-4. Gate G6: std(contextual_ai_heat over Kibera blocks) >= 5.0.
-5. Attach to block table.
-
----
-
-## 12. Stage 7 — Scoring, Explainability, Export (07_score_export.py)
-
-### 12.1 Normalization helper
-
-```text
-norm(x) over valid Kibera blocks:
-    p2, p98 = percentiles(2, 98)
-    if p98 - p2 < 1e-6: return 50
-    return clip((x - p2) / (p98 - p2) * 100, 0, 100)
-inv(x) = 100 - norm(x)
-```
-
-### 12.2 Scores (per block)
-
-```text
 AI_Heat_Exposure   = norm(contextual_ai_heat)
-Social_Sensitivity = clip(0.70*norm(pop) + 0.30*norm(building), 0, 100)
-Cooling_Deficit    = clip(0.35*norm(dist_green) + 0.30*norm(dist_water)
-                          + 0.20*inv(ndvi) + 0.15*inv(ndwi), 0, 100)
-HVI_raw            = 0.45*AI_Heat + 0.35*Social + 0.20*Cooling
-HVI_final          = norm(HVI_raw)
+Social_Sensitivity = 0.70·norm(population) + 0.30·norm(building_density)
+Cooling_Deficit    = 0.35·norm(dist_green) + 0.30·norm(dist_water)
+                     + 0.20·inv(ndvi) + 0.15·inv(ndwi)
+HVI_final = norm(0.45·AI + 0.35·Social + 0.20·Cooling)
+norm(x) = p2/p98-clip to 0–100;  inv(x) = 100 − norm(x)
 ```
 
-### 12.3 Risk classes
+Risk classes: `0–30 Low | 31–55 Medium | 56–75 High | 76–100 Critical`.
 
-```text
-0-30 Low | 31-55 Medium | 56-75 High | 76-100 Critical
-priority = same label as risk class
+### 2.5 Health Risk Engine (deterministic, no ML at serve time)
+
+Per block × forecast day:
+```
+base_score = clip((local_wbgt − 24.0) × 10, 0, 100)
+risk_score = clip(0.75·base + 0.15·norm(pop) + 0.10·norm(building), 0, 100)
+tier       = tier(local_wbgt)
+if Social_Sensitivity ≥ 70 and tier ≠ Critical: bump tier up one level
 ```
 
-### 12.4 Drivers
+Advisory = worst day over 5: tier → action text (officer_action + citizen_action).
 
-```text
-low_vegetation        = inv(ndvi)
-high_building_density = norm(building)
-high_built_surface    = norm(ndbi)
-poor_green_access     = norm(dist_green)
-poor_water_access     = norm(dist_water)
-high_population_exposure = norm(pop)
-```
+## 3. Pipeline — 8 Stages
 
-top_drivers = 3 highest values; ties broken by this exact order:
-poor_water_access, poor_green_access, high_population_exposure,
-high_building_density, high_built_surface, low_vegetation.
+`01 → 02 → 08 → 03 → 04 → 05 → 06 → 07` — standalone scripts, gate fail = `exit(1)`.
+Gate values and artifact map: AGENTS.md.
 
-### 12.5 Intervention (highest driver, same tie order)
+| Stage | Script | Output |
+|---|---|---|
+| 01 | `01_build_blocks.py` | 50m block grid, per-layer means, population |
+| 02 | `02_train_module1.py` | XGBoost ST model (100m cells) |
+| 08 | `08_compute_shap.py` | per-block SHAP top-5 → `block_shap_explanations.json` |
+| 03 | `03_infer_module1.py` | `ai_heat_base_20m.tif` (bias-corrected) |
+| 04 | `04_build_graph.py` | PyG train + Kibera graphs (9 node features) |
+| 05 | `05_train_module2.py` | HeatGAT (frozen architecture) |
+| 06 | `06_infer_module2.py` | `contextual_ai_heat` on blocks |
+| 07 | `07_score_export.py` | HVI + drivers + `shap_top_factors` (top 3) → GeoJSONs |
 
-```text
-poor_water_access      -> "Water point / hydration support"
-poor_green_access      -> "Shade structure / tree planting"
-low_vegetation         -> "Green cover intervention"
-high_building_density  -> "Cool roof awareness / ventilation outreach"
-high_built_surface     -> "Reflective roof / surface cooling campaign"
-high_population_exposure -> "Community health outreach"
-```
+## 4. API
 
-### 12.6 Export
+| Endpoint | Returns |
+|---|---|
+| `GET /` , `GET /officer` | Officer UI (`web/officer.html`) |
+| `GET /data/vulnerability_blocks.geojson` | Main HVI GeoJSON (EPSG:4326) |
+| `GET /data/layers/{name}.geojson` | One of 7 layer files |
+| `GET /api/layers/{name}/attributes` | `{block_id: score}` lightweight map |
+| `GET /api/layers/forecast_day_{1..5}/attributes` | Per-block 5-day forecast risk scores |
+| `GET /api/blocks/{block_id}` | Full block intelligence: HVI, SHAP top-3, 5-day health trajectory, advisory |
+| `GET /api/forecast/days` | 5-day WBGT summary (day, date, wbgt_max, tier) |
+| `GET /api/forecast/summary` | Forecast summary + peak day |
+| `POST /api/alerts/dispatch` | Simulated SMS dispatch → `{audit_id, recipients_count, channels}` |
 
-Reproject blocks to EPSG:4326 and write `data/output/vulnerability_blocks.geojson`
-with EXACT properties:
+Weather source: Open-Meteo live (1h cache) → offline fallback `data/fallback_forecast.json`
+(heatwave scenario, peak 34.5°C/65%, WBGT 37.4°C) on network failure.
 
-```json
-{
-  "block_id": "KIB-0234",
-  "hvi_score": 87, "hvi_raw": 79.4,
-  "risk_class": "Critical", "priority": "Critical",
-  "ai_heat_exposure": 89, "social_sensitivity": 84, "cooling_deficit": 82,
-  "estimated_population": 312, "population_density": 78, "building_density": 85,
-  "ndvi": 12, "ndwi": 6, "ndbi": 77,
-  "distance_to_green": 69, "distance_to_water": 74,
-  "top_drivers": ["poor_water_access", "high_building_density", "low_vegetation"],
-  "intervention": "Water point / hydration support"
-}
-```
+## 5. UI — Officer Command Center (only)
 
-Also export per-layer block GeoJSONs (same geometry, single value property):
-ai_heat_exposure_blocks, social_sensitivity_blocks, cooling_deficit_blocks,
-ndvi_blocks, ndbi_blocks, building_density_blocks, population_density_blocks.
+- Choropleth: `Low #1a9850 | Medium #ffffbf | High #f46d43 | Critical #d73027`
+- 7 layer switchers (lightweight attribute endpoints, no geometry reload)
+- **Forecast dropdown** (topbar): HVI current + Day 1–5 WBGT views; map recolors per day
+- **SHAP waterfall** in block sidebar: top-3 drivers with ±°C contributions
+- **5-day trajectory sparkline** + tier badges per day
+- **SMS dispatch modal**: block → recipient group → simulated dispatch with audit trail
+- Zone Planner (polygon → population + risk aggregation), search, offline tile cache
 
-Gate G7: top-decile HVI blocks must have mean ndvi lower than overall mean ndvi,
-and mean building_density higher than overall mean.
+No public/citizen portal (removed — officer-only deployment).
 
----
+## 6. Data Sources (frozen — no additions)
 
-## 13. Backend (api/main.py)
+Landsat Collection-2 ST · Sentinel-2 indices · OSM buildings/roads · WorldPop · Kibera boundary.
+Weather: Open-Meteo (ECMWF-based) + local fallback file.
 
-FastAPI app serving:
+## 7. Model Constraints (frozen)
 
-```text
-GET /                                    -> web/index.html
-GET /static/...                          -> web assets
-GET /data/vulnerability_blocks.geojson
-GET /data/layers/{name}.geojson          -> the 7 layer files
-```
-
-Run: `uvicorn api.main:app --port 8000`.
-
----
-
-## 14. Frontend (web/)
-
-Leaflet from CDN. Requirements:
-
-1. Basemap: OpenStreetMap tiles.
-2. Choropleth of vulnerability_blocks.geojson styled by risk_class:
-   Low #1a9850, Medium #ffffbf, High #f46d43, Critical #d73027.
-3. Click -> side panel showing all properties, with driver display names:
-   poor_water_access="Poor water access", poor_green_access="Poor green space access",
-   high_population_exposure="High population exposure",
-   high_building_density="High building density",
-   high_built_surface="High built-up surface", low_vegetation="Low vegetation".
-4. Layer control toggling the 7 layer GeoJSONs (single-value choropleth, 5-class blue scale).
-5. Legend control with risk classes and colors.
-6. Export button downloading vulnerability_blocks.geojson.
-
----
-
-## 15. Prohibitions
-
-The agent MUST NOT:
-
-- Add fallback branches, try/except that skips a gate, or default values for failed data.
-- Change any constant, weight, threshold, seed, or model architecture.
-- Introduce U-Net, TransUNet, Transformers, GANs, CNNs, or any model not specified.
-- Add data sources beyond Section 3.
-- Rename output files or properties.
-- Proceed to the next stage if any gate fails (exit non-zero instead).
-```
-
----
+- Module 1: XGBoost `n_estimators=400, max_depth=6, lr=0.05, subsample=0.8, colsample=0.8, seed=42`
+- Module 2: HeatGAT — `GATv2Conv(9→32, h=4) → GATv2Conv(128→16, h=2) → Linear(16→1) → Sigmoid`;
+  Adam lr=0.005, 200 epochs, early stop patience 20, loss = 0.9·MSE + 0.1·edge-smooth
+- No CNNs, Transformers, GANs, U-Net. No ML at serve time.
