@@ -94,17 +94,17 @@ def test_vulnerability_blocks_have_shap_top_factors():
         assert "contribution_celsius" in props["shap_top_factors"][0]
 
 
-# --- Slice 6: Plan 1.1 — hourly metrics from Open-Meteo ---
+# --- Slice 6: Forecast from daily max temperature (not hourly) ---
 
-def test_open_meteo_url_includes_hourly():
+def test_open_meteo_url_is_daily_only():
     from api.weather import build_open_meteo_url
     url = build_open_meteo_url(-1.317, 36.789)
-    assert "hourly=temperature_2m,relative_humidity_2m" in url
+    assert "hourly=" not in url
     assert "daily=temperature_2m_max" in url
 
 
-def test_process_open_meteo_uses_hourly_peak_wbgt():
-    from api.weather import process_open_meteo
+def test_process_open_meteo_uses_daily_max_temp():
+    from api.weather import process_open_meteo, calculate_wbgt
     raw = {
         "daily": {
             "time": ["2026-09-24"],
@@ -114,16 +114,7 @@ def test_process_open_meteo_uses_hourly_peak_wbgt():
             "wind_speed_10m_max": [12.0],
             "shortwave_radiation_sum": [20.0],
         },
-        "hourly": {
-            "time": ["2026-09-24T13:00", "2026-09-24T14:00"],
-            "temperature_2m": [31.5, 30.0],
-            "relative_humidity_2m": [70.0, 60.0],
-        },
     }
     result = process_open_meteo(raw, -1.317, 36.789)
-    day1 = result["daily"][0]
-    # Hourly peak WBGT (13:00, 31.5C/70%) must exceed daily-approx WBGT (30C/60%)
-    expected_peak = calculate_wbgt(31.5, 70.0)
-    assert day1["wbgt_max"] == expected_peak
-    assert expected_peak > calculate_wbgt(30.0, 60.0)
+    assert result["daily"][0]["wbgt_max"] == calculate_wbgt(30.0, 60.0)
 

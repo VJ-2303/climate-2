@@ -23,20 +23,19 @@ Landsat/OSM/WorldPop rasters (20m, EPSG:32737)
 
 ## 2. Physics
 
-### 2.1 Full WBGT (ACGIH outdoor formula)
+### 2.1 WBGT (daily-max method)
 
 ```
-WBGT = 0.57·Tg + 0.32·ea + 0.11·Ta
+WBGT = 0.567·Ta + 0.393·ea + 3.94
 ea   = (RH/100) × 6.105 × exp(17.27·Ta / (237.7 + Ta))        # Magnus vapor pressure
-Tg   = globe temp from energy balance (Liljegren 2002):
-       εσ(Tg⁴ − Ta⁴) + h(Tg − Ta) = (1 − α)·Sr / 4
-       h = 5.65·v^0.8,  α = 0.05,  ε = 0.95,  σ = 5.67e-8      # 150mm matte-black globe
 ```
 
-Inputs per hourly step: `temperature_2m`, `relative_humidity_2m`, `direct_radiation`,
-`wind_speed_10m` (Open-Meteo). Daily peak WBGT = max over hourly pairs.
-Per-hour fallback (solar/wind missing): simplified shade formula
-`0.567·Ta + 0.393·ea + 3.94`.
+Per forecast day: `Ta = temperature_2m_max`, `RH = relative_humidity_2m_mean` (Open-Meteo
+daily). One WBGT per day from the day's max temperature — no hourly scan.
+
+Available but not in the pipeline: full ACGIH outdoor WBGT `0.57·Tg + 0.32·ea + 0.11·Ta`
+with globe temp from the Liljegren 2002 energy balance (`calculate_full_wbgt`,
+`estimate_globe_temperature` in `api/weather.py`).
 
 ### 2.2 Risk Tiers (frozen)
 

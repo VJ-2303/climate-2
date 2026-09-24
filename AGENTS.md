@@ -88,9 +88,9 @@ building_density, population_density, geometry`
 
 - `main.py` — FastAPI, startup loads GeoJSONs into `blocks_db` + SHAP cache; GZip on.
   Routes: SPEC.md §4. Officer UI only (`/` and `/officer` → `web/officer.html`). No public portal.
-- `weather.py` — full WBGT (SPEC.md §2.1), Open-Meteo fetch (hourly T/RH/solar/wind),
+- `weather.py` — WBGT daily-max method (SPEC.md §2.1), Open-Meteo fetch (daily metrics),
   1h cache, fallback file on failure. `build_open_meteo_url` / `process_open_meteo` are
-  the testable seams.
+  the testable seams. `calculate_full_wbgt` / `estimate_globe_temperature` available, unused.
 - `rules.py` — deterministic block intelligence: physical diagnosis, SHAP top-3,
   5-day health trajectory (tier modulation), advisories, intervention sizing. No ML at serve time.
 

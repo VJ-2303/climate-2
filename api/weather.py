@@ -106,17 +106,19 @@ def _load_fallback(fallback_path: str = FALLBACK_FILE) -> Dict[str, Any]:
     }
 
 def build_open_meteo_url(lat: float, lon: float) -> str:
-    """Builds the Open-Meteo request URL with daily + hourly metrics."""
+    """Builds the Open-Meteo request URL (daily metrics only)."""
     return (
         f"https://api.open-meteo.com/v1/forecast?"
         f"latitude={lat}&longitude={lon}&"
         f"daily=temperature_2m_max,temperature_2m_min,relative_humidity_2m_mean,wind_speed_10m_max,shortwave_radiation_sum&"
-        f"hourly=temperature_2m,relative_humidity_2m,direct_radiation,wind_speed_10m&"
         f"timezone=Africa%2FNairobi&forecast_days=5"
     )
 
 def process_open_meteo(raw_data: Dict[str, Any], lat: float, lon: float) -> Dict[str, Any]:
-    """Transforms raw Open-Meteo daily + hourly data into the 5-day WBGT forecast structure."""
+    """Transforms raw Open-Meteo daily data into the 5-day WBGT forecast structure.
+
+    WBGT is computed from each day's max temperature + mean humidity (daily-max method).
+    """
     daily_raw = raw_data.get("daily", {})
     times = daily_raw.get("time", [])
     t_max = daily_raw.get("temperature_2m_max", [])
@@ -125,33 +127,12 @@ def process_open_meteo(raw_data: Dict[str, Any], lat: float, lon: float) -> Dict
     wind = daily_raw.get("wind_speed_10m_max", [])
     solar = daily_raw.get("shortwave_radiation_sum", [])
 
-    # Hourly T/RH/solar/wind pairs: peak FULL WBGT per day (ACGIH outdoor formula)
-    hourly_raw = raw_data.get("hourly", {})
-    h_times = hourly_raw.get("time", [])
-    h_temp = hourly_raw.get("temperature_2m", [])
-    h_rh = hourly_raw.get("relative_humidity_2m", [])
-    h_rad = hourly_raw.get("direct_radiation", [])
-    h_wind = hourly_raw.get("wind_speed_10m", [])
-    hourly_peak_wbgt: Dict[str, float] = {}
-    for i in range(len(h_times)):
-        if i >= len(h_temp) or i >= len(h_rh):
-            continue
-        if h_temp[i] is None or h_rh[i] is None:
-            continue
-        day_key = h_times[i][:10]
-        if i < len(h_rad) and h_rad[i] is not None and i < len(h_wind) and h_wind[i] is not None:
-            wbgt_h = calculate_full_wbgt(float(h_temp[i]), float(h_rh[i]), float(h_rad[i]), float(h_wind[i]))
-        else:
-            wbgt_h = calculate_wbgt(float(h_temp[i]), float(h_rh[i]))
-        if day_key not in hourly_peak_wbgt or wbgt_h > hourly_peak_wbgt[day_key]:
-            hourly_peak_wbgt[day_key] = wbgt_h
-
     processed_days = []
     for i in range(min(5, len(times))):
         tm = float(t_max[i]) if i < len(t_max) and t_max[i] is not None else 30.0
         tmn = float(t_min[i]) if i < len(t_min) and t_min[i] is not None else 18.0
         rh = float(rh_mean[i]) if i < len(rh_mean) and rh_mean[i] is not None else 60.0
-        wbgt = hourly_peak_wbgt.get(times[i], calculate_wbgt(tm, rh))
+        wbgt = calculate_wbgt(tm, rh)
         tier = classify_wbgt_risk(wbgt)
 
         processed_days.append({
@@ -178,7 +159,7 @@ def process_open_meteo(raw_data: Dict[str, Any], lat: float, lon: float) -> Dict
     }
 
 def fetch_open_meteo_forecast(lat: float = DEFAULT_LAT, lon: float = DEFAULT_LON) -> Dict[str, Any]:
-    """Fetches real-time 5-day weather forecast (daily + hourly metrics) from Open-Meteo API."""
+    """Fetches real-time 5-day weather forecast (daily metrics) from Open-Meteo API."""
     url = build_open_meteo_url(lat, lon)
     req = urllib.request.Request(url, headers={"User-Agent": "ThermalGuard/1.0"})
     with urllib.request.urlopen(req, timeout=5) as response:
