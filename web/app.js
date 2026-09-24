@@ -3,10 +3,10 @@
  */
 
 const RISK_COLORS = {
-  Critical: "#dc2626", // Pure High-Contrast Red (Critical: 76–100)
-  High: "#f97316",     // Pure High-Contrast Orange (High: 56–75)
-  Medium: "#eab308",   // Pure High-Contrast Bright Yellow (Medium: 31–55)
-  Low: "#16a34a",      // Pure High-Contrast Crisp Green (Low / Safe: 0–30)
+  Critical: "#d73027",
+  High: "#f46d43",
+  Medium: "#ffffbf",
+  Low: "#1a9850",
 };
 
 // High-contrast, domain-specific 5-step color ramps (every baseline has a visible tint)

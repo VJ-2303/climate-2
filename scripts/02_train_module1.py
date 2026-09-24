@@ -5,7 +5,6 @@ import numpy as np
 import pandas as pd
 import rasterio
 from pyproj import Transformer
-from sklearn.model_selection import train_test_split
 from sklearn.metrics import r2_score, mean_absolute_error
 from xgboost import XGBRegressor
 
@@ -159,13 +158,13 @@ def main():
     else:
         print(f"GATE G2 PASSED: sample count = {sample_count} >= {MIN_TRAIN_SAMPLES}")
 
-    # 5. Split 80/20 by row with SEED
+    # 5. Split 80/20 by row with SEED (sequential row split, not shuffled)
+    split_idx = int(len(df) * 0.80)
     X = df[FEATURE_COLS]
     y = df[TARGET_COL]
 
-    X_train, X_val, y_train, y_val = train_test_split(
-        X, y, test_size=0.20, random_state=SEED
-    )
+    X_train, X_val = X.iloc[:split_idx], X.iloc[split_idx:]
+    y_train, y_val = y.iloc[:split_idx], y.iloc[split_idx:]
     print(f"Train samples: {len(X_train)}, Validation samples: {len(X_val)}")
 
     # 6. Train XGBRegressor with EXACT hyperparameters from SPEC Section 7
@@ -205,6 +204,17 @@ def main():
     print(f"Saved model to {model_path}")
 
     # 9. Append metrics to memory.md
+    from datetime import datetime
+    entry = (
+        f"\n## Stage 02 — {datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')}\n"
+        f"- samples: {sample_count}\n"
+        f"- val_r2: {val_r2:.4f}\n"
+        f"- val_mae: {val_mae:.4f}\n"
+        f"- artifact: {model_path}\n"
+        f"- gate_g3: PASS\n"
+    )
+    with open("memory.md", "a") as mf:
+        mf.write(entry)
     print(f"STAGE 2 m1-train: PASS | samples: {sample_count} | R2: {val_r2:.4f} | MAE: {val_mae:.4f} | artifact: {model_path}")
 
 if __name__ == "__main__":

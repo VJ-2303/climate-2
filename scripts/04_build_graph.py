@@ -209,8 +209,8 @@ def main():
         if len(vals) > 0:
             kibera_ai_heat_means.append(float(np.mean(vals)))
         else:
-            # Fallback if no valid pixel
-            kibera_ai_heat_means.append(float(row.get("mean_landsat_st_celsius", 28.0)))
+            print(f"Error: Block {row['block_id']} has no valid ai_heat_base pixels.")
+            sys.exit(1)
 
     kibera_gdf["mean_ai_heat_base"] = kibera_ai_heat_means
 
