@@ -127,13 +127,3 @@ def test_process_open_meteo_uses_hourly_peak_wbgt():
     assert day1["wbgt_max"] == expected_peak
     assert expected_peak > calculate_wbgt(30.0, 60.0)
 
-
-# --- Slice 7: Plan 4.2 — public portal geolocation + cool spots ---
-
-def test_public_portal_has_geolocation_and_cool_spots():
-    with open("web/public.html", "r", encoding="utf-8") as f:
-        html = f.read()
-    assert "Find My Risk" in html
-    assert "getCurrentPosition" in html
-    assert "Cool Spot" in html or "cool-spot" in html
-    assert "distance_to_water" in html or "Nearest Water" in html
