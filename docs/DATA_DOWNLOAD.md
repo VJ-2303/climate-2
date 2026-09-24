@@ -40,8 +40,8 @@ Portal: `https://browser.dataspace.copernicus.eu`
    - Processing level: **L2A**
    - Time range: last 12 months
    - Cloud coverage: **max 5%**
-3. Zoom to Kibera, Nairobi (or paste coordinates `-1.317, 36.789`) and draw a small box around it.
-4. Pick a scene where Kibera itself has no clouds (use the true-color preview).
+3. Zoom to Madurai, Tamil Nadu (or paste coordinates `9.921851, 78.118200`) and draw a small box around it.
+4. Pick a scene where Madurai itself has no clouds (use the true-color preview).
 5. Click **Download** on that scene. You will receive one `.zip` file (the SAFE product).
 
 ### What Is Inside the ZIP
@@ -85,10 +85,10 @@ Portal: `https://earthexplorer.usgs.gov`
 ### Search Steps
 
 1. Log in.
-2. Search Criteria tab: enter coordinates `-1.317, 36.789` (or "Kibera, Kenya").
+2. Search Criteria tab: enter coordinates `9.921851, 78.118200` (or "Madurai, Tamil Nadu, India").
 3. Date range: last 12 months. Under "Additional Criteria" set cloud cover **Less Than 5%**.
 4. Data Sets tab: open **Landsat → Landsat Collection 2 Level-2** and tick it .
-5. Results: pick a scene covering Kibera with low cloud.
+5. Results: pick a scene covering Madurai with low cloud (Path 143, Row 53/54).
 6. Click the download icon, then in **Download Options** choose **Landsat Collection 2 Level-2 Science Product** (GeoTIFF). Do not choose Level-1.
 
 ### What Is Inside the ZIP
@@ -115,28 +115,27 @@ cp LC0*_MTL.txt      data/raw/landsat_mtl.txt
 
 ---
 
-## 4. WorldPop Population (Kenya, 100m)
+## 4. WorldPop Population (India, 100m)
 
-Portal: `https://hub.worldpop.org/geodata/country?iso3=KEN`
+Portal: `https://hub.worldpop.org/geodata/country?iso3=IND`
 
 ### Which Dataset
 
-Pick the **100m Population Counts (constrained, 2020)** for Kenya. It is delivered as a single GeoTIFF at about 100m (3 arc seconds) .
+Pick the **100m Population Counts (constrained, 2020)** for India. It is delivered as a single GeoTIFF at about 100m (3 arc seconds) .
 
 Direct pages you can use (same dataset, different mirrors):
 
-- WorldPop Hub summary page: `https://hub.worldpop.org/geodata/summary?id=49643` (Constrained 2020, 100m, Kenya) 
-- Alternative listing: `https://hub.worldpop.org/geodata/summary?id=6530` 
-- HDX mirror: `https://data.humdata.org/dataset/worldpop-population-counts-for-kenya` 
+- WorldPop Hub summary page: `https://hub.worldpop.org/geodata/summary?id=49792` (Constrained 2020, 100m, India) 
+- HDX mirror: `https://data.humdata.org/dataset/worldpop-population-counts-for-india` 
 
 ### Steps
 
 1. Open one of the pages above.
-2. Click **Download Entire Dataset** (a single `.tif` file, roughly 300 MB) .
+2. Click **Download Entire Dataset** (a single `.tif` file) .
 3. Rename and place:
 
 ```bash
-cp ken_ppp_2020*.tif data/raw/worldpop_population.tif
+cp ind_ppp_2020*.tif data/raw/worldpop_population.tif
 ```
 
 Notes:
@@ -152,19 +151,19 @@ Portal: `https://overpass-turbo.eu`
 
 ### Steps
 
-1. Paste this query into the left editor (it uses the locked Kibera bbox):
+1. Paste this query into the left editor (it uses the Madurai urban bbox):
 
 ```text
 [out:json][timeout:300];
 (
-  way["building"](-1.335,36.765,-1.295,36.810);
-  way["highway"](-1.335,36.765,-1.295,36.810);
-  way["natural"="water"](-1.335,36.765,-1.295,36.810);
-  way["waterway"](-1.335,36.765,-1.295,36.810);
-  way["amenity"="drinking_water"](-1.335,36.765,-1.295,36.810);
-  way["landuse"~"grass|recreation_ground|village_green"](-1.335,36.765,-1.295,36.810);
-  way["leisure"~"park|garden|pitch|playground"](-1.335,36.765,-1.295,36.810);
-  node["amenity"="drinking_water"](-1.335,36.765,-1.295,36.810);
+  way["building"](9.870,78.050,9.970,78.180);
+  way["highway"](9.870,78.050,9.970,78.180);
+  way["natural"="water"](9.870,78.050,9.970,78.180);
+  way["waterway"](9.870,78.050,9.970,78.180);
+  way["amenity"="drinking_water"](9.870,78.050,9.970,78.180);
+  way["landuse"~"grass|recreation_ground|village_green"](9.870,78.050,9.970,78.180);
+  way["leisure"~"park|garden|pitch|playground"](9.870,78.050,9.970,78.180);
+  node["amenity"="drinking_water"](9.870,78.050,9.970,78.180);
 );
 out geom;
 ```
@@ -182,19 +181,19 @@ out geom;
 
 ---
 
-## 6. Kibera Boundary (geojson.io)
+## 6. Madurai Boundary (geojson.io)
 
 Portal: `https://geojson.io`
 
 ### Steps
 
-1. Zoom to Kibera and switch on the satellite basemap.
-2. Use the polygon tool to trace the settlement outline. Close the polygon.
+1. Zoom to Madurai and switch on the satellite basemap.
+2. Use the polygon tool to trace the urban study area outline. Close the polygon.
 3. The right panel shows the GeoJSON. Click **Save → GeoJSON**.
 4. Place the file:
 
 ```bash
-cp map.geojson data/raw/kibera_boundary.geojson
+cp map.geojson data/raw/madurai_boundary.geojson
 ```
 
 ---
@@ -220,7 +219,7 @@ data/raw/
     osm_water.geojson
     osm_green.geojson
     worldpop_population.tif
-    kibera_boundary.geojson
+    madurai_boundary.geojson
 ```
 
 Everything else (unzipped SAFE folders, Landsat zips, extra bands) can be deleted or moved outside the repo after the checks below pass.
@@ -229,15 +228,15 @@ Everything else (unzipped SAFE folders, Landsat zips, extra bands) can be delete
 
 ## 8. Post-Download Checks (5 Minutes)
 
-Run these before the hackathon starts. If any check fails, re-download that file.
+Run these before starting the preprocessing pipeline (`process.py`). If any check fails, re-download that file.
 
-1. All 7 Sentinel tifs open and report CRS EPSG:32737 or EPSG:4326 (reprojection happens later).
-2. `sentinel_scl.tif` contains values 2, 4, 5, 6 over Kibera (not all zeros).
-3. `landsat_st_b10.tif` opens and has non-zero values over Kibera after applying the scale factor from `landsat_mtl.txt`.
+1. All 7 Sentinel tifs open and report CRS EPSG:32643 or EPSG:4326 (reprojection happens during preprocessing).
+2. `sentinel_scl.tif` contains values 2, 4, 5, 6 over Madurai (not all zeros).
+3. `landsat_st_b10.tif` opens and has non-zero values over Madurai after applying the scale factor from `landsat_mtl.txt`.
 4. `landsat_qa_pixel.tif` opens and is the same size as `landsat_st_b10.tif`.
 5. `osm_buildings.geojson` contains at least 1000 features.
 6. `osm_water.geojson` or `osm_green.geojson` contains at least 1 feature.
 7. `worldpop_population.tif` has non-zero values inside the boundary.
-8. `kibera_boundary.geojson` is a single valid closed polygon.
+8. `madurai_boundary.geojson` is a single valid closed polygon.
 
-Once all 8 checks pass, the data layer is locked and the pipeline can start.
+Once all 8 checks pass, the raw data layer is verified and `process.py` can be executed.

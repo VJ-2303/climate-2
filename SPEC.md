@@ -2,7 +2,7 @@
 
 Authoritative specification. Agent contract (constants, gates, prohibitions): **AGENTS.md**.
 
-**ThermalGuard** maps 50m × 50m heat vulnerability across Kibera, Nairobi (18,040 blocks),
+**ThermalGuard** maps 50m × 50m heat vulnerability across Madurai, Tamil Nadu (36,913 blocks),
 issues 5-day full-WBGT heatwave early warnings, explains every score with SHAP, and drives a
 deterministic health-risk engine. Officer-only web UI (FastAPI + Leaflet).
 
@@ -11,7 +11,7 @@ deterministic health-risk engine. Officer-only web UI (FastAPI + Leaflet).
 ## 1. System Architecture
 
 ```
-Landsat/OSM/WorldPop rasters (20m, EPSG:32737)
+Landsat/OSM/WorldPop rasters (20m, EPSG:32643)
   → Module 1: XGBoost 100m→20m surface-temp downscaling (+ per-cell bias correction)
   → Module 2: GATv2 graph attention (8-neighbor blocks) → contextual heat
   → HVI composite (exposure + social sensitivity + cooling deficit)
@@ -41,20 +41,20 @@ Available but not in the pipeline: full ACGIH outdoor WBGT `0.57·Tg + 0.32·ea 
 with globe temp from the Liljegren 2002 energy balance (`calculate_full_wbgt`,
 `estimate_globe_temperature` in `api/weather.py`).
 
-### 2.2 Risk Tiers (frozen)
+### 2.2 Risk Tiers (frozen — IMD/NDMA tropical standards)
 
 | WBGT | Tier |
 |---|---|
-| < 28.0 | Low |
-| 28.0 – 30.0 | Moderate |
-| 30.0 – 32.0 | High |
-| > 32.0 | Critical |
+| < 30.0 | Low |
+| 30.0 – 34.0 | Moderate |
+| 34.0 – 38.0 | High |
+| > 38.0 | Critical |
 
 ### 2.3 Hyperlocal Downscaling
 
 ```
 local_wbgt(block, day) = day_peak_wbgt + temp_anomaly_celsius × 0.4
-temp_anomaly_celsius   = block_surface_temp − 28.7   # settlement mean
+temp_anomaly_celsius   = block_surface_temp − 49.5   # settlement mean
 ```
 
 ### 2.4 HVI Composite (frozen weights)
@@ -68,13 +68,13 @@ HVI_final = norm(0.45·AI + 0.35·Social + 0.20·Cooling)
 norm(x) = p2/p98-clip to 0–100;  inv(x) = 100 − norm(x)
 ```
 
-Risk classes: `0–30 Low | 31–55 Medium | 56–75 High | 76–100 Critical`.
+Risk classes: `0–45 Low | 46–70 Medium | 71–85 High | 86–100 Critical`.
 
 ### 2.5 Health Risk Engine (deterministic, no ML at serve time)
 
 Per block × forecast day:
 ```
-base_score = clip((local_wbgt − 24.0) × 10, 0, 100)
+base_score = clip((local_wbgt − 28.0) × 10, 0, 100)
 risk_score = clip(0.75·base + 0.15·norm(pop) + 0.10·norm(building), 0, 100)
 tier       = tier(local_wbgt)
 if Social_Sensitivity ≥ 70 and tier ≠ Critical: bump tier up one level
@@ -93,7 +93,7 @@ Gate values and artifact map: AGENTS.md.
 | 02 | `02_train_module1.py` | XGBoost ST model (100m cells) |
 | 08 | `08_compute_shap.py` | per-block SHAP top-5 → `block_shap_explanations.json` |
 | 03 | `03_infer_module1.py` | `ai_heat_base_20m.tif` (bias-corrected) |
-| 04 | `04_build_graph.py` | PyG train + Kibera graphs (9 node features) |
+| 04 | `04_build_graph.py` | PyG train + Madurai graphs (9 node features) |
 | 05 | `05_train_module2.py` | HeatGAT (frozen architecture) |
 | 06 | `06_infer_module2.py` | `contextual_ai_heat` on blocks |
 | 07 | `07_score_export.py` | HVI + drivers + `shap_top_factors` (top 3) → GeoJSONs |
@@ -129,8 +129,8 @@ No public/citizen portal (removed — officer-only deployment).
 
 ## 6. Data Sources (frozen — no additions)
 
-Landsat Collection-2 ST · Sentinel-2 indices · OSM buildings/roads · WorldPop · Kibera boundary.
-Weather: Open-Meteo (ECMWF-based) + local fallback file.
+Landsat Collection-2 ST · Sentinel-2 indices · OSM buildings/roads · WorldPop · Madurai boundary.
+Weather: Open-Meteo (ECMWF/ICON/GFS blend) + local fallback file.
 
 ## 7. Model Constraints (frozen)
 

@@ -14,7 +14,7 @@
 Dense informal settlements face disproportionate heat stress due to contiguous corrugated metal roofs, lack of vegetation, high structural density, and limited water access. Standard meteorological stations and low-resolution satellite feeds (100m–1km) miss the microclimate canyons within settlements.
 
 **HeatViz** bridges this resolution gap:
-- Downscales satellite thermal data to **50m $\times$ 50m sectors** (18,040 sectors across Kibera, Nairobi).
+- Downscales satellite thermal data to **50m $\times$ 50m sectors** (36,913 sectors across Madurai, Tamil Nadu).
 - Uses a **two-tier AI pipeline**: Gradient Boosted Trees (XGBoost) for physical surface downscaling + Graph Attention Networks (GAT) for neighborhood thermal diffusion.
 - Computes a composite **Heat Vulnerability Index (HVI)** combining AI Heat Exposure, Social Sensitivity, and Cooling Deficit.
 - Provides **explainable root-cause diagnostics** and **actionable material sizing** (cool-roof paint volumes, native tree species, water kiosks) for community planners.
@@ -27,13 +27,15 @@ Dense informal settlements face disproportionate heat stress due to contiguous c
 [Data Ingestion]
   ├── NASA/USGS Landsat 8/9 (100m Thermal Band 10)
   ├── ESA Sentinel-2 (10–20m Multi-spectral: NDVI, NDWI, NDBI)
-  ├── OpenStreetMap (36,438 Buildings, 5,952 Paths, Water, Greenery)
+  ├── OpenStreetMap (Urban Buildings, Road Network, Water, Greenery)
   └── WorldPop (100m Gridded Population Census)
          │
          ▼
 [AI Pipeline]
-  ├── Stage 01: Build 50m Uniform Spatial Grid (18,040 blocks in EPSG:32737)
+  ├── Stage 00: process.py Raw Satellite & GIS Standardization (EPSG:32643)
+  ├── Stage 01: Build 50m Uniform Spatial Grid (36,913 blocks in EPSG:32643)
   ├── Stage 02-03: Module 1 (XGBoost) Downscaling (100m → 20m + Bias Correction)
+  ├── Stage 08: TreeSHAP Feature Attribution (Top-3 drivers per block)
   ├── Stage 04-06: Module 2 (GAT) Spatial Graph Diffusion (8-Neighbor Graph)
   └── Stage 07: HVI Scoring, Explainability Drivers & GeoJSON Export (EPSG:4326)
          │
@@ -75,7 +77,7 @@ Dense informal settlements face disproportionate heat stress due to contiguous c
    http://127.0.0.1:8000
    ```
 
-For advanced setup (including training XGBoost and GAT from raw rasters), see [SETUP.md](SETUP.md).
+For full pipeline execution from raw rasters through all 8 stages, see [AGENTS.md](AGENTS.md).
 
 ---
 
@@ -83,7 +85,6 @@ For advanced setup (including training XGBoost and GAT from raw rasters), see [S
 
 ```text
 ├── README.md                      # Project overview, architecture, and quickstart
-├── SETUP.md                       # Detailed execution and environment setup guide
 ├── SPEC.md                        # Technical specification, math formulas, and gate thresholds
 ├── AGENTS.md                      # Autonomous implementation rules and execution contract
 ├── memory.md                      # Execution status, verification metrics, and session history
@@ -97,9 +98,11 @@ For advanced setup (including training XGBoost and GAT from raw rasters), see [S
 │   ├── app.js                     # Leaflet Canvas engine, layer toggles, zone drawing, PWA cache
 │   └── style.css                  # Institutional dashboard styling & risk color variables
 │
-├── scripts/                       # Ordered Pipeline Stages (01 to 07)
+├── process.py                     # Raw satellite & GIS ingestion, warping, and 20m raster generation
+├── scripts/                       # Ordered Pipeline Stages (01 to 08)
 │   ├── 01_build_blocks.py         # Grid creation & raster zonal statistics
 │   ├── 02_train_module1.py        # XGBoost thermal downscaling training
+│   ├── 08_compute_shap.py         # TreeSHAP feature attributions
 │   ├── 03_infer_module1.py        # 20m inference & mean-preserving bias correction
 │   ├── 04_build_graph.py          # 8-neighbor spatial graph construction
 │   ├── 05_train_module2.py        # PyTorch Geometric GAT model training
@@ -111,7 +114,8 @@ For advanced setup (including training XGBoost and GAT from raw rasters), see [S
 │   └── output/                    # Exported GeoJSON layers for web serving
 │
 └── docs/                          # In-depth Documentation
-    └── DATASETS.md                # 5 core satellite and urban data sources reference
+    ├── DATASETS.md                # 5 core satellite and urban data sources reference
+    └── DATA_DOWNLOAD.md           # Download procedures and band extraction guide
 ```
 
 ---
@@ -121,9 +125,9 @@ For advanced setup (including training XGBoost and GAT from raw rasters), see [S
 | Document | Purpose |
 |---|---|
 | [README.md](README.md) | Entry point: High-level overview, architecture, and quick start |
-| [SETUP.md](SETUP.md) | Step-by-step installation instructions for preprocessed and training modes |
 | [SPEC.md](SPEC.md) | Authoritative technical specification: Constants, mathematical formulas, gate checks |
 | [docs/DATASETS.md](docs/DATASETS.md) | Satellite (Landsat/Sentinel) & GIS data provenance, sensors, and bands |
+| [docs/DATA_DOWNLOAD.md](docs/DATA_DOWNLOAD.md) | Official download portals, search queries, and band conversion steps |
 | [AGENTS.md](AGENTS.md) | Implementation protocol and execution rulebook for automated agents |
 | [memory.md](memory.md) | Append-only execution history and gate validation metrics |
 
@@ -133,7 +137,7 @@ For advanced setup (including training XGBoost and GAT from raw rasters), see [S
 
 - **Interactive 50m Sector Inspector**: Click any sector to view physical Land Surface Temperature, thermal anomaly vs. settlement baseline, building density, and population exposure.
 - **Explainable Root Causes**: Identifies dominant drivers (e.g., poor water access, low vegetation canopy, high metal-roof density).
-- **Targeted Interventions**: Recommends customized remediation (elastomeric cool-roof paint liters, native Kenyan shade tree counts, hydration nodes).
+- **Targeted Interventions**: Recommends customized remediation (elastomeric cool-roof paint liters, native Tamil Nadu shade tree counts, hydration nodes).
 - **Sub-Layer Suite**: Instant switching across 8 thematic layers (Composite HVI, Thermal Exposure, Social Sensitivity, Cooling Deficit, NDVI, NDBI, Building Footprint, Population Density) with sub-16ms transitions.
 - **Zone Planner Tool**: Draw custom polygon boundaries directly on the map to compute aggregate population, mean temperature, and risk distribution.
 - **Offline Tile Caching**: Built-in CacheStorage integration allows downloading and viewing base tiles with zero network latency.
