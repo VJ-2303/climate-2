@@ -175,11 +175,50 @@ def geojson_response(path: Path) -> FileResponse:
 
 
 @app.get("/")
-def index() -> FileResponse:
-    index_path = WEB_DIR / "index.html"
-    if not index_path.is_file():
-        raise HTTPException(status_code=404, detail="web/index.html not found")
-    return FileResponse(index_path, media_type="text/html")
+@app.get("/officer")
+def officer_view() -> FileResponse:
+    officer_path = WEB_DIR / "officer.html"
+    if not officer_path.is_file():
+        officer_path = WEB_DIR / "index.html"
+    if not officer_path.is_file():
+        raise HTTPException(status_code=404, detail="Officer dashboard HTML not found")
+    return FileResponse(officer_path, media_type="text/html")
+
+
+@app.get("/public")
+def public_view() -> FileResponse:
+    public_path = WEB_DIR / "public.html"
+    if not public_path.is_file():
+        raise HTTPException(status_code=404, detail="web/public.html not found")
+    return FileResponse(public_path, media_type="text/html")
+
+
+@app.post("/api/alerts/dispatch")
+async def dispatch_sms_alert(payload: Dict[str, Any]) -> JSONResponse:
+    """Simulates targeted SMS emergency advisory dispatch to residents in a specific sector."""
+    import uuid
+    from datetime import datetime
+
+    block_id = payload.get("block_id", "KIB-0000")
+    recipient_group = payload.get("recipient_group", "vulnerable_residents")
+    message = payload.get("message", "High heat advisory. Maintain hydration.")
+
+    block_props = blocks_db.get(block_id, {})
+    pop = int(block_props.get("estimated_population", 250))
+    recipients_count = max(15, pop)
+
+    audit_entry = {
+        "status": "dispatched",
+        "audit_id": f"DISP-{uuid.uuid4().hex[:8].upper()}",
+        "timestamp": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "block_id": block_id,
+        "recipient_group": recipient_group,
+        "recipients_count": recipients_count,
+        "message": message,
+        "channels": ["SMS (AfricasTalking/Twilio)", "USSD Broadcast", "Community Health Volunteers"]
+    }
+    logger.info(f"Dispatched SMS emergency advisory: {audit_entry['audit_id']} to {recipients_count} recipients in {block_id}")
+    return JSONResponse(content=audit_entry)
 
 
 @app.get("/data/vulnerability_blocks.geojson")
