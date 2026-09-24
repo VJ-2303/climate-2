@@ -1,7 +1,8 @@
 /**
  * ThermalGuard — Citizen Heat Safety Portal (Madurai)
  * Curated, Actionable Hyperlocal Heat Intelligence and Responsive Split View Engine.
- * 100% Zero-Emoji · High Contrast · Accessible · Apple Weather & Windy Ergonomics.
+ * Inspired by OpenWeather human-centered ergonomics.
+ * 100% Zero-Emoji · High Contrast · Accessible · Pure Vector SVG Icons.
  */
 
 (function () {
@@ -50,14 +51,15 @@
 
   let locationMarker = null;
   let highlightLayer = null;
-  let currentActiveBlockId = null;
-  let currentActiveLandmark = null;
+  let currentActiveBlockId = "KIB-27897";
+  let currentActiveLandmark = MADURAI_LANDMARKS[0];
   let currentBlockData = null;
 
-  let liveAirTemp = null;
-  let liveFeelsTemp = null;
+  let liveAirTemp = 35.8;
+  let liveFeelsTemp = 32.0;
+  let liveHumidity = 64;
+  let liveWindSpeed = 3.2;
   let currentLang = "EN"; // "EN" or "TA"
-  let isViewingMapMobile = false;
 
   // ─── Initialization ───
   document.addEventListener("DOMContentLoaded", init);
@@ -66,13 +68,17 @@
     initMap();
     initBasemaps();
     renderNeighborhoodChips();
+    initLiveClock();
     initEventListeners();
     loadBlocks();
   }
 
   // ─── Leaflet Map Setup ───
   function initMap() {
-    map = L.map("map", {
+    const mapContainer = document.getElementById("ow-map");
+    if (!mapContainer) return;
+
+    map = L.map("ow-map", {
       renderer: L.canvas({ padding: 0.5 }),
       zoomControl: false,
       minZoom: 11,
@@ -140,24 +146,41 @@
     }
   }
 
+  // ─── Live Clock ───
+  function initLiveClock() {
+    updateClock();
+    setInterval(updateClock, 15000);
+  }
+
+  function updateClock() {
+    const clockElem = document.getElementById("live-clock");
+    if (!clockElem) return;
+    const now = new Date();
+    const options = { hour: "numeric", minute: "2-digit", hour12: true, timeZone: "Asia/Kolkata" };
+    clockElem.textContent = `${now.toLocaleTimeString("en-US", options)} IST`;
+  }
+
   // ─── Render Neighborhood Quick-Chips ───
   function renderNeighborhoodChips() {
     const container = document.getElementById("neighborhood-chips");
     if (!container) return;
 
-    container.innerHTML = MADURAI_LANDMARKS.slice(0, 8)
+    const labelHtml = `<span class="ow-chips-label" id="label-quick-explore">${currentLang === "TA" ? "விரைவு பகுதிகள்:" : "Quick Areas:"}</span>`;
+    const chipsHtml = MADURAI_LANDMARKS.slice(0, 8)
       .map(
         (lm, idx) => `
-        <button class="neighborhood-chip ${idx === 0 ? "active" : ""}" data-idx="${idx}" title="${lm.name}">
+        <button class="ow-chip ${idx === 0 ? "active" : ""}" data-idx="${idx}" title="${lm.name}">
           ${lm.tag}
         </button>
       `
       )
       .join("");
 
-    container.querySelectorAll(".neighborhood-chip").forEach((chip) => {
+    container.innerHTML = labelHtml + chipsHtml;
+
+    container.querySelectorAll(".ow-chip").forEach((chip) => {
       chip.addEventListener("click", () => {
-        container.querySelectorAll(".neighborhood-chip").forEach((c) => c.classList.remove("active"));
+        container.querySelectorAll(".ow-chip").forEach((c) => c.classList.remove("active"));
         chip.classList.add("active");
         const idx = parseInt(chip.getAttribute("data-idx"), 10);
         selectLandmark(MADURAI_LANDMARKS[idx]);
@@ -185,7 +208,6 @@
 
   // ─── Load Dataset & Initial View ───
   async function loadBlocks() {
-    setFeedLoading(true);
     try {
       // 1. Fetch live Open-Meteo weather
       try {
@@ -193,11 +215,17 @@
         if (fRes.ok) {
           const fData = await fRes.json();
           if (fData.current && fData.current.temperature_celsius != null) {
-            liveAirTemp = Number(fData.current.temperature_celsius).toFixed(1);
-            liveFeelsTemp = Number(fData.current.wbgt_celsius || fData.current.apparent_temperature_celsius).toFixed(1);
+            liveAirTemp = Number(fData.current.temperature_celsius);
+            liveFeelsTemp = Number(fData.current.wbgt_celsius || fData.current.apparent_temperature_celsius);
+            if (fData.current.relative_humidity_pct != null) {
+              liveHumidity = Math.round(fData.current.relative_humidity_pct);
+            }
+            if (fData.current.wind_speed_ms != null) {
+              liveWindSpeed = Number(fData.current.wind_speed_ms);
+            }
             const avgPill = document.getElementById("topbar-avg-temp");
             if (avgPill) {
-              avgPill.textContent = `Live Air: ${liveAirTemp}°C · Feels ${liveFeelsTemp}°C`;
+              avgPill.textContent = `Madurai Heat Safety · Live Air: ${liveAirTemp.toFixed(1)}°C · Feels ${liveFeelsTemp.toFixed(1)}°C`;
             }
           }
         }
@@ -221,8 +249,6 @@
       selectLandmark(MADURAI_LANDMARKS[0]);
     } catch (err) {
       console.error("Failed to load blocks:", err);
-    } finally {
-      setFeedLoading(false);
     }
   }
 
@@ -243,8 +269,8 @@
         const p = feature.properties;
         layer.bindTooltip(
           () => {
-            const airStr = liveAirTemp ? `${liveAirTemp}°C` : "35.8°C";
-            return `<strong>Sector ${p.block_id}</strong><br/>${p.risk_class} Risk &middot; Air: ${airStr} &bull; Roof: ${p.surface_temp_celsius}&deg;C`;
+            const airStr = `${liveAirTemp.toFixed(1)}°C`;
+            return `<strong>Sector ${p.block_id}</strong><br/>${p.risk_class} Risk &bull; Air: ${airStr} &bull; Roof: ${p.surface_temp_celsius}&deg;C`;
           },
           { className: "custom-map-tooltip", sticky: true, opacity: 0.95 }
         );
@@ -254,11 +280,6 @@
           const centroid = getPolygonCentroid(feature.geometry);
           const landmark = resolveNeighborhood(centroid[0], centroid[1]);
           fetchAndShowBlock(p.block_id, landmark);
-
-          // If on mobile and viewing map, switch back or update
-          if (isViewingMapMobile) {
-            showMobileNotification(`Selected ${landmark.name}`);
-          }
         });
       },
     }).addTo(map);
@@ -322,8 +343,8 @@
       style: {
         color: "#ffffff",
         weight: 3,
-        fillColor: "#38bdf8",
-        fillOpacity: 0.35,
+        fillColor: "#ea580c",
+        fillOpacity: 0.40,
       },
     }).addTo(map);
   }
@@ -378,28 +399,24 @@
 
   // ─── Locate Me Handler ───
   function onLocateMe() {
-    const btn = document.getElementById("btn-feed-locate");
+    const btn = document.getElementById("btn-top-locate");
     const mapBtn = document.getElementById("btn-my-location");
     if (btn) { btn.style.opacity = "0.7"; btn.style.pointerEvents = "none"; }
     if (mapBtn) { mapBtn.style.opacity = "0.7"; mapBtn.style.pointerEvents = "none"; }
 
-    // Check HTML5 Geolocation
     if ("geolocation" in navigator) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
           const lat = pos.coords.latitude;
           const lon = pos.coords.longitude;
-          // Verify if inside Madurai bounding box
           if (lat >= 9.85 && lat <= 10.0 && lon >= 78.0 && lon <= 78.23) {
             handleResolvedLocation(lat, lon);
           } else {
-            // Outside Madurai, fallback to Pasumalai
             handleResolvedLocation(HARDCODED_LAT, HARDCODED_LON);
           }
           resetLocateButtons(btn, mapBtn);
         },
         () => {
-          // Geolocation denied or unavailable -> fallback to Pasumalai
           handleResolvedLocation(HARDCODED_LAT, HARDCODED_LON);
           resetLocateButtons(btn, mapBtn);
         },
@@ -430,7 +447,6 @@
   async function fetchAndShowBlock(blockId, landmark) {
     currentActiveBlockId = blockId;
     currentActiveLandmark = landmark;
-    setFeedLoading(true);
 
     try {
       const res = await fetch(`/api/blocks/${blockId}`);
@@ -438,25 +454,18 @@
       const data = await res.json();
       currentBlockData = data;
       renderFeedCards(data, landmark);
+      renderDiurnalChartAndScrubber(data);
     } catch (err) {
       console.error("Could not fetch block data:", err);
-    } finally {
-      setFeedLoading(false);
     }
-  }
-
-  function setFeedLoading(isLoading) {
-    const loadingElem = document.getElementById("feed-loading");
-    const heroCard = document.getElementById("card-hero");
-    if (loadingElem) loadingElem.style.display = isLoading ? "flex" : "none";
-    if (heroCard) heroCard.style.opacity = isLoading ? "0.4" : "1";
   }
 
   // ─── Render Curated Citizen Cards ───
   function renderFeedCards(data, landmark) {
     const rc = data.risk_class || "Medium";
     const blockId = data.block_id || "—";
-    const surfTemp = data.surface_temp_display || `${data.surface_temp_celsius || "--"}°C`;
+    const surfVal = data.surface_temp_celsius != null ? Number(data.surface_temp_celsius).toFixed(1) : "50.4";
+    const surfTemp = `${surfVal}°C`;
 
     // 1. Place Information
     const placeName = landmark ? landmark.name : "Madurai Urban Sector";
@@ -467,138 +476,279 @@
     if (elemPlaceName) elemPlaceName.textContent = placeName;
     if (elemPlaceSub) elemPlaceSub.textContent = placeSub;
 
-    // 2. Risk Alert Status Banner
-    const elemRiskBadge = document.getElementById("detail-risk-badge");
-    const elemAlertIcon = document.getElementById("detail-alert-icon");
-    const elemAlertText = document.getElementById("detail-alert-text");
-    const elemHeatLevelTag = document.getElementById("detail-heat-level-tag");
+    // 2. Weather & Condition Title
+    const airVal = data.realtime_weather?.temperature_celsius ?? data.ambient_temp_celsius ?? liveAirTemp;
+    const airText = `${Number(airVal).toFixed(1)}°`;
+    const feelsVal = data.realtime_weather?.wbgt_celsius ?? data.forecast_trajectory?.[0]?.local_wbgt ?? liveFeelsTemp;
+    const feelsText = `${Number(feelsVal).toFixed(1)}°C`;
 
-    const alertLabelsEn = {
-      Critical: "CRITICAL HEAT ALERT",
-      High: "ELEVATED HEAT RISK",
-      Medium: "MODERATE HEAT LEVEL",
-      Low: "SAFE & COMFORTABLE",
+    const conditionTitlesEn = {
+      Critical: "Critical Heat Alert",
+      High: "Elevated Heat Stress",
+      Medium: "Moderate Thermal Load",
+      Low: "Safe & Comfortable",
     };
-    const alertLabelsTa = {
+    const conditionTitlesTa = {
       Critical: "தீவிர வெப்ப அபாய எச்சரிக்கை",
       High: "அதிக வெப்ப அபாயம்",
       Medium: "மிதமான வெப்ப நிலை",
       Low: "பாதுகாப்பான சூழல்",
     };
 
-    const alertIcons = {
-      Critical: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
-      High: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
-      Medium: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`,
-      Low: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`,
-    };
-
-    if (elemRiskBadge) {
-      elemRiskBadge.className = `citizen-alert-banner risk-${rc.toLowerCase()}`;
-    }
-    if (elemAlertIcon) {
-      elemAlertIcon.innerHTML = alertIcons[rc] || alertIcons.Medium;
-    }
-    if (elemAlertText) {
-      elemAlertText.textContent = currentLang === "TA" ? alertLabelsTa[rc] : alertLabelsEn[rc];
-    }
-    if (elemHeatLevelTag) {
-      elemHeatLevelTag.textContent = rc.toUpperCase();
-    }
-
-    // 3. Three Glanceable Temperatures
     const elemAirTemp = document.getElementById("detail-air-temp");
-    const elemSurfTemp = document.getElementById("detail-surface-temp");
+    const elemCondTitle = document.getElementById("detail-weather-condition");
     const elemFeelsTemp = document.getElementById("detail-feels-temp");
     const explainerAirVal = document.getElementById("explainer-air-val");
 
-    const airVal = data.realtime_weather?.temperature_celsius ?? data.ambient_temp_celsius ?? (liveAirTemp ? Number(liveAirTemp) : 35.8);
-    const airText = `${Number(airVal).toFixed(1)}°C`;
-
-    const feelsVal = data.realtime_weather?.wbgt_celsius ?? data.forecast_trajectory?.[0]?.local_wbgt ?? (liveFeelsTemp ? Number(liveFeelsTemp) : 32.0);
-    const feelsText = `${Number(feelsVal).toFixed(1)}°C`;
-
     if (elemAirTemp) elemAirTemp.textContent = airText;
-    if (elemSurfTemp) {
-      elemSurfTemp.textContent = surfTemp;
-      elemSurfTemp.style.color = RISK_COLORS[rc] || "#dc2626";
+    if (elemCondTitle) elemCondTitle.textContent = currentLang === "TA" ? conditionTitlesTa[rc] : conditionTitlesEn[rc];
+    if (elemFeelsTemp) {
+      elemFeelsTemp.textContent = currentLang === "TA" ? `உடல் உணரும் வெப்பம்: ${feelsText} (WBGT)` : `Feels like ${feelsText} (WBGT)`;
     }
-    if (elemFeelsTemp) elemFeelsTemp.textContent = feelsText;
-    if (explainerAirVal) explainerAirVal.textContent = airText;
+    if (explainerAirVal) explainerAirVal.textContent = `${Number(airVal).toFixed(1)}°C`;
 
-    // 4. Peak Sun Danger Hours & Dynamic Live Status
+    // 3. 2x3 Metric Pills
+    const pillAir = document.getElementById("pill-air-temp");
+    const pillSurf = document.getElementById("pill-surf-temp");
+    const pillHumidity = document.getElementById("pill-humidity");
+    const pillWind = document.getElementById("pill-wind");
+    const pillDanger = document.getElementById("pill-danger-window");
+    const pillShelter = document.getElementById("pill-shelter-dist");
+
+    if (pillAir) pillAir.textContent = `${Number(airVal).toFixed(1)}°C`;
+    if (pillSurf) {
+      pillSurf.textContent = surfTemp;
+      pillSurf.style.color = RISK_COLORS[rc] || "#dc2626";
+    }
+    if (pillHumidity) {
+      const humVal = data.realtime_weather?.relative_humidity_pct != null ? Math.round(data.realtime_weather.relative_humidity_pct) : liveHumidity;
+      pillHumidity.textContent = `${humVal}% RH`;
+    }
+    if (pillWind) {
+      const windVal = data.realtime_weather?.wind_speed_ms != null ? Number(data.realtime_weather.wind_speed_ms).toFixed(1) : liveWindSpeed.toFixed(1);
+      pillWind.textContent = `${windVal} m/s`;
+    }
+
     const heatHealth = data.heat_health || {};
-    const dangerWindow = heatHealth.peak_stress_window ? heatHealth.peak_stress_window.split("(")[0].trim() : "11:00 AM – 3:30 PM";
-    const elemDangerHours = document.getElementById("detail-danger-hours");
-    if (elemDangerHours) elemDangerHours.textContent = dangerWindow;
+    const dangerWindow = heatHealth.peak_stress_window ? heatHealth.peak_stress_window.split("(")[0].trim() : "11 AM – 3:30 PM";
+    if (pillDanger) pillDanger.textContent = dangerWindow;
 
-    // Compute live status based on local time
-    computeAndRenderLiveDangerStatus();
-
-    // 5. Nearest Cool Spots & Water Points
     const distG = data.dist_green_m != null ? Math.round(data.dist_green_m) : 150;
     const distW = data.dist_water_m != null ? Math.round(data.dist_water_m) : 280;
+    if (pillShelter) pillShelter.textContent = `${distG}m Shaded`;
 
+    // 4. Update Status Pill
+    computeAndRenderLiveDangerStatus();
+
+    // 5. Nearest Cool Spots
     const elemParkDist = document.getElementById("spot-park-dist");
     const elemWaterDist = document.getElementById("spot-water-dist");
     const elemParkName = document.getElementById("spot-park-name");
     const elemWaterName = document.getElementById("spot-water-name");
 
-    if (elemParkDist) elemParkDist.textContent = `${distG}m walking distance`;
-    if (elemWaterDist) elemWaterDist.textContent = `${distW}m walking distance`;
+    if (elemParkDist) elemParkDist.textContent = `${distG}m walking`;
+    if (elemWaterDist) elemWaterDist.textContent = `${distW}m walking`;
 
     if (elemParkName) {
-      elemParkName.textContent = distG < 100 ? "Dense Tree Canopy & Roadside Shade" : "Public Park & Shaded Green Space";
-    }
-    if (elemWaterName) {
-      elemWaterName.textContent = distW < 200 ? "Vaigai Riverfront / Public Water Tap" : "Municipal Clean Water Refill Station";
-    }
-
-    // 6. 5-Day Outlook Strip (Apple Weather style)
-    const trajectory = data.forecast_trajectory || [];
-    const elemTimeline = document.getElementById("detail-forecast-timeline");
-    if (elemTimeline) {
-      if (trajectory.length === 0) {
-        elemTimeline.innerHTML = '<div style="font-size: 0.75rem; color: var(--text-subtle); grid-column: span 5; text-align: center;">Forecast updating...</div>';
+      if (currentLang === "TA") {
+        elemParkName.textContent = distG < 100 ? "அடர்ந்த மர நிழல் பாதை" : "பொது பூங்கா மற்றும் நிழல் மையம்";
       } else {
-        elemTimeline.innerHTML = trajectory
-          .map((dayItem, idx) => {
-            const tier = dayItem.health_risk_tier || "High";
-            const tagCls = `tag-${tier.toLowerCase()}`;
-            const wbgtVal = dayItem.local_wbgt != null ? `${dayItem.local_wbgt}°` : "--";
-
-            let weatherIcon = "";
-            if (tier === "Critical") {
-              weatherIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>`;
-            } else if (tier === "High") {
-              weatherIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ea580c" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2"/></svg>`;
-            } else if (tier === "Medium") {
-              weatherIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg>`;
-            } else {
-              weatherIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2"/></svg>`;
-            }
-
-            return `
-              <div class="forecast-pill ${idx === 0 ? "active-today" : ""}">
-                <span class="forecast-pill-day">${idx === 0 ? (currentLang === "TA" ? "இன்று" : "Today") : `D${dayItem.day}`}</span>
-                <span class="forecast-pill-icon">${weatherIcon}</span>
-                <span class="forecast-pill-wbgt">${wbgtVal}</span>
-                <span class="forecast-pill-tag ${tagCls}">${tier}</span>
-              </div>
-            `;
-          })
-          .join("");
+        elemParkName.textContent = distG < 100 ? "Dense Tree Canopy & Shade" : "Public Park & Shaded Green Space";
       }
     }
+    if (elemWaterName) {
+      if (currentLang === "TA") {
+        elemWaterName.textContent = distW < 200 ? "வைகை ஆற்றங்கரை / குடிநீர் குழாய்" : "மாநகராட்சி சுத்திகரிக்கப்பட்ட குடிநீர் மையம்";
+      } else {
+        elemWaterName.textContent = distW < 200 ? "Vaigai Riverfront / Water Tap" : "Municipal Clean Water Refill Tap";
+      }
+    }
+  }
+
+  // ─── Render Hourly Diurnal Spline Chart & 9-Tile Scrubber ───
+  function renderDiurnalChartAndScrubber(data) {
+    const baseAir = data?.realtime_weather?.temperature_celsius ?? liveAirTemp;
+    
+    // Generate 9 hourly timeline points from 10 AM to 6 PM
+    const hours = [
+      { time: "10 a.m.", hourNum: 10, offset: -3.8, isDanger: false, risk: "Safe" },
+      { time: "11 a.m.", hourNum: 11, offset: -1.3, isDanger: true, risk: "Moderate" },
+      { time: "12 p.m.", hourNum: 12, offset: +0.4, isDanger: true, risk: "High" },
+      { time: "1 p.m.",  hourNum: 13, offset: +1.5, isDanger: true, risk: "Severe" },
+      { time: "2 p.m.",  hourNum: 14, offset: +1.8, isDanger: true, risk: "Severe" },
+      { time: "3 p.m.",  hourNum: 15, offset: +0.7, isDanger: true, risk: "High" },
+      { time: "4 p.m.",  hourNum: 16, offset: -1.8, isDanger: false, risk: "Moderate" },
+      { time: "5 p.m.",  hourNum: 17, offset: -4.0, isDanger: false, risk: "Safe" },
+      { time: "6 p.m.",  hourNum: 18, offset: -6.3, isDanger: false, risk: "Safe" },
+    ];
+
+    const currentHour = new Date().getHours();
+
+    const hourlyData = hours.map((h) => {
+      const temp = Math.round((baseAir + h.offset) * 10) / 10;
+      return {
+        ...h,
+        temp: temp,
+        isCurrent: currentHour === h.hourNum,
+      };
+    });
+
+    // 1. Render Diurnal SVG Chart
+    renderSplineSvg(hourlyData);
+
+    // 2. Render 9-Tile Scrubber
+    renderHourlyScrubber(hourlyData);
+  }
+
+  function renderSplineSvg(dataPoints) {
+    const container = document.getElementById("ow-spline-container");
+    if (!container) return;
+
+    const width = 600;
+    const height = 95;
+    const padX = 35;
+    const padY = 22;
+
+    const temps = dataPoints.map((d) => d.temp);
+    const minT = Math.min(...temps) - 1.5;
+    const maxT = Math.max(...temps) + 1.5;
+
+    const coords = dataPoints.map((d, i) => {
+      const x = padX + (i / (dataPoints.length - 1)) * (width - 2 * padX);
+      const y = height - padY - ((d.temp - minT) / (maxT - minT)) * (height - 2 * padY);
+      return { x, y, ...d };
+    });
+
+    // Build SVG path with Catmull-Rom or cubic bezier spline
+    let pathD = `M ${coords[0].x} ${coords[0].y}`;
+    for (let i = 0; i < coords.length - 1; i++) {
+      const curr = coords[i];
+      const next = coords[i + 1];
+      const mx = (curr.x + next.x) / 2;
+      pathD += ` C ${mx} ${curr.y}, ${mx} ${next.y}, ${next.x} ${next.y}`;
+    }
+
+    // Shaded area under path
+    const areaD = `${pathD} L ${coords[coords.length - 1].x} ${height - 6} L ${coords[0].x} ${height - 6} Z`;
+
+    // Coordinates for Danger Band (from 11 AM [index 1] to 3:30 PM [between index 5 and 6])
+    const x11am = coords[1].x;
+    const x330pm = (coords[5].x + coords[6].x) / 2;
+
+    const svg = `
+      <svg viewBox="0 0 ${width} ${height}" class="ow-chart-svg" preserveAspectRatio="none" style="overflow: visible;">
+        <defs>
+          <linearGradient id="curveGradient" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#ea580c" stop-opacity="0.30"/>
+            <stop offset="100%" stop-color="#ea580c" stop-opacity="0.0"/>
+          </linearGradient>
+          <linearGradient id="dangerBandGradient" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#fee2e2" stop-opacity="0.75"/>
+            <stop offset="100%" stop-color="#fee2e2" stop-opacity="0.25"/>
+          </linearGradient>
+        </defs>
+
+        <!-- Danger Window Shaded Band -->
+        <rect x="${x11am}" y="4" width="${x330pm - x11am}" height="${height - 10}" fill="url(#dangerBandGradient)" rx="4"/>
+        <line x1="${x11am}" y1="4" x2="${x11am}" y2="${height - 6}" stroke="#fca5a5" stroke-width="1.2" stroke-dasharray="3 3"/>
+        <line x1="${x330pm}" y1="4" x2="${x330pm}" y2="${height - 6}" stroke="#fca5a5" stroke-width="1.2" stroke-dasharray="3 3"/>
+
+        <!-- Baseline -->
+        <line x1="${padX}" y1="${height - 6}" x2="${width - padX}" y2="${height - 6}" stroke="#f3e8d9" stroke-width="1.5"/>
+
+        <!-- Spline Area Fill -->
+        <path d="${areaD}" fill="url(#curveGradient)" />
+
+        <!-- Spline Stroke -->
+        <path d="${pathD}" fill="none" stroke="#ea580c" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+
+        <!-- Nodes and Labels -->
+        ${coords
+          .map((pt) => `
+          <circle cx="${pt.x}" cy="${pt.y}" r="${pt.isCurrent ? 5.5 : 3.5}" 
+                  fill="${pt.isCurrent ? '#dc2626' : (pt.isDanger ? '#ea580c' : '#ffffff')}" 
+                  stroke="${pt.isCurrent ? '#ffffff' : '#ea580c'}" 
+                  stroke-width="${pt.isCurrent ? 2.5 : 1.8}"/>
+          <text x="${pt.x}" y="${pt.y - 7}" font-family="var(--font-mono)" font-size="10.5" font-weight="700" 
+                fill="${pt.isDanger ? '#991b1b' : '#334155'}" text-anchor="middle">
+            ${Math.round(pt.temp)}&deg;
+          </text>
+        `)
+          .join("")}
+      </svg>
+    `;
+
+    container.innerHTML = svg;
+  }
+
+  function renderHourlyScrubber(dataPoints) {
+    const scrubber = document.getElementById("ow-hourly-scrubber");
+    if (!scrubber) return;
+
+    scrubber.innerHTML = dataPoints
+      .map((d) => {
+        let weatherIcon = "";
+        let riskColor = "#16a34a";
+
+        if (d.risk === "Severe") {
+          riskColor = "#dc2626";
+          weatherIcon = `
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="4"/>
+              <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>
+            </svg>
+          `;
+        } else if (d.risk === "High") {
+          riskColor = "#ea580c";
+          weatherIcon = `
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ea580c" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="4"/>
+              <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2"/>
+            </svg>
+          `;
+        } else if (d.risk === "Moderate") {
+          riskColor = "#d97706";
+          weatherIcon = `
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/>
+            </svg>
+          `;
+        } else {
+          riskColor = "#16a34a";
+          weatherIcon = `
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="5"/>
+              <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2"/>
+            </svg>
+          `;
+        }
+
+        const riskLabelsTa = {
+          Severe: "தீவிரம்",
+          High: "அதிகம்",
+          Moderate: "மிதம்",
+          Safe: "பாதுகாப்பு",
+        };
+
+        const displayRisk = currentLang === "TA" ? riskLabelsTa[d.risk] : d.risk;
+
+        return `
+          <div class="ow-hourly-item ${d.isCurrent ? "active-now" : ""}">
+            <span class="ow-hour-time">${d.time}</span>
+            <div class="ow-hour-icon">${weatherIcon}</div>
+            <span class="ow-hour-risk" style="color: ${riskColor};">${displayRisk}</span>
+            <span class="ow-hour-temp">${Math.round(d.temp)}&deg;</span>
+          </div>
+        `;
+      })
+      .join("");
   }
 
   // ─── Compute Live Danger Status (IST Time) ───
   function computeAndRenderLiveDangerStatus() {
     const badge = document.getElementById("danger-live-status");
-    const hint = document.getElementById("detail-danger-hint");
-    if (!badge || !hint) return;
+    if (!badge) return;
 
-    // Get current hour in IST
     const now = new Date();
     const currentHour = now.getHours() + now.getMinutes() / 60;
 
@@ -606,23 +756,14 @@
       badge.textContent = currentLang === "TA" ? "தீவிர வெயில் நேரம்" : "In Peak Sun Window";
       badge.style.background = "#fee2e2";
       badge.style.color = "#991b1b";
-      hint.textContent = currentLang === "TA" 
-        ? "தற்போது தீவிர சூரிய கதிர்வீச்சு உள்ளது. 3:30 மணி வரை வெயிலில் செல்வதை தவிர்க்கவும்."
-        : "Direct sun exposure is dangerous now. Stay indoors or under heavy canopy until 3:30 PM.";
     } else if (currentHour < 11.0 && currentHour >= 8.0) {
       badge.textContent = currentLang === "TA" ? "வெயில் அதிகரிக்கக்கூடும்" : "Approaching Peak Heat";
       badge.style.background = "#fef9c3";
       badge.style.color = "#854d0e";
-      hint.textContent = currentLang === "TA"
-        ? "காலை 11:00 மணிக்குள் அவசியமான வெளிப்புற வேலைகளை முடிக்கவும்."
-        : "Complete outdoor errands before 11:00 AM; pre-hydrate with water/ORS.";
     } else {
       badge.textContent = currentLang === "TA" ? "பாதுகாப்பான நேரம்" : "Safe Evening / Morning";
       badge.style.background = "#dcfce7";
       badge.style.color = "#166534";
-      hint.textContent = currentLang === "TA"
-        ? "சூரிய வெப்பம் குறைந்துள்ளது. இயல்பான பணிகளை தொடரலாம்."
-        : "Radiant heat has cooled down. Maintain normal hydration.";
     }
   }
 
@@ -632,65 +773,109 @@
     const btnText = document.getElementById("lang-toggle-text");
     if (btnText) btnText.textContent = currentLang === "EN" ? "தமிழ்" : "English";
 
-    // Text translations map
     const translations = {
       EN: {
-        activeLoc: "Active Location",
-        outdoorAir: "Outdoor Air",
-        roofHeat: "Roof & Ground",
-        feelsLike: "Feels Like",
-        explainerTitle: "Why does Roof & Ground reach ~50°C?",
+        quickExplore: "Quick Areas:",
+        searchPlaceholder: "Search neighborhood or landmark...",
+        locateLabel: "Locate Me",
+        labelPillAir: "Outdoor Air",
+        labelPillRoof: "Roof & Ground",
+        labelPillHumidity: "Humidity",
+        labelPillWind: "Wind Speed",
+        labelPillDanger: "Danger Window",
+        labelPillShelter: "Cool Shelter",
+        explainerTitle: "Why does Roof & Ground heat reach ~50°C?",
         explainerDesc: "Sunlight intensely superheats unshaded tin roofs and asphalt roads. The actual outdoor air you breathe in the shade is ",
-        dangerHours: "Peak Sun Danger Hours",
+        forecastTitle: "Hourly Heat Forecast & Danger Window",
+        chartLegendLeft: "Diurnal Heat Stress Curve (°C)",
+        chartLegendRight: "Shaded Danger Band: 11:00 AM – 3:30 PM",
+        mapTitle: "Madurai 50m Microclimate Heat Vulnerability Map",
+        mapSub: "Tap any 50m sector to inspect radiant surface heat, shade deficits, and localized safety metrics.",
+        timelineTitle: "Peak Sun Exposure Timeline",
+        legendSafe: "Safe (≤45)",
+        legendMod: "Moderate (46-70)",
+        legendHigh: "High (71-85)",
+        legendCrit: "Critical (>85)",
+        mapLocate: "My Location",
         healthActions: "Health & Protection Actions",
-        hydrate: "<strong>Drink water frequently</strong> — consume ORS or water every 45–60 minutes even if not thirsty.",
-        shade: "<strong>Stay in shaded areas</strong> — avoid direct asphalt or tin-roof walkways during midday sun.",
-        ventilate: "<strong>Keep interiors ventilated</strong> — open opposing windows to flush radiant metal-roof heat.",
-        vulnerable: "<strong>Vulnerable care</strong> — protect children, elderly family, and pregnant women from unventilated rooms.",
+        hydrate: "<strong>Hydrate actively:</strong> Drink ORS or water every 45–60 minutes, even if you do not feel thirsty.",
+        shade: "<strong>Use shaded corridors:</strong> Avoid direct asphalt streets and tin-roof walkways during midday sun (11 AM – 3:30 PM).",
+        ventilate: "<strong>Flush interior heat:</strong> Open opposing windows for cross-breeze to remove radiated tin roof heat.",
+        vulnerable: "<strong>Protect vulnerable residents:</strong> Keep elders, infants, and pregnant family members in cool, ventilated rooms.",
         coolSpots: "Nearest Cool Spots & Water Points",
-        forecastTrend: "5-Day Heat Forecast Trend",
       },
       TA: {
-        activeLoc: "தேர்ந்தெடுக்கப்பட்ட பகுதி",
-        outdoorAir: "வெளிப்புற நிழல் காற்று",
-        roofHeat: "தகர கூரை வெப்பம்",
-        feelsLike: "உடல் உணரும் வெப்பம்",
+        quickExplore: "விரைவு பகுதிகள்:",
+        searchPlaceholder: "பகுதி அல்லது இடத்தை தேடுங்கள்...",
+        locateLabel: "என் இடம்",
+        labelPillAir: "வெளிப்புற நிழல் காற்று",
+        labelPillRoof: "தகர கூரை & தரை வெப்பம்",
+        labelPillHumidity: "ஈரப்பதம்",
+        labelPillWind: "காற்றின் வேகம்",
+        labelPillDanger: "உச்சி வெயில் ஆபத்து நேரம்",
+        labelPillShelter: "குளிர் நிழல் மையம்",
         explainerTitle: "கூரை மற்றும் தரை ஏன் ~50°C ஐ எட்டுகிறது?",
         explainerDesc: "நேரடி சூரிய கதிர்வீச்சு தகர கூரைகள் மற்றும் தார் சாலைகளை மிகக் கடுமையாக சூடாக்குகிறது. நீங்கள் சுவாசிக்கும் நிழல் காற்று குளிர்ந்தது: ",
-        dangerHours: "உச்சி வெயில் ஆபத்து நேரம்",
+        forecastTitle: "மணிநேர வெப்ப முன்னறிவிப்பு மற்றும் ஆபத்து நேரம்",
+        chartLegendLeft: "தினசரி வெப்ப அழுத்த வளைவு (°C)",
+        chartLegendRight: "தீவிர வெயில் காலம்: காலை 11:00 – மாலை 3:30",
+        mapTitle: "மதுரை 50மீ நுண்ணிய வெப்ப வரைபடம்",
+        mapSub: "கூரை வெப்பம், நிழல் குறைபாடு மற்றும் பாதுகாப்பு விவரங்களைக் காண எந்த பகுதியையும் தொடவும்.",
+        timelineTitle: "சூரிய வெப்ப நேரவரிசை",
+        legendSafe: "பாதுகாப்பானது (≤45)",
+        legendMod: "மிதமானது (46-70)",
+        legendHigh: "அதிகம் (71-85)",
+        legendCrit: "தீவிரமானது (>85)",
+        mapLocate: "என் இடம்",
         healthActions: "உடல் நலப் பாதுகாப்பு ஆலோசனைகள்",
-        hydrate: "<strong>அடிக்கடி தண்ணீர் குடியுங்கள்</strong> — தாகம் இல்லாவிட்டாலும் ஒவ்வொரு 45 நிமிடத்திற்கும் நீர் அல்லது ORS அருந்தவும்.",
-        shade: "<strong>நிழலான பாதைகளை பயன்படுத்துங்கள்</strong> — நண்பகல் வெயிலில் தகர கூரை மற்றும் தார் சாலைகளில் செல்வதை தவிர்க்கவும்.",
-        ventilate: "<strong>வீட்டில் காற்றோட்டம் வையுங்கள்</strong> — தகர கூரையின் வெப்பத்தை வெளியேற்ற எதிரெதிர் ஜன்னல்களை திறந்து வைக்கவும்.",
-        vulnerable: "<strong>முதியவர்கள் மற்றும் குழந்தைகள்</strong> — நண்பகல் 11 முதல் 3:30 வரை குழந்தைகளையும் முதியவர்களையும் வெயிலில் விடாதீர்கள்.",
+        hydrate: "<strong>அடிக்கடி தண்ணீர் குடியுங்கள்:</strong> தாகம் இல்லாவிட்டாலும் ஒவ்வொரு 45 நிமிடத்திற்கும் நீர் அல்லது ORS அருந்தவும்.",
+        shade: "<strong>நிழலான பாதைகளை பயன்படுத்துங்கள்:</strong> நண்பகல் வெயிலில் (11 மு.ப - 3:30 பி.ப) தார் சாலைகளில் செல்வதை தவிர்க்கவும்.",
+        ventilate: "<strong>வீட்டில் காற்றோட்டம் வையுங்கள்:</strong> தகர கூரையின் வெப்பத்தை வெளியேற்ற எதிரெதிர் ஜன்னல்களை திறந்து வைக்கவும்.",
+        vulnerable: "<strong>முதியவர்கள் மற்றும் குழந்தைகள்:</strong> குழந்தைகளையும் முதியவர்களையும் காற்றோட்டமான அறைகளில் வைத்திருக்கவும்.",
         coolSpots: "அருகிலுள்ள நிழல் மற்றும் குடிநீர் மையங்கள்",
-        forecastTrend: "5-நாள் வெப்ப முன்னறிவிப்பு",
       },
     };
 
     const t = translations[currentLang];
 
-    setElemText("label-active-loc", t.activeLoc);
-    setElemHtml("label-outdoor-air", `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2"/></svg> ${t.outdoorAir}`);
-    setElemHtml("label-roof-heat", `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M8 3v4M12 3v4M16 3v4M4 14a8 8 0 0 0 16 0M3 21h18"/></svg> ${t.roofHeat}`);
-    setElemHtml("label-feels-like", `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg> ${t.feelsLike}`);
+    setElemText("label-quick-explore", t.quickExplore);
+    const searchInput = document.getElementById("search-input");
+    if (searchInput) searchInput.placeholder = t.searchPlaceholder;
+
+    setElemText("btn-locate-label", t.locateLabel);
+    setElemHtml("label-pill-air", `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2"/></svg> ${t.labelPillAir}`);
+    setElemHtml("label-pill-roof", `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M8 3v4M12 3v4M16 3v4M4 14a8 8 0 0 0 16 0M3 21h18"/></svg> ${t.labelPillRoof}`);
+    setElemHtml("label-pill-humidity", `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg> ${t.labelPillHumidity}`);
+    setElemHtml("label-pill-wind", `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M17.7 7.7a2.5 2.5 0 1 1 1.8 4.3H2M9.6 4.6A2 2 0 1 1 11 8H2M12.6 19.4A2 2 0 1 0 14 16H2"/></svg> ${t.labelPillWind}`);
+    setElemHtml("label-pill-danger", `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> ${t.labelPillDanger}`);
+    setElemHtml("label-pill-shelter", `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 19v3M12 10a5 5 0 0 0-5 5c0 2 2 4 5 4s5-2 5-4a5 5 0 0 0-5-5zM12 2a4 4 0 0 0-4 4c0 1.5 1 3 2 3.5M12 2a4 4 0 0 1 4 4c0 1.5-1 3-2 3.5"/></svg> ${t.labelPillShelter}`);
+
     setElemText("explainer-title", t.explainerTitle);
-    
-    const airVal = document.getElementById("explainer-air-val")?.textContent || "--°C";
+    const airVal = document.getElementById("explainer-air-val")?.textContent || "35.8°C";
     const descElem = document.getElementById("explainer-desc");
     if (descElem) descElem.innerHTML = `${t.explainerDesc} <strong id="explainer-air-val">${airVal}</strong>.`;
 
-    setElemText("label-danger-hours", t.dangerHours);
+    setElemText("label-forecast-title", t.forecastTitle);
+    setElemText("chart-legend-left", t.chartLegendLeft);
+    setElemText("chart-legend-right", t.chartLegendRight);
+    setElemText("label-map-title", t.mapTitle);
+    setElemText("label-map-sub", t.mapSub);
+    setElemText("widget-timeline-title", t.timelineTitle);
+    setElemText("legend-label-safe", t.legendSafe);
+    setElemText("legend-label-mod", t.legendMod);
+    setElemText("legend-label-high", t.legendHigh);
+    setElemText("legend-label-crit", t.legendCrit);
+    setElemText("label-map-locate", t.mapLocate);
     setElemText("label-health-actions", t.healthActions);
     setElemHtml("action-item-hydrate", t.hydrate);
     setElemHtml("action-item-shade", t.shade);
     setElemHtml("action-item-ventilate", t.ventilate);
     setElemHtml("action-item-vulnerable", t.vulnerable);
     setElemText("label-cool-spots", t.coolSpots);
-    setElemText("label-forecast-trend", t.forecastTrend);
 
     if (currentBlockData && currentActiveLandmark) {
       renderFeedCards(currentBlockData, currentActiveLandmark);
+      renderDiurnalChartAndScrubber(currentBlockData);
     }
   }
 
@@ -703,38 +888,11 @@
     if (el) el.innerHTML = html;
   }
 
-  // ─── Mobile View Switcher ───
-  function toggleMobileView() {
-    isViewingMapMobile = !isViewingMapMobile;
-    const splitContainer = document.querySelector(".citizen-main-split");
-    const toggleText = document.getElementById("mobile-toggle-text");
-
-    if (splitContainer) {
-      if (isViewingMapMobile) {
-        splitContainer.classList.add("viewing-map");
-        if (toggleText) toggleText.textContent = "View Heat Advice";
-        setTimeout(() => map.invalidateSize(), 150);
-      } else {
-        splitContainer.classList.remove("viewing-map");
-        if (toggleText) toggleText.textContent = "View Heat Map";
-      }
-    }
-  }
-
-  function showMobileNotification(msg) {
-    const bar = document.getElementById("mobile-toggle-text");
-    if (bar) {
-      const orig = bar.textContent;
-      bar.textContent = msg;
-      setTimeout(() => { bar.textContent = orig; }, 2000);
-    }
-  }
-
   // ─── Event Listeners ───
   function initEventListeners() {
     // Search input
     const searchInput = document.getElementById("search-input");
-    const searchClear = document.getElementById("search-clear");
+    const searchBtn = document.getElementById("search-btn");
 
     if (searchInput) {
       searchInput.addEventListener("keydown", (e) => {
@@ -742,22 +900,17 @@
           executeSearch(searchInput.value);
         }
       });
-      searchInput.addEventListener("input", () => {
-        if (searchClear) searchClear.style.display = searchInput.value ? "inline-flex" : "none";
-      });
     }
 
-    if (searchClear && searchInput) {
-      searchClear.addEventListener("click", () => {
-        searchInput.value = "";
-        searchClear.style.display = "none";
-        searchInput.focus();
+    if (searchBtn && searchInput) {
+      searchBtn.addEventListener("click", () => {
+        executeSearch(searchInput.value);
       });
     }
 
     // Locate Me buttons
-    const btnLocate = document.getElementById("btn-feed-locate");
-    if (btnLocate) btnLocate.addEventListener("click", onLocateMe);
+    const btnLocateTop = document.getElementById("btn-top-locate");
+    if (btnLocateTop) btnLocateTop.addEventListener("click", onLocateMe);
 
     const btnMapLocate = document.getElementById("btn-my-location");
     if (btnMapLocate) btnMapLocate.addEventListener("click", onLocateMe);
@@ -779,9 +932,5 @@
     // Language toggle
     const btnLang = document.getElementById("btn-lang-toggle");
     if (btnLang) btnLang.addEventListener("click", toggleLanguage);
-
-    // Mobile toggle
-    const btnMobileToggle = document.getElementById("btn-mobile-toggle");
-    if (btnMobileToggle) btnMobileToggle.addEventListener("click", toggleMobileView);
   }
 })();

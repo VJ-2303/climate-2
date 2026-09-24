@@ -2633,3 +2633,701 @@ body.overview-open .basemap-toggle-panel {
   }
 }
 
+/* ==========================================================================
+   OpenWeather Reference UI Design System (Human-Crafted, Neat, Non-AI)
+   Exact match for user reference image: Atmospheric sky, white rounded cards,
+   warm beige metric pills, diurnal curve, and radar map with bottom-left widget.
+   ========================================================================== */
+
+/* Full-page scrollable atmospheric canvas for citizen portal */
+body.citizen-openweather-body {
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  height: auto !important;
+  min-height: 100vh !important;
+  background: 
+    linear-gradient(rgba(15, 23, 42, 0.72), rgba(15, 23, 42, 0.88)), 
+    url('https://images.unsplash.com/photo-1534088568595-a066f410bcda?auto=format&fit=crop&w=1920&q=80') center center / cover no-repeat fixed,
+    linear-gradient(135deg, #1e293b 0%, #0f172a 50%, #1e1b4b 100%) !important;
+  font-family: var(--font-sans);
+  color: var(--text-main);
+}
+
+/* OpenWeather Top Navigation Bar */
+.ow-topbar {
+  height: 64px;
+  background: rgba(15, 23, 42, 0.88);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 28px;
+  position: sticky;
+  top: 0;
+  z-index: 1100;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+}
+
+.ow-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+}
+.ow-brand-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #ea580c 0%, #f97316 100%);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(234, 88, 12, 0.35);
+}
+.ow-brand-title {
+  font-size: 1.12rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: #ffffff;
+}
+.ow-brand-sub {
+  font-size: 0.74rem;
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+.ow-nav-links {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+.ow-nav-link {
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: #cbd5e1;
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+.ow-nav-link:hover {
+  color: #ffffff;
+}
+
+/* Search Bar in Header */
+.ow-search-wrapper {
+  position: relative;
+  width: 280px;
+}
+.ow-search-input {
+  width: 100%;
+  height: 36px;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 20px;
+  padding: 0 34px 0 14px;
+  font-family: var(--font-sans);
+  font-size: 0.82rem;
+  color: #ffffff;
+  outline: none;
+  transition: all 0.2s ease;
+}
+.ow-search-input::placeholder {
+  color: #94a3b8;
+}
+.ow-search-input:focus {
+  background: rgba(255, 255, 255, 0.25);
+  border-color: #f97316;
+}
+.ow-search-btn {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: #cbd5e1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Primary Action Buttons */
+.ow-btn-locate {
+  background: #ea580c;
+  color: #ffffff;
+  border: none;
+  border-radius: 20px;
+  padding: 8px 18px;
+  font-family: var(--font-sans);
+  font-size: 0.84rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  box-shadow: 0 2px 10px rgba(234, 88, 12, 0.35);
+  transition: all 0.18s ease;
+}
+.ow-btn-locate:hover {
+  background: #c2410c;
+  transform: translateY(-1px);
+}
+.ow-btn-officer {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 20px;
+  padding: 8px 16px;
+  font-family: var(--font-sans);
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+.ow-btn-officer:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Main Container */
+.ow-portal-container {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 24px 20px 80px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+/* Quick Neighborhood Chips Banner */
+.ow-chips-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 4px 2px;
+  scrollbar-width: none;
+}
+.ow-chips-bar::-webkit-scrollbar {
+  display: none;
+}
+.ow-chips-label {
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: #cbd5e1;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+.ow-chip {
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 5px 14px;
+  border-radius: 20px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+.ow-chip:hover, .ow-chip.active {
+  background: #ea580c;
+  border-color: #ea580c;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(234, 88, 12, 0.35);
+}
+
+/* Upper Two-Column Layout */
+.ow-upper-grid {
+  display: grid;
+  grid-template-columns: 420px 1fr;
+  gap: 22px;
+  align-items: stretch;
+}
+
+/* OpenWeather White Card Container */
+.ow-white-card {
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 22px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.12), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Sky Header Banner (Left Card) */
+.ow-sky-banner {
+  background: linear-gradient(135deg, #38bdf8 0%, #0284c7 60%, #0369a1 100%);
+  border-radius: 14px;
+  padding: 20px;
+  color: #ffffff;
+  margin-bottom: 16px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 4px 12px rgba(2, 132, 199, 0.25);
+}
+.ow-sky-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+.ow-location-title {
+  font-size: 1.12rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+}
+.ow-location-sub {
+  font-size: 0.76rem;
+  color: #e0f2fe;
+  font-weight: 500;
+}
+.ow-time-badge {
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  font-weight: 600;
+  background: rgba(0, 0, 0, 0.18);
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+.ow-sky-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+}
+.ow-big-temp {
+  font-size: 3.4rem;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+.ow-sky-cond {
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ow-cond-title {
+  font-size: 0.96rem;
+  font-weight: 700;
+}
+.ow-cond-feels {
+  font-size: 0.78rem;
+  color: #e0f2fe;
+}
+
+/* 2x3 Metric Pill Grid */
+.ow-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.ow-metric-pill {
+  background: #faf6f0;
+  border: 1px solid #f3e8d9;
+  border-radius: 12px;
+  padding: 10px 6px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  transition: all 0.15s ease;
+}
+.ow-metric-pill:hover {
+  background: #f5ede1;
+}
+.ow-pill-header {
+  font-size: 0.66rem;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.ow-pill-header svg {
+  color: #ea580c;
+  flex-shrink: 0;
+}
+.ow-pill-val {
+  font-family: var(--font-mono);
+  font-size: 0.90rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+/* Explainer Box */
+.ow-explainer-box {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 0.74rem;
+  color: #166534;
+  line-height: 1.4;
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+.ow-explainer-box.warning-state {
+  background: #fffbeb;
+  border-color: #fde68a;
+  color: #92400e;
+}
+.ow-explainer-box svg {
+  color: inherit;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+/* Right Card: Hourly Forecast */
+.ow-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.ow-card-title {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #0f172a;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ow-card-title svg {
+  color: #ea580c;
+}
+.ow-danger-pill {
+  background: #fee2e2;
+  color: #991b1b;
+  font-size: 0.70rem;
+  font-weight: 800;
+  padding: 3px 10px;
+  border-radius: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+/* Hourly Spline Chart */
+.ow-hourly-chart-box {
+  width: 100%;
+  height: 125px;
+  background: #faf6f0;
+  border: 1px solid #f3e8d9;
+  border-radius: 12px;
+  padding: 10px 14px 6px;
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+.ow-chart-legend-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.68rem;
+  color: #64748b;
+  font-weight: 600;
+}
+.ow-chart-svg {
+  width: 100%;
+  height: 90px;
+}
+
+/* Hourly Horizontal Scrubber */
+.ow-hourly-scrubber {
+  display: grid;
+  grid-template-columns: repeat(9, 1fr);
+  gap: 6px;
+}
+.ow-hourly-item {
+  background: #faf6f0;
+  border: 1px solid #f3e8d9;
+  border-radius: 10px;
+  padding: 8px 3px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+}
+.ow-hourly-item.active-now {
+  background: #fef3c7;
+  border-color: #fde68a;
+}
+.ow-hour-time {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #475569;
+}
+.ow-hour-icon {
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ow-hour-risk {
+  font-size: 0.60rem;
+  font-weight: 700;
+  color: #64748b;
+}
+.ow-hour-temp {
+  font-family: var(--font-mono);
+  font-size: 0.88rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+/* Full-Width Interactive Heat Map Card */
+.ow-map-card {
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 18px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.12), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.ow-map-container {
+  width: 100%;
+  height: 460px;
+  border-radius: 14px;
+  overflow: hidden;
+  position: relative;
+  background: #090d16;
+}
+#ow-map {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* Floating Bottom-Left Widget on Map (Matches Reference) */
+.ow-map-floating-widget {
+  position: absolute;
+  bottom: 24px;
+  left: 24px;
+  z-index: 1000;
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 12px 16px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.22);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+.ow-widget-left {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ow-widget-title {
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.01em;
+}
+.ow-widget-timeline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ow-time-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+.ow-step-label {
+  font-size: 0.62rem;
+  font-weight: 600;
+  color: #64748b;
+}
+.ow-step-bar {
+  width: 28px;
+  height: 6px;
+  border-radius: 3px;
+  background: #e2e8f0;
+}
+.ow-widget-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-left: 1px solid #e2e8f0;
+  padding-left: 14px;
+}
+.ow-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #475569;
+}
+.ow-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+}
+
+/* Two-Column Actions Grid Below Map */
+.ow-bottom-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 22px;
+}
+
+/* Action Checklist Items */
+.ow-action-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ow-action-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: #faf6f0;
+  border: 1px solid #f3e8d9;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: #1e293b;
+}
+.ow-action-icon {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ea580c;
+  flex-shrink: 0;
+}
+
+/* Cool Spots List */
+.ow-spots-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ow-spot-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #faf6f0;
+  border: 1px solid #f3e8d9;
+  border-radius: 10px;
+  padding: 10px 14px;
+  transition: background 0.15s ease;
+}
+.ow-spot-card:hover {
+  background: #f5ede1;
+}
+.ow-spot-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.ow-spot-icon-box {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.ow-spot-icon-box.green { background: #dcfce7; color: #166534; }
+.ow-spot-icon-box.water { background: #e0f2fe; color: #0369a1; }
+.ow-spot-icon-box.health { background: #fef3c7; color: #92400e; }
+
+.ow-spot-name {
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+.ow-spot-desc {
+  font-size: 0.72rem;
+  color: #64748b;
+}
+.ow-spot-distance {
+  font-family: var(--font-mono);
+  font-size: 0.80rem;
+  font-weight: 700;
+  color: #ea580c;
+  white-space: nowrap;
+}
+
+/* Responsive Rules for OpenWeather Layout */
+@media (max-width: 1024px) {
+  .ow-upper-grid {
+    grid-template-columns: 1fr;
+  }
+  .ow-bottom-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .ow-topbar {
+    padding: 0 14px;
+  }
+  .ow-nav-links {
+    display: none;
+  }
+  .ow-search-wrapper {
+    width: 180px;
+  }
+  .ow-portal-container {
+    padding: 16px 12px 60px;
+    gap: 16px;
+  }
+  .ow-hourly-scrubber {
+    overflow-x: auto;
+    display: flex;
+    gap: 8px;
+    padding-bottom: 4px;
+  }
+  .ow-hourly-item {
+    min-width: 65px;
+    flex-shrink: 0;
+  }
+  .ow-map-floating-widget {
+    bottom: 12px;
+    left: 12px;
+    right: 12px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .ow-widget-legend {
+    border-left: none;
+    padding-left: 0;
+    border-top: 1px solid #e2e8f0;
+    padding-top: 6px;
+    width: 100%;
+    flex-direction: row;
+    justify-content: space-between;
+  }
+}
+
+

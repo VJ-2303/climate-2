@@ -4,342 +4,320 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ThermalGuard — Citizen Heat Safety Portal (Madurai)</title>
-  <meta name="description" content="Hyperlocal urban heat vulnerability, danger hours, health advisories, and cooling locations for Madurai citizens.">
+  <meta name="description" content="Hyperlocal urban heat vulnerability, danger hours, health advisories, and cooling locations for Madurai citizens. Inspired by OpenWeather human-centered ergonomics.">
 
-  <!-- Google Fonts -->
+  <!-- Google Fonts: Outfit & JetBrains Mono -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
   <!-- Core Meteorological Theme Stylesheet -->
-  <link rel="stylesheet" href="/static/style.css?v=meteo_v6" />
+  <link rel="stylesheet" href="/static/style.css?v=ow_v1" />
 </head>
-<body>
+<body class="citizen-openweather-body">
 
-  <div class="app-layout">
-    <!-- ═══ TOP CITIZEN APP BAR ═══ -->
-    <header class="topbar citizen-topbar">
-      <div class="topbar-left">
-        <!-- Brand Group -->
-        <div class="brand-group">
-          <div class="brand-icon">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M14 4v10.54a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0Z"/>
-            </svg>
+  <!-- ═══════════════════════════════════════════════════════════════
+       OPENWEATHER-INSPIRED TOP NAVIGATION BAR
+       ═══════════════════════════════════════════════════════════════ -->
+  <header class="ow-topbar">
+    <!-- Brand -->
+    <a href="/public" class="ow-brand" title="ThermalGuard Citizen Portal">
+      <div class="ow-brand-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="4"/>
+          <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>
+        </svg>
+      </div>
+      <div>
+        <div class="ow-brand-title">ThermalGuard</div>
+        <div class="ow-brand-sub" id="topbar-avg-temp">Madurai Heat Safety &middot; Live Air: --&deg;C</div>
+      </div>
+    </a>
+
+    <!-- Center Search Bar -->
+    <div class="ow-search-wrapper">
+      <input type="text" id="search-input" class="ow-search-input" placeholder="Search neighborhood or landmark..." autocomplete="off" spellcheck="false" />
+      <button class="ow-search-btn" id="search-btn" title="Search">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"/>
+          <path d="m21 21-4.35-4.35"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Actions: Locate Me, Tamil Toggle, Officer Command -->
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <button class="ow-btn-locate" id="btn-top-locate" title="Find Heat Stress Near Me">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
+        </svg>
+        <span id="btn-locate-label">Locate Me</span>
+      </button>
+
+      <button class="ow-btn-officer" id="btn-lang-toggle" title="Toggle English / தமிழ் Language">
+        <span id="lang-toggle-text">தமிழ்</span>
+      </button>
+
+      <a href="/officer" class="ow-btn-officer" title="Switch to Municipal Officer Command Center">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="7" height="7" rx="1"/>
+          <rect x="14" y="3" width="7" height="7" rx="1"/>
+          <rect x="3" y="14" width="7" height="7" rx="1"/>
+          <rect x="14" y="14" width="7" height="7" rx="1"/>
+        </svg>
+        <span>Officer</span>
+      </a>
+    </div>
+  </header>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       PORTAL MAIN CONTAINER
+       ═══════════════════════════════════════════════════════════════ -->
+  <main class="ow-portal-container">
+
+    <!-- ─── Neighborhood Quick-Chips Bar ─── -->
+    <div class="ow-chips-bar" id="neighborhood-chips" role="tablist" aria-label="Madurai Popular Neighborhoods">
+      <span class="ow-chips-label" id="label-quick-explore">Quick Areas:</span>
+      <!-- Populated dynamically via JS -->
+    </div>
+
+    <!-- ─── Upper Two-Column Layout ─── -->
+    <div class="ow-upper-grid">
+
+      <!-- LEFT COLUMN: Weather & Heat Stress Hero Card -->
+      <section class="ow-white-card" aria-label="Current Hyperlocal Heat Conditions">
+        <!-- Sky Header Banner -->
+        <div class="ow-sky-banner">
+          <div class="ow-sky-top">
+            <div>
+              <div class="ow-location-title" id="detail-place-name">Pasumalai / Palanganatham</div>
+              <div class="ow-location-sub" id="detail-place-sub">Madurai South &middot; Sector KIB-27897</div>
+            </div>
+            <div class="ow-time-badge" id="live-clock">12:00 PM IST</div>
           </div>
-          <div class="brand-text">
-            <span class="brand-title">ThermalGuard</span>
-            <div class="brand-sub-row">
-              <span class="brand-location">Citizen Heat Safety · Madurai</span>
-              <span class="brand-temp-pill" id="topbar-avg-temp">Live Air: --°C</span>
+
+          <div class="ow-sky-main">
+            <div class="ow-big-temp" id="detail-air-temp">35.8&deg;</div>
+            <div class="ow-sky-cond">
+              <span class="ow-cond-title" id="detail-weather-condition">High Heat Stress</span>
+              <span class="ow-cond-feels" id="detail-feels-temp">Feels like 32.0&deg;C (WBGT)</span>
             </div>
           </div>
         </div>
-      </div>
 
-      <div class="topbar-right">
-        <!-- Tamil Language Safety Helper Toggle -->
-        <button class="btn btn-outline lang-toggle-btn" id="btn-lang-toggle" title="Toggle English / தமிழ் Language">
-          <span id="lang-toggle-text">தமிழ்</span>
-        </button>
-
-        <!-- Switch to Municipal Officer Command -->
-        <a href="/officer" class="btn btn-outline" style="text-decoration: none;" title="Switch to Municipal Officer Command Center">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="3" width="7" height="7" rx="1"/>
-            <rect x="14" y="3" width="7" height="7" rx="1"/>
-            <rect x="3" y="14" width="7" height="7" rx="1"/>
-            <rect x="14" y="14" width="7" height="7" rx="1"/>
-          </svg>
-          <span>Officer Command</span>
-        </a>
-      </div>
-    </header>
-
-    <!-- ═══ RESPONSIVE SPLIT WORKSPACE ═══ -->
-    <main class="citizen-main-split">
-      
-      <!-- ─── LEFT COLUMN: Curated Citizen Safety Feed ─── -->
-      <section class="citizen-feed-pane" id="citizen-feed" aria-label="Citizen Heat Safety Feed">
-        
-        <!-- Search & Locate Header -->
-        <div class="feed-location-bar">
-          <div class="search-box feed-search-box">
-            <svg class="search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="11" cy="11" r="8"/>
-              <path d="m21 21-4.35-4.35"/>
-            </svg>
-            <input type="text" id="search-input" placeholder="Search neighborhood (e.g. Meenakshi Temple, Anna Nagar)..." autocomplete="off" spellcheck="false" />
-            <button class="search-clear-btn" id="search-clear" title="Clear search" style="display: none;">
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="18" y1="6" x2="6" y2="18"/>
-                <line x1="6" y1="6" x2="18" y2="18"/>
+        <!-- 2x3 Metric Pill Grid -->
+        <div class="ow-metric-grid">
+          <!-- 1. Outdoor Air -->
+          <div class="ow-metric-pill">
+            <span class="ow-pill-header" id="label-pill-air">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="4"/>
+                <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2"/>
               </svg>
-            </button>
+              Outdoor Air
+            </span>
+            <span class="ow-pill-val" id="pill-air-temp">35.8&deg;C</span>
           </div>
 
-          <button class="btn-feed-locate" id="btn-feed-locate" title="Use My Current Location">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="12" r="3"/>
-              <path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
-            </svg>
-            <span>Locate Me</span>
-          </button>
-        </div>
-
-        <!-- Quick Neighborhood Chips Bar -->
-        <div class="neighborhood-chips-scroll" id="neighborhood-chips" role="tablist" aria-label="Popular Madurai Neighborhoods">
-          <!-- Populated dynamically via JS -->
-        </div>
-
-        <!-- Feed Cards Container -->
-        <div class="feed-cards-container" id="feed-cards-container">
-          
-          <!-- Loading State -->
-          <div id="feed-loading" class="drawer-loading-skeleton" style="display: none;">
-            <div class="skeleton-shimmer skeleton-hero"></div>
-            <div class="skeleton-shimmer skeleton-card"></div>
-            <div class="skeleton-shimmer skeleton-card"></div>
+          <!-- 2. Roof & Ground Heat -->
+          <div class="ow-metric-pill">
+            <span class="ow-pill-header" id="label-pill-roof">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M8 3v4M12 3v4M16 3v4M4 14a8 8 0 0 0 16 0M3 21h18"/>
+              </svg>
+              Roof & Ground
+            </span>
+            <span class="ow-pill-val" id="pill-surf-temp" style="color: #dc2626;">50.4&deg;C</span>
           </div>
 
-          <!-- 1. Hero Card: Location + Risk Status + Key Temperatures -->
-          <div class="citizen-hero-card" id="card-hero">
-            <div class="citizen-place-header">
-              <div class="citizen-place-tag">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
-                  <circle cx="12" cy="10" r="3"/>
-                </svg>
-                <span id="label-active-loc">Active Location</span>
-              </div>
-              <div class="citizen-place-name" id="detail-place-name">Pasumalai / Palanganatham</div>
-              <div class="citizen-place-sub" id="detail-place-sub">Madurai South · Sector KIB-27897</div>
-            </div>
-
-            <!-- Risk Status Banner -->
-            <div class="citizen-alert-banner risk-critical" id="detail-risk-badge">
-              <div class="alert-banner-left">
-                <span id="detail-alert-icon">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
-                    <line x1="12" y1="9" x2="12" y2="13"/>
-                    <line x1="12" y1="17" x2="12.01" y2="17"/>
-                  </svg>
-                </span>
-                <span id="detail-alert-text">CRITICAL HEAT ALERT</span>
-              </div>
-              <span id="detail-heat-level-tag" class="heat-level-pill">EXTREME</span>
-            </div>
-
-            <!-- 3-Column Temperature Grid -->
-            <div class="citizen-temp-row">
-              <div class="citizen-temp-box">
-                <div class="citizen-temp-num" id="detail-air-temp" style="color: #0284c7;">--°C</div>
-                <div class="citizen-temp-sub" id="label-outdoor-air">
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2"/></svg>
-                  Outdoor Air
-                </div>
-              </div>
-              <div class="citizen-temp-box">
-                <div class="citizen-temp-num" id="detail-surface-temp" style="color: #dc2626;">--°C</div>
-                <div class="citizen-temp-sub" id="label-roof-heat">
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v4M12 3v4M16 3v4M4 14a8 8 0 0 0 16 0M3 21h18"/></svg>
-                  Roof & Ground
-                </div>
-              </div>
-              <div class="citizen-temp-box">
-                <div class="citizen-temp-num" id="detail-feels-temp" style="color: #d97706;">--°C</div>
-                <div class="citizen-temp-sub" id="label-feels-like">
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>
-                  Feels Like
-                </div>
-              </div>
-            </div>
-
-            <!-- Plain-Language Explainer Note -->
-            <div class="temp-explainer-card" id="detail-temp-explainer">
-              <span class="temp-explainer-icon">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <circle cx="12" cy="12" r="10"/>
-                  <line x1="12" y1="16" x2="12" y2="12"/>
-                  <line x1="12" y1="8" x2="12.01" y2="8"/>
-                </svg>
-              </span>
-              <div class="temp-explainer-body">
-                <strong id="explainer-title">Why does Roof & Ground reach ~50°C?</strong>
-                <span id="explainer-desc">Sunlight intensely superheats unshaded tin roofs and asphalt roads. The actual outdoor air you breathe in the shade is <strong id="explainer-air-val">--°C</strong>.</span>
-              </div>
-            </div>
+          <!-- 3. Humidity -->
+          <div class="ow-metric-pill">
+            <span class="ow-pill-header" id="label-pill-humidity">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>
+              </svg>
+              Humidity
+            </span>
+            <span class="ow-pill-val" id="pill-humidity">64% RH</span>
           </div>
 
-          <!-- 2. Danger Hours & Live Status Card -->
-          <div class="danger-hours-card" id="card-danger-hours">
-            <div class="danger-hours-icon">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <!-- 4. Wind Speed -->
+          <div class="ow-metric-pill">
+            <span class="ow-pill-header" id="label-pill-wind">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M17.7 7.7a2.5 2.5 0 1 1 1.8 4.3H2M9.6 4.6A2 2 0 1 1 11 8H2M12.6 19.4A2 2 0 1 0 14 16H2"/>
+              </svg>
+              Wind Speed
+            </span>
+            <span class="ow-pill-val" id="pill-wind">3.2 m/s</span>
+          </div>
+
+          <!-- 5. Danger Window -->
+          <div class="ow-metric-pill">
+            <span class="ow-pill-header" id="label-pill-danger">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="12" cy="12" r="10"/>
                 <polyline points="12 6 12 12 16 14"/>
               </svg>
-            </div>
-            <div class="danger-hours-content">
-              <div class="danger-hours-header-row">
-                <span class="danger-hours-label" id="label-danger-hours">Peak Sun Danger Hours</span>
-                <span class="danger-live-status-badge" id="danger-live-status">Active Heat Alert</span>
-              </div>
-              <span class="danger-hours-val" id="detail-danger-hours">11:00 AM – 3:30 PM</span>
-              <span class="danger-hours-hint" id="detail-danger-hint">Stay in ventilated shade; avoid heavy outdoor exertion.</span>
-            </div>
+              Danger Window
+            </span>
+            <span class="ow-pill-val" id="pill-danger-window" style="font-size: 0.78rem;">11 AM – 3:30 PM</span>
           </div>
 
-          <!-- 3. Practical Health & Protection Checklist -->
-          <div class="action-checklist-card">
-            <div class="action-card-title">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          <!-- 6. Cool Shelter -->
+          <div class="ow-metric-pill">
+            <span class="ow-pill-header" id="label-pill-shelter">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 19v3M12 10a5 5 0 0 0-5 5c0 2 2 4 5 4s5-2 5-4a5 5 0 0 0-5-5zM12 2a4 4 0 0 0-4 4c0 1.5 1 3 2 3.5M12 2a4 4 0 0 1 4 4c0 1.5-1 3-2 3.5"/>
               </svg>
-              <span id="label-health-actions">Health & Protection Actions</span>
-            </div>
-            <ul class="action-checklist">
-              <li class="action-item">
-                <span class="action-item-icon">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>
-                </span>
-                <span id="action-item-hydrate"><strong>Drink water frequently</strong> — consume ORS or water every 45–60 minutes even if not thirsty.</span>
-              </li>
-              <li class="action-item">
-                <span class="action-item-icon">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M12 2a8 8 0 0 0-8 8c0 3 4 7 8 7s8-4 8-7a8 8 0 0 0-8-8z"/></svg>
-                </span>
-                <span id="action-item-shade"><strong>Stay in shaded areas</strong> — avoid direct asphalt or tin-roof walkways during midday sun.</span>
-              </li>
-              <li class="action-item">
-                <span class="action-item-icon">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.7 7.7a2.5 2.5 0 1 1 1.8 4.3H2M9.6 4.6A2 2 0 1 1 11 8H2M12.6 19.4A2 2 0 1 0 14 16H2"/></svg>
-                </span>
-                <span id="action-item-ventilate"><strong>Keep interiors ventilated</strong> — open opposing windows to flush radiant metal-roof heat.</span>
-              </li>
-              <li class="action-item">
-                <span class="action-item-icon">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
-                </span>
-                <span id="action-item-vulnerable"><strong>Vulnerable care</strong> — protect children, elderly family, and pregnant women from unventilated rooms.</span>
-              </li>
-            </ul>
+              Cool Shelter
+            </span>
+            <span class="ow-pill-val" id="pill-shelter-dist">150m Shaded</span>
           </div>
+        </div>
 
-          <!-- 4. Nearest Cool Spots & Water Points -->
-          <div class="action-checklist-card" id="card-cool-spots">
-            <div class="action-card-title">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="12" r="10"/>
-                <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/>
-              </svg>
-              <span id="label-cool-spots">Nearest Cool Spots & Water Points</span>
-            </div>
-            <div class="cool-spots-grid">
-              <div class="cool-spot-item">
-                <div class="cool-spot-icon green-spot">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19v3M12 10a5 5 0 0 0-5 5c0 2 2 4 5 4s5-2 5-4a5 5 0 0 0-5-5zM12 2a4 4 0 0 0-4 4c0 1.5 1 3 2 3.5M12 2a4 4 0 0 1 4 4c0 1.5-1 3-2 3.5"/></svg>
-                </div>
-                <div class="cool-spot-text">
-                  <span class="cool-spot-name" id="spot-park-name">Tree Canopy & Shaded Park</span>
-                  <span class="cool-spot-dist" id="spot-park-dist">Loading distance...</span>
-                </div>
-              </div>
-              <div class="cool-spot-item">
-                <div class="cool-spot-icon water-spot">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>
-                </div>
-                <div class="cool-spot-text">
-                  <span class="cool-spot-name" id="spot-water-name">Water Body / Refill Station</span>
-                  <span class="cool-spot-dist" id="spot-water-dist">Loading distance...</span>
-                </div>
-              </div>
-              <div class="cool-spot-item">
-                <div class="cool-spot-icon shelter-spot">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 10h1M14 10h1M9 14h1M14 14h1M9 18h1M14 18h1"/></svg>
-                </div>
-                <div class="cool-spot-text">
-                  <span class="cool-spot-name" id="spot-shelter-name">Corporation UPHC Cooling Shelter</span>
-                  <span class="cool-spot-dist">Local Ward Public Outreach Facility</span>
-                </div>
-              </div>
-            </div>
+        <!-- Plain Language Explainer Callout -->
+        <div class="ow-explainer-box" id="detail-temp-explainer">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="16" x2="12" y2="12"/>
+            <line x1="12" y1="8" x2="12.01" y2="8"/>
+          </svg>
+          <div>
+            <strong id="explainer-title">Why does Roof & Ground heat reach ~50&deg;C?</strong>
+            <span id="explainer-desc">Sunlight intensely superheats unshaded tin roofs and asphalt roads. The actual outdoor air you breathe in the shade is <strong id="explainer-air-val">35.8&deg;C</strong>.</span>
           </div>
-
-          <!-- 5. 5-Day Heat Forecast Trend (Apple Weather style) -->
-          <div class="action-checklist-card">
-            <div class="action-card-title">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-                <line x1="16" y1="2" x2="16" y2="6"/>
-                <line x1="8" y1="2" x2="8" y2="6"/>
-                <line x1="3" y1="10" x2="21" y2="10"/>
-              </svg>
-              <span id="label-forecast-trend">5-Day Heat Forecast Trend</span>
-            </div>
-            <div class="forecast-strip-grid" id="detail-forecast-timeline">
-              <!-- Populated via JS -->
-            </div>
-          </div>
-
         </div>
       </section>
 
-      <!-- ─── RIGHT COLUMN: Interactive Heat Map ─── -->
-      <section class="citizen-map-pane" id="citizen-map-pane" aria-label="Interactive Heat Map">
-        <div id="map"></div>
+      <!-- RIGHT COLUMN: Hourly Heat Forecast & Danger Window Card -->
+      <section class="ow-white-card" aria-label="Hourly Heat Stress Trajectory">
+        <div class="ow-card-header">
+          <div class="ow-card-title">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+              <line x1="16" y1="2" x2="16" y2="6"/>
+              <line x1="8" y1="2" x2="8" y2="6"/>
+              <line x1="3" y1="10" x2="21" y2="10"/>
+            </svg>
+            <span id="label-forecast-title">Hourly Heat Forecast & Danger Window</span>
+          </div>
+          <span class="ow-danger-pill" id="danger-live-status">Midday Heat Peak</span>
+        </div>
 
-        <!-- Basemap Toggle Bar (Default Street vs Satellite View) -->
-        <div class="floating-panel basemap-toggle-panel" id="basemap-toggle" role="group" aria-label="Basemap Surface Layer">
-          <button class="basemap-btn active" data-basemap="default" id="btn-basemap-default" title="Default Street Map">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <!-- Hourly Spline Curve (SVG) -->
+        <div class="ow-hourly-chart-box">
+          <div class="ow-chart-legend-row">
+            <span id="chart-legend-left">Diurnal Heat Stress Curve (&deg;C)</span>
+            <span id="chart-legend-right" style="color: #dc2626; font-weight: 700;">Shaded Danger Band: 11:00 AM – 3:30 PM</span>
+          </div>
+          <div id="ow-spline-container" style="width: 100%; height: 95px;">
+            <!-- Rendered via JS -->
+          </div>
+        </div>
+
+        <!-- Hourly 9-Tile Scrubber -->
+        <div class="ow-hourly-scrubber" id="ow-hourly-scrubber">
+          <!-- Populated dynamically via JS -->
+        </div>
+      </section>
+
+    </div>
+
+    <!-- ─── Full-Width Interactive Heat Radar Map Card ─── -->
+    <section class="ow-map-card" aria-label="Interactive Madurai Heat Map">
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+        <div>
+          <div class="ow-card-title">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
               <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/>
               <line x1="8" y1="2" x2="8" y2="18"/>
               <line x1="16" y1="6" x2="16" y2="22"/>
             </svg>
-            <span>Default</span>
+            <span id="label-map-title">Madurai 50m Microclimate Heat Vulnerability Map</span>
+          </div>
+          <div style="font-size: 0.74rem; color: #64748b; margin-top: 2px;" id="label-map-sub">
+            Tap any 50m sector to inspect radiant surface heat, shade deficits, and localized safety metrics.
+          </div>
+        </div>
+
+        <!-- Basemap Toggle -->
+        <div class="floating-panel basemap-toggle-panel" style="position: static; box-shadow: none; border: 1px solid #e2e8f0; background: #faf6f0;">
+          <button class="basemap-btn active" id="btn-basemap-default" title="Standard Street Map">
+            <span>Street</span>
           </button>
-          <button class="basemap-btn" data-basemap="satellite" id="btn-basemap-satellite" title="High-Resolution Satellite Imagery">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="12" r="10"/>
-              <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/>
-              <path d="M2 12h20"/>
-            </svg>
+          <button class="basemap-btn" id="btn-basemap-satellite" title="Satellite Imagery">
             <span>Satellite</span>
           </button>
         </div>
+      </div>
 
-        <!-- Citizen Map Legend -->
-        <div class="floating-panel map-legend-card citizen-legend" id="legend">
-          <div class="legend-header">
-            <span class="legend-title" id="legend-title">Heat Severity</span>
-            <span class="legend-unit">Tap any area to inspect</span>
+      <!-- Map Display Area -->
+      <div class="ow-map-container">
+        <div id="ow-map"></div>
+
+        <!-- Floating Bottom-Left Widget (Reference Match) -->
+        <div class="ow-map-floating-widget">
+          <div class="ow-widget-left">
+            <span class="ow-widget-title" id="widget-timeline-title">Peak Sun Exposure Timeline</span>
+            <div class="ow-widget-timeline">
+              <div class="ow-time-step">
+                <span class="ow-step-label">10 AM</span>
+                <span class="ow-step-bar" style="background: #16a34a;"></span>
+              </div>
+              <div class="ow-time-step">
+                <span class="ow-step-label">11 AM</span>
+                <span class="ow-step-bar" style="background: #d97706;"></span>
+              </div>
+              <div class="ow-time-step">
+                <span class="ow-step-label">12 PM</span>
+                <span class="ow-step-bar" style="background: #ea580c;"></span>
+              </div>
+              <div class="ow-time-step">
+                <span class="ow-step-label">1 PM</span>
+                <span class="ow-step-bar" style="background: #dc2626;"></span>
+              </div>
+              <div class="ow-time-step">
+                <span class="ow-step-label">2 PM</span>
+                <span class="ow-step-bar" style="background: #dc2626;"></span>
+              </div>
+              <div class="ow-time-step">
+                <span class="ow-step-label">3 PM</span>
+                <span class="ow-step-bar" style="background: #ea580c;"></span>
+              </div>
+              <div class="ow-time-step">
+                <span class="ow-step-label">4 PM</span>
+                <span class="ow-step-bar" style="background: #d97706;"></span>
+              </div>
+            </div>
           </div>
-          <div id="legend-content" class="legend-bar-container">
-            <div class="legend-row">
-              <span class="legend-swatch" style="background: #dc2626;"></span>
-              <span>Severe / Extreme Danger</span>
+
+          <div class="ow-widget-legend">
+            <div class="ow-legend-item">
+              <span class="ow-swatch" style="background: #16a34a;"></span>
+              <span id="legend-label-safe">Safe (&le;45)</span>
             </div>
-            <div class="legend-row">
-              <span class="legend-swatch" style="background: #ea580c;"></span>
-              <span>High Heat Stress</span>
+            <div class="ow-legend-item">
+              <span class="ow-swatch" style="background: #d97706;"></span>
+              <span id="legend-label-mod">Moderate (46-70)</span>
             </div>
-            <div class="legend-row">
-              <span class="legend-swatch" style="background: #d97706;"></span>
-              <span>Moderate Heat</span>
+            <div class="ow-legend-item">
+              <span class="ow-swatch" style="background: #ea580c;"></span>
+              <span id="legend-label-high">High (71-85)</span>
             </div>
-            <div class="legend-row">
-              <span class="legend-swatch" style="background: #16a34a;"></span>
-              <span>Comfortable / Safe</span>
+            <div class="ow-legend-item">
+              <span class="ow-swatch" style="background: #dc2626;"></span>
+              <span id="legend-label-crit">Critical (&gt;85)</span>
             </div>
           </div>
         </div>
 
-        <!-- Quick Reset View Button -->
-        <div class="map-quick-controls">
+        <!-- Floating Quick Map Controls -->
+        <div class="map-quick-controls" style="top: 14px; right: 14px;">
           <button class="map-btn" id="btn-reset-view" title="Reset View to Madurai Overview">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
@@ -348,37 +326,137 @@
           </button>
         </div>
 
-        <!-- Floating "My Location" Button on Map -->
         <button class="btn-my-location" id="btn-my-location" title="Fly to My Current Location">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="3"/>
             <path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
             <circle cx="12" cy="12" r="7" stroke-dasharray="2 2"/>
           </svg>
-          <span>My Location</span>
+          <span id="label-map-locate">My Location</span>
         </button>
+      </div>
+    </section>
 
+    <!-- ─── Two-Column Actions Grid Below Map ─── -->
+    <div class="ow-bottom-grid">
+
+      <!-- Left Card: Health & Protection Checklist -->
+      <section class="ow-white-card" aria-label="Health Protection Checklist">
+        <div class="ow-card-title" style="margin-bottom: 14px;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          </svg>
+          <span id="label-health-actions">Health & Protection Actions</span>
+        </div>
+
+        <ul class="ow-action-list">
+          <li class="ow-action-item">
+            <div class="ow-action-icon">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>
+              </svg>
+            </div>
+            <span id="action-item-hydrate"><strong>Hydrate actively:</strong> Drink ORS or water every 45–60 minutes, even if you do not feel thirsty.</span>
+          </li>
+
+          <li class="ow-action-item">
+            <div class="ow-action-icon">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2v20M12 2a8 8 0 0 0-8 8c0 3 4 7 8 7s8-4 8-7a8 8 0 0 0-8-8z"/>
+              </svg>
+            </div>
+            <span id="action-item-shade"><strong>Use shaded corridors:</strong> Avoid direct asphalt streets and tin-roof walkways during midday sun (11 AM – 3:30 PM).</span>
+          </li>
+
+          <li class="ow-action-item">
+            <div class="ow-action-icon">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M17.7 7.7a2.5 2.5 0 1 1 1.8 4.3H2M9.6 4.6A2 2 0 1 1 11 8H2M12.6 19.4A2 2 0 1 0 14 16H2"/>
+              </svg>
+            </div>
+            <span id="action-item-ventilate"><strong>Flush interior heat:</strong> Open opposing windows for cross-breeze to remove radiated tin roof heat.</span>
+          </li>
+
+          <li class="ow-action-item">
+            <div class="ow-action-icon">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M12 8v4M12 16h.01"/>
+              </svg>
+            </div>
+            <span id="action-item-vulnerable"><strong>Protect vulnerable residents:</strong> Keep elders, infants, and pregnant family members in cool, ventilated rooms.</span>
+          </li>
+        </ul>
       </section>
 
-    </main>
+      <!-- Right Card: Nearest Cool Spots & Water Refill Centers -->
+      <section class="ow-white-card" aria-label="Nearest Shaded Spots and Clean Water">
+        <div class="ow-card-title" style="margin-bottom: 14px;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/>
+            <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/>
+          </svg>
+          <span id="label-cool-spots">Nearest Cool Spots & Water Points</span>
+        </div>
 
-    <!-- Mobile Sticky Switch Bar -->
-    <div class="mobile-switch-bar" id="mobile-switch-bar">
-      <button class="btn-mobile-toggle" id="btn-mobile-toggle">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/>
-          <line x1="8" y1="2" x2="8" y2="18"/>
-          <line x1="16" y1="6" x2="16" y2="22"/>
-        </svg>
-        <span id="mobile-toggle-text">View Heat Map</span>
-      </button>
+        <div class="ow-spots-list">
+          <!-- Park / Green -->
+          <div class="ow-spot-card">
+            <div class="ow-spot-info">
+              <div class="ow-spot-icon-box green">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 19v3M12 10a5 5 0 0 0-5 5c0 2 2 4 5 4s5-2 5-4a5 5 0 0 0-5-5zM12 2a4 4 0 0 0-4 4c0 1.5 1 3 2 3.5M12 2a4 4 0 0 1 4 4c0 1.5-1 3-2 3.5"/>
+                </svg>
+              </div>
+              <div>
+                <div class="ow-spot-name" id="spot-park-name">Tree Canopy & Shaded Green Space</div>
+                <div class="ow-spot-desc" id="spot-park-desc">Vegetated buffer & natural shade relief</div>
+              </div>
+            </div>
+            <span class="ow-spot-distance" id="spot-park-dist">150m walking</span>
+          </div>
+
+          <!-- Water Point -->
+          <div class="ow-spot-card">
+            <div class="ow-spot-info">
+              <div class="ow-spot-icon-box water">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>
+                </svg>
+              </div>
+              <div>
+                <div class="ow-spot-name" id="spot-water-name">Municipal Clean Water Refill Tap</div>
+                <div class="ow-spot-desc" id="spot-water-desc">Public drinking water source</div>
+              </div>
+            </div>
+            <span class="ow-spot-distance" id="spot-water-dist">280m walking</span>
+          </div>
+
+          <!-- Corporation UPHC Cooling Shelter -->
+          <div class="ow-spot-card">
+            <div class="ow-spot-info">
+              <div class="ow-spot-icon-box health">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M3 21h18M5 21V7l7-4 7 4v14M9 10h1M14 10h1M9 14h1M14 14h1M9 18h1M14 18h1"/>
+                </svg>
+              </div>
+              <div>
+                <div class="ow-spot-name" id="spot-shelter-name">Corporation UPHC Cooling Shelter</div>
+                <div class="ow-spot-desc" id="spot-shelter-desc">Madurai Municipal Health Center & First Aid</div>
+              </div>
+            </div>
+            <span class="ow-spot-distance" id="spot-shelter-dist">Designated Facility</span>
+          </div>
+        </div>
+      </section>
+
     </div>
 
-  </div>
+  </main>
 
   <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <!-- Public Citizen Portal Logic -->
-  <script src="/static/public.js?v=meteo_v6"></script>
+  <script src="/static/public.js?v=ow_v1"></script>
 </body>
 </html>
