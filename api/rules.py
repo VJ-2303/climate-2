@@ -632,35 +632,62 @@ def generate_automated_health_advisory(
 
     if risk_tier == "Critical":
         headline = f"CRITICAL HEAT EMERGENCY: Sector {block_id} WBGT {local_wbgt:.1f}°C"
+        headline_ta = f"அதிதீவிர வெப்ப அவசரநிலை: பகுதி {block_id} WBGT {local_wbgt:.1f}°C"
         citizen_action = (
             "Dangerous physiological heat stress. Cease all outdoor manual labor between 11 AM - 4 PM. "
             "Hydrate continuously (minimum 1 liter per 2 hours) and move children and elderly to shaded communal centers."
+        )
+        citizen_action_ta = (
+            "ஆபத்தான வெப்ப அழுத்தம். காலை 11 மணி முதல் மாலை 4 மணி வரை நேரடி வெயிலில் வேலை செய்வதைத் தவிர்க்கவும். "
+            "அடிக்கடி தண்ணீர் குடிக்கவும் (2 மணி நேரத்திற்கு குறைந்தது 1 லிட்டர்). முதியவர்கள் மற்றும் குழந்தைகளை குளிர்ச்சியான இடங்களில் வைக்கவும்."
         )
         officer_directive = (
             f"Activate emergency hydration points and shade structures. Primary driver is {primary_driver} ({driver_contrib}). "
             "Dispatch community health volunteers for door-to-door welfare checks on high-density households."
         )
+        officer_directive_ta = (
+            f"அவசர நீர் பந்தல்கள் மற்றும் நிழல் கூடங்களை செயல்படுத்தவும். முக்கிய காரணி: {primary_driver} ({driver_contrib}). "
+            "சுகாதார பணியாளர்கள் மூலம் வீடு வீடாக சென்று கண்காணிக்கவும்."
+        )
     elif risk_tier == "High":
         headline = f"HIGH HEAT STRESS WARNING: Sector {block_id} WBGT {local_wbgt:.1f}°C"
+        headline_ta = f"தீவிர வெப்ப எச்சரிக்கை: பகுதி {block_id} WBGT {local_wbgt:.1f}°C"
         citizen_action = (
             "High risk of heat exhaustion and cramps. Schedule heavy work before 10 AM. "
             "Keep indoor corrugated metal dwellings ventilated by opening opposing doors/windows."
+        )
+        citizen_action_ta = (
+            "வெப்ப சோர்வு மற்றும் தசைப்பிடிப்பு அபாயம். கனரக வேலைகளை காலை 10 மணிக்குள் முடிக்கவும். "
+            "தகரக் கூரை வீடுகளில் காற்றோட்டத்தை அதிகரிக்க ஜன்னல்களை திறந்து வைக்கவும்."
         )
         officer_directive = (
             f"Alert local clinic teams for surge in dehydration cases. Primary driver is {primary_driver} ({driver_contrib}). "
             "Ensure neighborhood water kiosks maintain adequate public supply."
         )
+        officer_directive_ta = (
+            f"ஆரம்ப சுகாதார நிலையங்களை தயார் நிலையில் வைக்கவும். முக்கிய காரணி: {primary_driver} ({driver_contrib}). "
+            "குடிநீர் விநியோகத்தை தடையின்றி உறுதி செய்யவும்."
+        )
     elif risk_tier == "Moderate":
         headline = f"MODERATE THERMAL STRAIN: Sector {block_id} WBGT {local_wbgt:.1f}°C"
+        headline_ta = f"மிதமான வெப்ப அழுத்தம்: பகுதி {block_id} WBGT {local_wbgt:.1f}°C"
         citizen_action = "Take regular shaded resting breaks and drink fluids regularly throughout the afternoon."
+        citizen_action_ta = "மதிய வேளையில் நிழலில் ஓய்வெடுக்கவும், போதுமான அளவு தண்ணீர் குடிக்கவும்."
         officer_directive = f"Monitor microclimate trends. Sector driven primarily by {primary_driver} ({driver_contrib})."
+        officer_directive_ta = f"நுண் காலநிலை மாற்றங்களை கண்காணிக்கவும். முக்கிய காரணி: {primary_driver} ({driver_contrib})."
     else:
         headline = f"NORMAL PHYSIOLOGICAL CONDITIONS: Sector {block_id} WBGT {local_wbgt:.1f}°C"
+        headline_ta = f"வழக்கமான வெப்பநிலை: பகுதி {block_id} WBGT {local_wbgt:.1f}°C"
         citizen_action = "Standard seasonal temperatures. Maintain baseline hydration."
+        citizen_action_ta = "இயல்பான வானிலை. போதுமான தண்ணீர் பருகவும்."
         officer_directive = "No emergency interventions required."
+        officer_directive_ta = "அவசர தலையீடுகள் தேவையில்லை."
 
     return {
         "headline": headline,
+        "headline_ta": headline_ta,
         "citizen_action": citizen_action,
-        "officer_directive": officer_directive
+        "citizen_action_ta": citizen_action_ta,
+        "officer_directive": officer_directive,
+        "officer_directive_ta": officer_directive_ta,
     }

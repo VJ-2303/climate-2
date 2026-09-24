@@ -196,9 +196,10 @@ def public_view() -> FileResponse:
 
 @app.post("/api/alerts/dispatch")
 async def dispatch_sms_alert(payload: Dict[str, Any]) -> JSONResponse:
-    """Simulates targeted SMS emergency advisory dispatch to residents in a specific sector."""
+    """Simulates targeted SMS emergency advisory dispatch to residents in a specific sector with SQLite audit log."""
     import uuid
     from datetime import datetime
+    from api.audit import record_dispatch
 
     block_id = payload.get("block_id", "KIB-0000")
     recipient_group = payload.get("recipient_group", "vulnerable_residents")
@@ -218,8 +219,17 @@ async def dispatch_sms_alert(payload: Dict[str, Any]) -> JSONResponse:
         "message": message,
         "channels": ["SMS (TNSDMA Common Alerting Protocol / BSNL)", "WhatsApp Emergency Broadcast", "Ward Health Volunteers / UPHC Outreach", "108 Emergency Ambulance Staging"]
     }
+    record_dispatch(audit_entry)
     logger.info(f"Dispatched SMS emergency advisory: {audit_entry['audit_id']} to {recipients_count} recipients in {block_id}")
     return JSONResponse(content=audit_entry)
+
+
+@app.get("/api/alerts/audit")
+def get_alert_audit_logs(limit: int = 50) -> JSONResponse:
+    """Returns recent emergency advisory dispatch audit trail from persistent SQLite database."""
+    from api.audit import get_recent_dispatches
+    logs = get_recent_dispatches(limit=limit)
+    return JSONResponse(content={"total": len(logs), "logs": logs})
 
 
 @app.get("/data/vulnerability_blocks.geojson")
@@ -237,16 +247,23 @@ def layer(name: str) -> FileResponse:
 @app.get("/api/layers/forecast_day_{day}/attributes")
 def get_forecast_day_attributes(day: int) -> JSONResponse:
     """Returns day-specific physiological heat risk scores (0..100) across all blocks for map day-scrubber."""
-    if day < 1 or day > 5:
-        raise HTTPException(status_code=400, detail="Forecast day must be between 1 and 5")
+    if day < -7 or day > 5:
+        raise HTTPException(status_code=400, detail="Day must be between -7 and 5")
 
     if not blocks_db:
         load_dataset_into_memory()
 
     from api.weather import get_5day_forecast
     forecast = get_5day_forecast()
+    timeline = forecast.get("timeline", [])
     daily = forecast.get("daily", [])
-    day_item = next((d for d in daily if d.get("day") == day), daily[0] if daily else {})
+
+    day_item = next((d for d in timeline if d.get("day") == day or d.get("day_offset") == day), None)
+    if not day_item and day >= 1:
+        day_item = next((d for d in daily if d.get("day") == day), daily[0] if daily else {})
+    elif not day_item:
+        day_item = daily[0] if daily else {}
+
     base_wbgt = float(day_item.get("wbgt_max", 30.0))
 
     attr_map = {}
@@ -337,7 +354,7 @@ def get_forecast_summary() -> JSONResponse:
 
 @app.get("/api/forecast/days")
 def get_forecast_days() -> JSONResponse:
-    """Returns lightweight 5-day timeline for map scrubber controls and real-time current weather."""
+    """Returns lightweight 5-day timeline and 12-day historical replay for map scrubber controls and real-time current weather."""
     from api.weather import get_5day_forecast
     data = get_5day_forecast()
     days = [
@@ -346,16 +363,19 @@ def get_forecast_days() -> JSONResponse:
             "date": d["date"],
             "temp_max": d["temp_max"],
             "temp_min": d.get("temp_min"),
-            "humidity_mean": d["humidity_mean"],
+            "humidity_mean": d.get("humidity_mean"),
             "wbgt_max": d["wbgt_max"],
             "risk_tier": d["risk_tier"]
         }
         for d in data.get("daily", [])
     ]
+    timeline = data.get("timeline", days)
     return JSONResponse(
         content={
             "days": days,
-            "current": data.get("current")
+            "timeline": timeline,
+            "current": data.get("current"),
+            "composite_alert": data.get("composite_alert"),
         },
         headers={"Cache-Control": "public, max-age=1800"}
     )

@@ -30,12 +30,21 @@ WBGT = 0.567·Ta + 0.393·ea + 3.94
 ea   = (RH/100) × 6.105 × exp(17.27·Ta / (237.7 + Ta))        # Magnus vapor pressure
 ```
 
-Per forecast day: `Ta = temperature_2m_max`, `RH = relative_humidity_2m_mean` (Open-Meteo
-daily). One WBGT per day from the day's max temperature — no hourly scan.
+Per forecast day: `Ta = temperature_2m_max`, `RH = relative_humidity_2m_min` (concurrent
+daytime minimum humidity at peak afternoon temperature to prevent nocturnal inflation;
+falls back to `relative_humidity_2m_mean` if missing). One WBGT per day from the day's max temperature.
 
-**Multi-model blend:** single fetch with `models=ecmwf_ifs025,icon_seamless,gfs025`;
-per-model suffixed fields are element-wise averaged before WBGT computation
-(`_blend_daily_models`). Cuts forecast error vs single model.
+**Multi-model blend & timeline:** single fetch with `models=ecmwf_ifs025,icon_seamless,gfs025`,
+`past_days=7`, `forecast_days=5`, providing a continuous 12-day retrospective and predictive timeline.
+Per-model suffixed fields are element-wise averaged before WBGT computation (`_blend_daily_models`).
+
+**Dual Composite Heatwave Alert:**
+Synthesizes official India Meteorological Department (IMD) criteria for plains:
+- Normal (Green): $T_{\max} < 38^\circ\text{C}$
+- Heat Alert (Yellow): $T_{\max} \ge 38^\circ\text{C}$ or departure $\ge +3.0^\circ\text{C}$
+- Heatwave (Orange): $T_{\max} \ge 40^\circ\text{C}$ and departure $\ge +4.5^\circ\text{C}$ (or absolute $T_{\max} \ge 45^\circ\text{C}$)
+- Severe Heatwave (Red): $T_{\max} \ge 40^\circ\text{C}$ and departure $\ge +6.5^\circ\text{C}$ (or absolute $T_{\max} \ge 47^\circ\text{C}$)
+Harmonized with NDMA WBGT stress tiers (30/34/38°C), where the higher severity determines the public alert code.
 
 Available but not in the pipeline: full ACGIH outdoor WBGT `0.57·Tg + 0.32·ea + 0.11·Ta`
 with globe temp from the Liljegren 2002 energy balance (`calculate_full_wbgt`,
@@ -103,29 +112,39 @@ Gate values and artifact map: AGENTS.md.
 | Endpoint | Returns |
 |---|---|
 | `GET /` , `GET /officer` | Officer UI (`web/officer.html`) |
+| `GET /public` | Citizen Heat Safety Portal (`web/public.html`) |
 | `GET /data/vulnerability_blocks.geojson` | Main HVI GeoJSON (EPSG:4326) |
 | `GET /data/layers/{name}.geojson` | One of 7 layer files |
 | `GET /api/layers/{name}/attributes` | `{block_id: score}` lightweight map |
-| `GET /api/layers/forecast_day_{1..5}/attributes` | Per-block 5-day forecast risk scores |
-| `GET /api/blocks/{block_id}` | Full block intelligence: HVI, SHAP top-3, 5-day health trajectory, advisory |
-| `GET /api/forecast/days` | 5-day WBGT summary (day, date, wbgt_max, tier) |
-| `GET /api/forecast/summary` | Forecast summary + peak day |
-| `POST /api/alerts/dispatch` | Simulated SMS dispatch → `{audit_id, recipients_count, channels}` |
+| `GET /api/layers/forecast_day_{-7..5}/attributes` | Per-block 12-day timeline risk scores (past 7 days replay + 5-day forecast) |
+| `GET /api/blocks/{block_id}` | Full block intelligence: HVI, SHAP top-3, 5-day health trajectory, bilingual advisory |
+| `GET /api/forecast/days` | 12-day timeline & 5-day WBGT summary, real-time current weather, and composite alert |
+| `GET /api/forecast/summary` | Forecast summary + peak day + composite alert |
+| `POST /api/alerts/dispatch` | Targeted SMS emergency dispatch → SQLite persistence `{audit_id, recipients_count, channels}` |
+| `GET /api/alerts/audit` | Recent emergency dispatch audit trail from SQLite (`data/audit_log.db`) |
 
 Weather source: Open-Meteo live (1h cache) → offline fallback `data/fallback_forecast.json`
 (heatwave scenario, peak 34.5°C/65%, WBGT 37.4°C) on network failure.
 
-## 5. UI — Officer Command Center (only)
+## 5. UI — Dual Deployment
 
+### 5.1 Officer Command Center (`/` and `/officer`)
 - Choropleth: `Low #1a9850 | Medium #ffffbf | High #f46d43 | Critical #d73027`
 - 7 layer switchers (lightweight attribute endpoints, no geometry reload)
-- **Forecast dropdown** (topbar): HVI current + Day 1–5 WBGT views; map recolors per day
+- **12-Day Timeline dropdown** (topbar): HVI baseline + Past 7 Days historical replay + Next 5 Days WBGT forecast
+- **Real-time Weather & Composite Alert Badge** in topbar (IMD + NDMA tier)
 - **SHAP waterfall** in block sidebar: top-3 drivers with ±°C contributions
 - **5-day trajectory sparkline** + tier badges per day
 - **SMS dispatch modal**: block → recipient group → simulated dispatch with audit trail
+- **Audit Log Modal**: persistent SQLite dispatch audit trail viewer
 - Zone Planner (polygon → population + risk aggregation), search, offline tile cache
 
-No public/citizen portal (removed — officer-only deployment).
+### 5.2 Citizen Heat Safety Portal (`/public`)
+- Mobile-first, citizen-friendly interface
+- Hyperlocal geolocation ("My Location" GPS / IP locator) & landmark lookup across 15 Madurai hubs
+- Real-time weather, apparent temp, and danger hours (e.g. 11:00 AM – 3:30 PM)
+- 3-step actionable safety checklist with bilingual English and Tamil (தமிழ்) guidance
+- Designated public hydration kiosks and cooling shelters
 
 ## 6. Data Sources (frozen — no additions)
 

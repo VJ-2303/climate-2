@@ -35,6 +35,7 @@
             <div class="brand-sub-row">
               <span class="brand-location">Officer Command · Madurai</span>
               <span class="brand-temp-pill" id="topbar-avg-temp">Avg: --°C</span>
+              <span id="topbar-alert-badge" style="display:none; font-size:11px; font-weight:700; color:#fff; padding:2px 8px; border-radius:12px; margin-left:6px;"></span>
             </div>
           </div>
         </div>
@@ -179,6 +180,27 @@
           <span id="offline-cache-label">Offline Basemap</span>
           <span id="offline-cache-badge" class="offline-badge">Ready</span>
         </button>
+
+        <!-- Emergency Advisory Audit Log Trigger -->
+        <button id="btn-audit-logs" class="btn btn-outline" title="View Emergency Advisory Dispatch Audit Log">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="16" y1="13" x2="8" y2="13"/>
+            <line x1="16" y1="17" x2="8" y2="17"/>
+          </svg>
+          <span>Audit Log</span>
+        </button>
+
+        <!-- Citizen Safety Portal Link -->
+        <a href="/public" target="_blank" class="btn btn-outline" style="text-decoration:none; display:inline-flex; align-items:center; gap:6px;" title="Open Citizen Public Heat Safety Portal">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+            <polyline points="15 3 21 3 21 9"/>
+            <line x1="10" y1="14" x2="21" y2="3"/>
+          </svg>
+          <span>Citizen Portal</span>
+        </a>
 
         <!-- Export Dataset -->
         <button id="export-btn" class="btn btn-primary" title="Export full GeoJSON dataset">
@@ -652,6 +674,27 @@
       <div class="zone-modal-footer">
         <span id="sms-dispatch-result" style="font-size: 12px; color: #475569;"></span>
         <button class="btn btn-primary" id="btn-sms-dispatch">Dispatch Alert</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Emergency Dispatch Audit Trail Modal -->
+  <div class="zone-modal-overlay" id="audit-modal" style="display:none;" role="dialog" aria-modal="true" aria-label="Dispatch Audit Trail">
+    <div class="zone-modal-card" style="max-width: 650px; width: 90%;">
+      <div class="zone-modal-header">
+        <div class="zone-modal-title-group">
+          <span class="zone-modal-title">Emergency Advisory Dispatch Audit Trail</span>
+        </div>
+        <button class="icon-btn" id="btn-audit-modal-close" title="Close">✕</button>
+      </div>
+      <div class="zone-modal-section" style="max-height: 380px; overflow-y: auto;">
+        <div id="audit-logs-container" style="font-size: 13px;">
+          <div style="color: #64748b; padding: 12px; text-align: center;">Loading audit logs...</div>
+        </div>
+      </div>
+      <div class="zone-modal-footer">
+        <span style="font-size: 11px; color: #64748b;">Stored in persistent SQLite database (data/audit_log.db)</span>
+        <button class="btn btn-outline" id="btn-audit-refresh">Refresh</button>
       </div>
     </div>
   </div>

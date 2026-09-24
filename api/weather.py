@@ -77,6 +77,60 @@ def classify_wbgt_risk(wbgt: float) -> str:
     else:
         return "Low"
 
+def classify_imd_heatwave(temp_max: float, departure: float = 0.0) -> Dict[str, Any]:
+    """
+    Classifies heatwave conditions according to official India Meteorological Department (IMD) criteria for plains:
+    - Heatwave: Tmax >= 40.0°C and departure >= +4.5°C (or absolute Tmax >= 45.0°C)
+    - Severe Heatwave: Tmax >= 40.0°C and departure >= +6.5°C (or absolute Tmax >= 47.0°C)
+    """
+    t = float(temp_max)
+    dep = float(departure)
+    if t >= 47.0 or (t >= 40.0 and dep >= 6.5):
+        return {"is_heatwave": True, "severity": "Severe Heatwave", "color": "#d73027", "code": "RED"}
+    elif t >= 45.0 or (t >= 40.0 and dep >= 4.5):
+        return {"is_heatwave": True, "severity": "Heatwave", "color": "#f46d43", "code": "ORANGE"}
+    elif t >= 38.0 or dep >= 3.0:
+        return {"is_heatwave": False, "severity": "Heat Alert Warning", "color": "#eab308", "code": "YELLOW"}
+    return {"is_heatwave": False, "severity": "Normal", "color": "#1a9850", "code": "GREEN"}
+
+def get_composite_heatwave_alert(temp_max: float, wbgt_max: float, departure: float = 0.0) -> Dict[str, Any]:
+    """
+    Dual Composite Alert (Harmonized IMD air temperature + NDMA physiological WBGT):
+    Higher of air temp departure or humid heat index determines the alert level.
+    """
+    imd = classify_imd_heatwave(temp_max, departure)
+    
+    # WBGT levels: >38.0 Critical (Red), 34-38 High (Orange), 30-34 Moderate (Yellow), <30 Normal (Green)
+    if wbgt_max > 38.0:
+        wbgt_tier, wbgt_code = "Critical", "RED"
+    elif wbgt_max >= 34.0:
+        wbgt_tier, wbgt_code = "High", "ORANGE"
+    elif wbgt_max >= 30.0:
+        wbgt_tier, wbgt_code = "Moderate", "YELLOW"
+    else:
+        wbgt_tier, wbgt_code = "Low", "GREEN"
+
+    level_order = {"GREEN": 0, "YELLOW": 1, "ORANGE": 2, "RED": 3}
+    active_code = max([imd["code"], wbgt_code], key=lambda c: level_order[c])
+    
+    tier_map = {
+        "RED": ("Extreme Heat Emergency (Red Alert)", "#d73027", "Critical"),
+        "ORANGE": ("Severe Heat Stress (Orange Alert)", "#f46d43", "High"),
+        "YELLOW": ("Moderate Heat Stress (Yellow Alert)", "#eab308", "Moderate"),
+        "GREEN": ("Normal Thermal Conditions (Green Alert)", "#1a9850", "Low"),
+    }
+    label, color, unified_tier = tier_map[active_code]
+    return {
+        "alert_code": active_code,
+        "alert_label": label,
+        "alert_color": color,
+        "unified_tier": unified_tier,
+        "imd_status": imd["severity"],
+        "wbgt_tier": wbgt_tier,
+        "air_temp_max": temp_max,
+        "wbgt_max": wbgt_max,
+    }
+
 def _load_fallback(fallback_path: str = FALLBACK_FILE) -> Dict[str, Any]:
     """Loads offline cached fallback forecast."""
     normalized_path = os.path.abspath(fallback_path)
@@ -97,14 +151,35 @@ def _load_fallback(fallback_path: str = FALLBACK_FILE) -> Dict[str, Any]:
                     "wbgt_celsius": wbgt0,
                     "risk_tier": classify_wbgt_risk(wbgt0),
                 }
+            if "composite_alert" not in data:
+                d0 = data.get("daily", [{}])[0]
+                t0 = float(d0.get("temp_max", 29.8))
+                wbgt0 = float(d0.get("wbgt_max", calculate_wbgt(t0, 60.0)))
+                data["composite_alert"] = get_composite_heatwave_alert(t0, wbgt0)
+            if "timeline" not in data:
+                data["timeline"] = data.get("daily", [])
             return data
     # Ultimate hardcoded fallback if file missing
+    fallback_daily = [
+        {
+            "day": i + 1,
+            "date": f"Day {i + 1}",
+            "temp_max": 30.0 + i,
+            "temp_min": 18.0,
+            "humidity_mean": 60.0,
+            "wbgt_max": calculate_wbgt(30.0 + i, 60.0),
+            "risk_tier": classify_wbgt_risk(calculate_wbgt(30.0 + i, 60.0)),
+            "advisory": "Elevated thermal stress. Maintain hydration."
+        }
+        for i in range(5)
+    ]
     return {
         "location": "Madurai, Tamil Nadu",
         "latitude": DEFAULT_LAT,
         "longitude": DEFAULT_LON,
         "source": "Emergency Fallback Cache",
         "summary": "5-day heat wave forecast (Offline Baseline)",
+        "composite_alert": get_composite_heatwave_alert(30.0, calculate_wbgt(30.0, 60.0)),
         "current": {
             "time": "2026-09-24T12:00:00Z",
             "temperature_celsius": 29.5,
@@ -114,34 +189,24 @@ def _load_fallback(fallback_path: str = FALLBACK_FILE) -> Dict[str, Any]:
             "wbgt_celsius": calculate_wbgt(29.5, 60.0),
             "risk_tier": classify_wbgt_risk(calculate_wbgt(29.5, 60.0)),
         },
-        "daily": [
-            {
-                "day": i + 1,
-                "date": f"Day {i + 1}",
-                "temp_max": 30.0 + i,
-                "temp_min": 18.0,
-                "humidity_mean": 60.0,
-                "wbgt_max": calculate_wbgt(30.0 + i, 60.0),
-                "risk_tier": classify_wbgt_risk(calculate_wbgt(30.0 + i, 60.0)),
-                "advisory": "Elevated thermal stress. Maintain hydration."
-            }
-            for i in range(5)
-        ]
+        "daily": fallback_daily,
+        "timeline": fallback_daily,
     }
 
-def build_open_meteo_url(lat: float, lon: float) -> str:
-    """Builds the Open-Meteo request URL (daily metrics + current real-time weather, 3-model blend)."""
+def build_open_meteo_url(lat: float, lon: float, past_days: int = 7, forecast_days: int = 5) -> str:
+    """Builds the Open-Meteo request URL (daily metrics + current real-time weather + past history, 3-model blend)."""
     return (
         f"https://api.open-meteo.com/v1/forecast?"
         f"latitude={lat}&longitude={lon}&"
         f"models=ecmwf_ifs025,icon_seamless,gfs025&"
-        f"daily=temperature_2m_max,temperature_2m_min,relative_humidity_2m_mean,wind_speed_10m_max,shortwave_radiation_sum&"
+        f"daily=temperature_2m_max,temperature_2m_min,relative_humidity_2m_min,relative_humidity_2m_mean,wind_speed_10m_max,shortwave_radiation_sum&"
         f"current=temperature_2m,relative_humidity_2m,apparent_temperature,wind_speed_10m&"
-        f"timezone=Asia%2FKolkata&forecast_days=5"
+        f"timezone=Asia%2FKolkata&past_days={past_days}&forecast_days={forecast_days}"
     )
 
 BLEND_FIELDS = (
-    "temperature_2m_max", "temperature_2m_min", "relative_humidity_2m_mean",
+    "temperature_2m_max", "temperature_2m_min",
+    "relative_humidity_2m_min", "relative_humidity_2m_mean",
     "wind_speed_10m_max", "shortwave_radiation_sum",
 )
 MODEL_NAMES = ("ecmwf_ifs025", "icon_seamless", "gfs025")
@@ -182,41 +247,80 @@ def _blend_daily_models(daily_raw: Dict[str, Any]) -> Dict[str, Any]:
     return blended
 
 def process_open_meteo(raw_data: Dict[str, Any], lat: float, lon: float) -> Dict[str, Any]:
-    """Transforms raw Open-Meteo daily data into the 5-day WBGT forecast and real-time current weather structure.
+    """Transforms raw Open-Meteo data into a 12-day timeline (7-day history + 5-day forecast) with WBGT and IMD alerts.
 
     Multi-model responses are element-wise averaged before WBGT computation.
-    WBGT is computed from each day's max temperature + mean humidity (daily-max method).
+    Peak daytime WBGT uses concurrent afternoon minimum humidity (relative_humidity_2m_min) at Tmax.
     """
     daily_raw = _blend_daily_models(raw_data.get("daily", {}))
     times = daily_raw.get("time", [])
     t_max = daily_raw.get("temperature_2m_max", [])
     t_min = daily_raw.get("temperature_2m_min", [])
+    rh_min = daily_raw.get("relative_humidity_2m_min", [])
     rh_mean = daily_raw.get("relative_humidity_2m_mean", [])
     wind = daily_raw.get("wind_speed_10m_max", [])
     solar = daily_raw.get("shortwave_radiation_sum", [])
 
+    total_days = len(times)
+    # The last 5 entries represent the forecast window (Days 1 to 5)
+    forecast_start_idx = max(0, total_days - 5)
+
+    all_timeline = []
     processed_days = []
-    for i in range(min(5, len(times))):
+
+    for i in range(total_days):
         tm = float(t_max[i]) if i < len(t_max) and t_max[i] is not None else 30.0
         tmn = float(t_min[i]) if i < len(t_min) and t_min[i] is not None else 18.0
-        rh = float(rh_mean[i]) if i < len(rh_mean) and rh_mean[i] is not None else 60.0
-        wbgt = calculate_wbgt(tm, rh)
+        # Use daytime minimum humidity (around peak Tmax 2 PM) to calculate realistic daytime WBGT
+        if i < len(rh_min) and rh_min[i] is not None:
+            rh_peak = float(rh_min[i])
+        elif i < len(rh_mean) and rh_mean[i] is not None:
+            rh_peak = float(rh_mean[i])
+        else:
+            rh_peak = 35.0
+        
+        rh_avg = float(rh_mean[i]) if i < len(rh_mean) and rh_mean[i] is not None else rh_peak
+        wbgt = calculate_wbgt(tm, rh_peak)
         tier = classify_wbgt_risk(wbgt)
+        alert_info = get_composite_heatwave_alert(tm, wbgt)
 
-        processed_days.append({
-            "day": i + 1,
+        # Historical vs Forecast day labeling
+        is_forecast = i >= forecast_start_idx
+        if is_forecast:
+            day_num = (i - forecast_start_idx) + 1
+            day_offset = day_num - 1
+            phase = "forecast"
+        else:
+            day_offset = i - forecast_start_idx
+            day_num = day_offset
+            phase = "historical"
+
+        entry = {
+            "day": day_num,
+            "day_offset": day_offset,
+            "phase": phase,
             "date": times[i],
             "temp_max": tm,
             "temp_min": tmn,
-            "humidity_mean": rh,
+            "humidity_min": rh_peak,
+            "humidity_mean": rh_avg,
             "wind_speed_max": float(wind[i]) if i < len(wind) and wind[i] is not None else 12.0,
             "solar_radiation_sum": float(solar[i]) if i < len(solar) and solar[i] is not None else 20.0,
             "wbgt_max": wbgt,
             "risk_tier": tier,
-            "advisory": f"{tier} risk: Projected WBGT of {wbgt:.1f}°C."
-        })
+            "alert": alert_info,
+            "advisory": f"{alert_info['unified_tier']} risk: Projected peak WBGT of {wbgt:.1f}°C."
+        }
+        all_timeline.append(entry)
+        if is_forecast:
+            processed_days.append(entry)
+
+    # In case fewer than 5 days were returned, ensure processed_days has entries
+    if not processed_days and all_timeline:
+        processed_days = all_timeline[-5:]
 
     max_overall_wbgt = max(d["wbgt_max"] for d in processed_days) if processed_days else 30.0
+    macro_alert = processed_days[0]["alert"] if processed_days else get_composite_heatwave_alert(30.0, 30.0)
     is_blend = _is_multi_model(raw_data.get("daily", {}))
 
     # Parse real-time current conditions
@@ -255,8 +359,10 @@ def process_open_meteo(raw_data: Dict[str, Any], lat: float, lon: float) -> Dict
         "longitude": lon,
         "source": "Open-Meteo Multi-Model Blend (ECMWF + ICON + GFS)" if is_blend else "Open-Meteo Live API",
         "summary": f"5-day forecast active. Peak settlement WBGT reaching {max_overall_wbgt:.1f}°C.",
+        "composite_alert": macro_alert,
         "current": current_weather,
-        "daily": processed_days
+        "daily": processed_days,
+        "timeline": all_timeline,
     }
 
 def fetch_open_meteo_forecast(lat: float = DEFAULT_LAT, lon: float = DEFAULT_LON) -> Dict[str, Any]:

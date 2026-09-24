@@ -33,7 +33,10 @@ def test_full_wbgt_formula_components():
 def test_url_is_daily_only():
     url = build_open_meteo_url(9.921851, 78.118200)
     assert "hourly=" not in url
-    assert "daily=temperature_2m_max,temperature_2m_min,relative_humidity_2m_mean,wind_speed_10m_max,shortwave_radiation_sum" in url
+    assert "daily=" in url
+    assert "temperature_2m_max" in url
+    assert "relative_humidity_2m_min" in url
+    assert "relative_humidity_2m_mean" in url
 
 
 def test_wbgt_from_daily_max_temperature():

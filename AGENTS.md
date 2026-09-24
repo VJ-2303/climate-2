@@ -76,6 +76,7 @@ Stage details and formulas: SPEC.md §2–§3.
 | `data/output/vulnerability_blocks.geojson` | 07 | API, officer UI |
 | `data/output/layers/*.geojson` | 07 | API |
 | `data/fallback_forecast.json` | manual | `api/weather.py` (offline) |
+| `data/audit_log.db` | `api/audit.py` | `api/main.py`, officer UI |
 
 `vulnerability_blocks.geojson` properties (exact names — never rename):
 `block_id, risk_class, hvi_score, hvi_raw, ai_heat_exposure, social_sensitivity, cooling_deficit,
@@ -88,17 +89,17 @@ building_density, population_density, geometry`
 ## Backend — `api/`
 
 - `main.py` — FastAPI, startup loads GeoJSONs into `blocks_db` + SHAP cache; GZip on.
-  Routes: SPEC.md §4. Officer UI only (`/` and `/officer` → `web/officer.html`). No public portal.
-- `weather.py` — WBGT daily-max method (SPEC.md §2.1), Open-Meteo fetch (daily metrics),
-  1h cache, fallback file on failure. `build_open_meteo_url` / `process_open_meteo` are
-  the testable seams. `calculate_full_wbgt` / `estimate_globe_temperature` available, unused.
+  Routes: SPEC.md §4. Command Center (`/` and `/officer` → `web/officer.html`), Citizen Heat Safety Portal (`/public` → `web/public.html`), 12-day timeline scrubber (`/api/layers/forecast_day_{day}/attributes` for days -7 to 5), persistent SQLite dispatch audit (`/api/alerts/audit`).
+- `weather.py` — WBGT daily-max method calibrated with daytime minimum humidity (`relative_humidity_2m_min` at peak Tmax), 12-day continuous timeline (Past 7 Days + 5-Day Forecast) with 3-model blend (ECMWF + ICON + GFS), Dual Composite IMD + NDMA heatwave alerts, 1h cache, fallback file on failure.
 - `rules.py` — deterministic block intelligence: physical diagnosis, SHAP top-3,
-  5-day health trajectory (tier modulation), advisories, intervention sizing. No ML at serve time.
+  5-day health trajectory (unified risk cutoffs 45/70/85), bilingual English + Tamil (தமிழ்) advisories, intervention sizing. No ML at serve time.
+- `audit.py` — SQLite audit persistence (`data/audit_log.db`) recording targeted SMS/WhatsApp dispatches.
 
 ## Frontend — `web/`
 
-`officer.html` + `officer.js` (extends `app.js` map engine via globals: `currentLayer`,
-`RISK_COLORS`, `openSidebar`). Forecast dropdown, SHAP waterfall, sparkline, SMS modal.
+- `officer.html` + `officer.js` — Officer Command Center (extends `app.js` map engine via globals).
+  12-day historical & forecast timeline dropdown, real-time weather & composite alert badge, SHAP waterfall, SMS dispatch modal, and SQLite audit trail viewer modal.
+- `public.html` + `public.js` — Mobile-first Citizen Heat Safety Portal with geolocation, landmark search, danger hours, hydration kiosks, and bilingual English/Tamil instructions.
 Layer colors: `Low #1a9850 | Medium #ffffbf | High #f46d43 | Critical #d73027`.
 
 ---

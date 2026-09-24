@@ -7,6 +7,7 @@
   const TIER_COLORS = { Low: "#1a9850", Medium: "#ffffbf", High: "#f46d43", Critical: "#d73027" };
 
   let forecastDays = [];
+  let allTimeline = [];
   let forecastAttrMap = null;
   let activeForecastDay = null;
   let smsTargetBlockId = null;
@@ -18,14 +19,14 @@
     return TIER_COLORS.Critical;
   }
 
-  // ---------- 5-Day Forecast Dropdown ----------
+  // ---------- 5-Day Forecast & Historical Dropdown ----------
 
   function patchForecastColors() {
     // In forecast mode, hover/click/reset must use forecast colors, not HVI colors
     const original = window.getLayerFillColor;
     if (!original) return;
     window.getLayerFillColor = function (layer) {
-      if (activeForecastDay && forecastAttrMap && layer && layer.feature) {
+      if (activeForecastDay !== null && forecastAttrMap && layer && layer.feature) {
         const bid = layer.feature.properties.block_id;
         const score = forecastAttrMap[bid] !== undefined ? forecastAttrMap[bid] : 0;
         return scoreColor(score);
@@ -35,9 +36,9 @@
   }
 
   window.getActiveForecastInfo = function (blockId, props) {
-    if (activeForecastDay && forecastAttrMap) {
+    if (activeForecastDay !== null && forecastAttrMap) {
       const score = forecastAttrMap[blockId] !== undefined ? forecastAttrMap[blockId] : 0;
-      const dayData = forecastDays.find((d) => d.day === activeForecastDay) || {};
+      const dayData = allTimeline.find((d) => d.day === activeForecastDay || d.day_offset === activeForecastDay) || {};
       const baseWbgt = dayData.wbgt_max || 30.0;
       const anomaly = (props && props.temp_anomaly_celsius !== undefined) ? Number(props.temp_anomaly_celsius) : 0.0;
       const localWbgt = (baseWbgt + anomaly * 0.4).toFixed(1);
@@ -46,7 +47,8 @@
       if (score > 85) tier = "Critical";
       else if (score > 70) tier = "High";
       else if (score > 45) tier = "Medium";
-      return `<strong>${blockId}</strong> &bull; Day ${activeForecastDay} &bull; ${airMax}Local WBGT: <span style="color:#f59e0b;font-weight:700;">${localWbgt}°C</span> &bull; Risk: ${score} (${tier})`;
+      const phasePrefix = dayData.phase === "historical" ? `Historical (${dayData.date})` : `Day ${activeForecastDay}`;
+      return `<strong>${blockId}</strong> &bull; ${phasePrefix} &bull; ${airMax}Local WBGT: <span style="color:#f59e0b;font-weight:700;">${localWbgt}°C</span> &bull; Risk: ${score} (${tier})`;
     }
     return null;
   };
@@ -58,6 +60,19 @@
       if (!res.ok) return;
       const data = await res.json();
       forecastDays = data.days || [];
+      allTimeline = data.timeline || forecastDays;
+
+      // Update topbar alert badge
+      if (data.composite_alert) {
+        const ca = data.composite_alert;
+        const alertBadge = document.getElementById("topbar-alert-badge");
+        if (alertBadge) {
+          alertBadge.style.display = "inline-flex";
+          alertBadge.style.backgroundColor = ca.alert_color || "#f46d43";
+          alertBadge.textContent = ca.alert_label || "Heat Alert";
+          alertBadge.title = `IMD: ${ca.imd_status} | WBGT: ${ca.wbgt_tier} (${ca.wbgt_max}°C) | Air: ${ca.air_temp_max}°C`;
+        }
+      }
 
       // Update topbar with real-time live ambient temperature
       if (data.current) {
@@ -93,19 +108,42 @@
       };
 
       addHeader("Map View");
-      addItem("HVI (Current)", "Static vulnerability index (Landsat LST)", activeForecastDay === null, () => {
+      addItem("HVI (Current Baseline)", "Static vulnerability index (Landsat LST)", activeForecastDay === null, () => {
         resetForecastView();
         closeForecastMenu();
       });
-      addHeader("5-Day Heatwave & WBGT Forecast");
-      forecastDays.forEach((d) => {
+
+      const pastItems = allTimeline.filter((d) => d.phase === "historical" || d.day < 1);
+      if (pastItems.length > 0) {
+        addHeader("Past 7 Days (Historical Replay)");
+        pastItems.forEach((d) => {
+          const airText = d.temp_max !== undefined ? `${Number(d.temp_max).toFixed(1)}°C Air · ` : "";
+          const dayId = d.day !== undefined ? d.day : d.day_offset;
+          const displayLabel = `Past: ${d.date}`;
+          addItem(
+            displayLabel,
+            `${airText}${Number(d.wbgt_max).toFixed(1)}°C WBGT (${d.risk_tier})`,
+            activeForecastDay === dayId,
+            () => {
+              selectForecastDay(dayId, displayLabel);
+              closeForecastMenu();
+            }
+          );
+        });
+      }
+
+      const futureItems = allTimeline.filter((d) => d.phase === "forecast" || d.day >= 1);
+      addHeader("Next 5 Days (Heatwave & WBGT Forecast)");
+      futureItems.forEach((d) => {
         const airText = d.temp_max !== undefined ? `${Number(d.temp_max).toFixed(1)}°C Air · ` : "";
+        const dayId = d.day;
+        const displayLabel = `Day ${d.day} — ${d.date}`;
         addItem(
-          `Day ${d.day} — ${d.date}`,
+          displayLabel,
           `${airText}${Number(d.wbgt_max).toFixed(1)}°C WBGT (${d.risk_tier})`,
-          activeForecastDay === d.day,
+          activeForecastDay === dayId,
           () => {
-            selectForecastDay(d.day);
+            selectForecastDay(dayId, `Day ${d.day} Forecast`);
             closeForecastMenu();
           }
         );
@@ -133,7 +171,7 @@
     if (label) label.textContent = text;
   }
 
-  async function selectForecastDay(day) {
+  async function selectForecastDay(day, label) {
     try {
       const res = await fetch(`/api/layers/forecast_day_${day}/attributes`);
       if (!res.ok) return;
@@ -146,11 +184,11 @@
           return { stroke: false, fillOpacity: 0.65, fillColor: scoreColor(score) };
         });
       }
-      const dayData = forecastDays.find((d) => d.day === day) || {};
+      const dayData = allTimeline.find((d) => d.day === day || d.day_offset === day) || {};
       const airInfo = dayData.temp_max !== undefined ? ` (${dayData.temp_max}°C Air Max)` : "";
       const nameEl = document.getElementById("active-layer-name");
-      if (nameEl) nameEl.textContent = `Day ${day} WBGT Risk Forecast${airInfo}`;
-      setForecastLabel(`Day ${day} Forecast`);
+      if (nameEl) nameEl.textContent = `${label || ("Day " + day)} WBGT Risk${airInfo}`;
+      setForecastLabel(label || `Day ${day}`);
     } catch (err) {
       console.warn("Forecast day load failed:", err);
     }
@@ -365,11 +403,66 @@
         if (e.target === modal) closeSmsModal();
       });
     }
+  function initAuditModal() {
+    const btnOpen = document.getElementById("btn-audit-logs");
+    const modal = document.getElementById("audit-modal");
+    const btnClose = document.getElementById("btn-audit-modal-close");
+    const btnRefresh = document.getElementById("btn-audit-refresh");
+    const container = document.getElementById("audit-logs-container");
+
+    if (!btnOpen || !modal) return;
+
+    async function loadAuditLogs() {
+      if (!container) return;
+      container.innerHTML = '<div style="color: #64748b; padding: 12px; text-align: center;">Loading audit logs...</div>';
+      try {
+        const res = await fetch("/api/alerts/audit?limit=50");
+        if (!res.ok) throw new Error("Failed to load audit logs");
+        const data = await res.json();
+        const logs = data.logs || [];
+        if (logs.length === 0) {
+          container.innerHTML = '<div style="color: #64748b; padding: 16px; text-align: center;">No emergency alerts dispatched yet. Dispatches from the sector card or SMS modal will appear here.</div>';
+          return;
+        }
+        let html = '<div style="display:flex; flex-direction:column; gap:8px;">';
+        logs.forEach((log) => {
+          const channels = Array.isArray(log.channels) ? log.channels.join(", ") : log.channels;
+          html += `
+            <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:10px 12px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                <span style="font-weight:700; color:#1e293b;">${log.audit_id} &bull; Sector ${log.block_id}</span>
+                <span style="font-size:11px; color:#64748b;">${log.timestamp}</span>
+              </div>
+              <div style="font-size:12px; color:#334155; margin-bottom:6px;">${log.message}</div>
+              <div style="display:flex; justify-content:space-between; font-size:11px; color:#64748b;">
+                <span>Recipients: <strong>~${log.recipients_count}</strong> (${log.recipient_group})</span>
+                <span style="color:#16a34a; font-weight:600;">Channels: ${channels}</span>
+              </div>
+            </div>
+          `;
+        });
+        html += '</div>';
+        container.innerHTML = html;
+      } catch (err) {
+        container.innerHTML = `<div style="color: #ef4444; padding: 12px; text-align: center;">Error loading logs: ${err.message}</div>`;
+      }
+    }
+
+    btnOpen.addEventListener("click", () => {
+      modal.style.display = "flex";
+      loadAuditLogs();
+    });
+    if (btnClose) btnClose.addEventListener("click", () => modal.style.display = "none");
+    if (btnRefresh) btnRefresh.addEventListener("click", loadAuditLogs);
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) modal.style.display = "none";
+    });
   }
 
   document.addEventListener("DOMContentLoaded", () => {
     wrapOpenSidebar();
     setupOfficerEvents();
+    initAuditModal();
     initOfficer();
   });
 })();
