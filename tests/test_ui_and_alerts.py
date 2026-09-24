@@ -14,9 +14,10 @@ def test_routes_exist():
     assert r_officer.status_code == 200
     assert "Officer" in r_officer.text or "Command" in r_officer.text
 
-    # Public citizen portal removed — officer-only deployment
+    # Public citizen portal route
     r_public = client.get("/public")
-    assert r_public.status_code == 404
+    assert r_public.status_code == 200
+    assert "ThermalGuard" in r_public.text or "Heat Safety" in r_public.text
 
 def test_sms_alert_dispatch_endpoint():
     payload = {
