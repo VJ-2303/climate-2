@@ -24,20 +24,13 @@
     <!-- Top Global Header -->
     <header class="topbar">
       <div class="topbar-left">
-        <div class="brand-group">
-          <div class="brand-icon">
+        <div class="brand-group" style="margin-right: 8px;">
+          <div class="brand-icon" title="HeatViz">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
               <path d="M14 4v10.54a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0Z"/>
             </svg>
           </div>
-          <div class="brand-text">
-            <span class="brand-title">ThermalGuard</span>
-            <div class="brand-sub-row">
-              <span class="brand-location">Officer Command · Madurai</span>
-              <span class="brand-temp-pill" id="topbar-avg-temp">Avg: --°C</span>
-              <span id="topbar-alert-badge" style="display:none; font-size:11px; font-weight:700; color:#fff; padding:2px 8px; border-radius:12px; margin-left:6px;"></span>
-            </div>
-          </div>
+          <span id="topbar-alert-badge" style="display:none; font-size:11px; font-weight:700; color:#fff; padding:3px 10px; border-radius:12px;"></span>
         </div>
 
         <!-- Overview Dashboard Toggle -->
@@ -72,7 +65,7 @@
             <span id="forecast-menu-label">Forecast</span>
             <span class="dropdown-arrow">▾</span>
           </button>
-          <div class="layer-dropdown-menu" id="forecast-menu" style="display: none; width: 240px;"></div>
+          <div class="layer-dropdown-menu" id="forecast-menu" style="display: none; width: 280px; left: 0; right: auto; max-height: 420px; overflow-y: auto;"></div>
         </div>
       </div>
 

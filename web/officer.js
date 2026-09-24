@@ -22,16 +22,15 @@
   // ---------- 5-Day Forecast & Historical Dropdown ----------
 
   function patchForecastColors() {
-    // In forecast mode, hover/click/reset must use forecast colors, not HVI colors
-    const original = window.getLayerFillColor;
-    if (!original) return;
-    window.getLayerFillColor = function (layer) {
+    window.getForecastFillColor = function (layer) {
       if (activeForecastDay !== null && forecastAttrMap && layer && layer.feature) {
-        const bid = layer.feature.properties.block_id;
-        const score = forecastAttrMap[bid] !== undefined ? forecastAttrMap[bid] : 0;
-        return scoreColor(score);
+        const bid = layer.feature.properties ? layer.feature.properties.block_id : null;
+        if (bid) {
+          const score = forecastAttrMap[bid] !== undefined ? forecastAttrMap[bid] : 0;
+          return scoreColor(score);
+        }
       }
-      return original(layer);
+      return null;
     };
   }
 
@@ -74,23 +73,13 @@
         }
       }
 
-      // Update topbar with real-time live ambient temperature
-      if (data.current) {
-        const curr = data.current;
-        if (curr.temperature_celsius !== undefined) {
-          window.currentAirTemp = curr.temperature_celsius.toFixed(1);
-        }
-        const topbarTemp = document.getElementById("topbar-avg-temp");
-        if (topbarTemp && curr.temperature_celsius !== undefined) {
-          const meanLST = (window.maduraiMeanSurfaceTemp || 49.5).toFixed(1);
-          topbarTemp.title = `Live Real-time Ambient Air Temperature: ${curr.temperature_celsius.toFixed(1)}°C (Feels ${curr.apparent_temperature_celsius.toFixed(1)}°C, Humidity ${curr.relative_humidity_pct}%) | Radiometric Landsat LST Mean: ${meanLST}°C`;
-          topbarTemp.innerHTML = `Live: <strong>${curr.temperature_celsius.toFixed(1)}°C</strong> <span style="opacity:0.8;font-size:11px;">(Feels ${curr.apparent_temperature_celsius.toFixed(1)}°C)</span> &bull; LST Avg: ${meanLST}°C`;
-        }
+      // Update live ambient temperature global for tooltips
+      if (data.current && data.current.temperature_celsius !== undefined) {
+        window.currentAirTemp = data.current.temperature_celsius.toFixed(1);
       }
 
       const menu = document.getElementById("forecast-menu");
-      const btn = document.getElementById("forecast-menu-btn");
-      if (!menu || !btn) return;
+      if (!menu) return;
       menu.innerHTML = "";
 
       const addHeader = (text) => {
@@ -148,14 +137,6 @@
           }
         );
       });
-
-      btn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        menu.style.display = menu.style.display === "none" ? "flex" : "none";
-      });
-      document.addEventListener("click", (e) => {
-        if (!menu.contains(e.target) && e.target !== btn) closeForecastMenu();
-      });
     } catch (err) {
       console.warn("Officer forecast dropdown init failed:", err);
     }
@@ -177,12 +158,24 @@
       if (!res.ok) return;
       forecastAttrMap = await res.json();
       activeForecastDay = day;
-      if (typeof currentLayer !== "undefined" && currentLayer) {
-        currentLayer.setStyle((feature) => {
-          const bid = feature.properties.block_id;
-          const score = forecastAttrMap[bid] !== undefined ? forecastAttrMap[bid] : 0;
-          return { stroke: false, fillOpacity: 0.65, fillColor: scoreColor(score) };
-        });
+      const layer = window.currentLayer || (typeof currentLayer !== "undefined" ? currentLayer : null);
+      if (layer) {
+        if (typeof layer.setStyle === "function") {
+          layer.setStyle((feature) => {
+            const bid = feature.properties ? feature.properties.block_id : feature.block_id;
+            const score = forecastAttrMap[bid] !== undefined ? forecastAttrMap[bid] : 0;
+            return { stroke: false, fillOpacity: 0.65, fillColor: scoreColor(score) };
+          });
+        }
+        if (typeof layer.eachLayer === "function") {
+          layer.eachLayer((subLayer) => {
+            if (subLayer.feature && subLayer.feature.properties) {
+              const bid = subLayer.feature.properties.block_id;
+              const score = forecastAttrMap[bid] !== undefined ? forecastAttrMap[bid] : 0;
+              subLayer.setStyle({ stroke: false, fillOpacity: 0.65, fillColor: scoreColor(score) });
+            }
+          });
+        }
       }
       const dayData = allTimeline.find((d) => d.day === day || d.day_offset === day) || {};
       const airInfo = dayData.temp_max !== undefined ? ` (${dayData.temp_max}°C Air Max)` : "";
@@ -197,17 +190,30 @@
   function resetForecastView() {
     activeForecastDay = null;
     forecastAttrMap = null;
-    if (typeof currentLayer !== "undefined" && currentLayer) {
-      currentLayer.setStyle((feature) => ({
-        stroke: false,
-        fillOpacity: 0.6,
-        fillColor: (typeof RISK_COLORS !== "undefined" && RISK_COLORS[feature.properties.risk_class]) || "#94a3b8",
-      }));
+    const layer = window.currentLayer || (typeof currentLayer !== "undefined" ? currentLayer : null);
+    if (layer) {
+      if (typeof layer.setStyle === "function") {
+        layer.setStyle((feature) => ({
+          stroke: false,
+          fillOpacity: 0.60,
+          fillColor: (typeof RISK_COLORS !== "undefined" && RISK_COLORS[feature.properties.risk_class]) || "#94a3b8",
+        }));
+      }
+      if (typeof layer.eachLayer === "function") {
+        layer.eachLayer((subLayer) => {
+          if (subLayer.feature && subLayer.feature.properties) {
+            const rc = subLayer.feature.properties.risk_class;
+            const col = (typeof RISK_COLORS !== "undefined" && RISK_COLORS[rc]) || "#94a3b8";
+            subLayer.setStyle({ stroke: false, fillOpacity: 0.60, fillColor: col });
+          }
+        });
+      }
     }
     const label = document.getElementById("active-layer-name");
     if (label) label.textContent = "Heat Vulnerability (HVI)";
     setForecastLabel("Forecast");
   }
+  window.resetForecastView = resetForecastView;
 
   // ---------- Sector Inspector: SHAP Waterfall + 5-Day Sparkline + SMS ----------
 
@@ -393,6 +399,21 @@
   }
 
   function setupOfficerEvents() {
+    const btn = document.getElementById("forecast-menu-btn");
+    const menu = document.getElementById("forecast-menu");
+    if (btn && menu) {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const isHidden = menu.style.display === "none" || !menu.style.display;
+        menu.style.display = isHidden ? "flex" : "none";
+      });
+      document.addEventListener("click", (e) => {
+        if (!menu.contains(e.target) && e.target !== btn) {
+          closeForecastMenu();
+        }
+      });
+    }
+
     const closeBtn = document.getElementById("btn-sms-modal-close");
     if (closeBtn) closeBtn.addEventListener("click", closeSmsModal);
     const dispatchBtn = document.getElementById("btn-sms-dispatch");
@@ -403,6 +424,8 @@
         if (e.target === modal) closeSmsModal();
       });
     }
+  }
+
   function initAuditModal() {
     const btnOpen = document.getElementById("btn-audit-logs");
     const modal = document.getElementById("audit-modal");
@@ -459,10 +482,16 @@
     });
   }
 
-  document.addEventListener("DOMContentLoaded", () => {
+  function bootOfficer() {
     wrapOpenSidebar();
     setupOfficerEvents();
     initAuditModal();
     initOfficer();
-  });
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", bootOfficer);
+  } else {
+    bootOfficer();
+  }
 })();

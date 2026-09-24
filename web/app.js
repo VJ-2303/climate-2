@@ -290,6 +290,10 @@ function getThematicColor(layerName, val) {
 
 function getLayerFillColor(layer) {
   if (!layer || !layer.feature) return "#94a3b8";
+  if (typeof window.getForecastFillColor === "function") {
+    const fc = window.getForecastFillColor(layer);
+    if (fc) return fc;
+  }
   const blockId = layer.feature.properties.block_id;
   if (currentActiveLayerName === "hvi") {
     let layerRisk = layer.feature.properties.risk_class;
@@ -323,6 +327,7 @@ function renderPrimaryLayer() {
     onEachFeature: onEachPrimaryFeature,
   }).addTo(map);
 
+  window.currentLayer = currentLayer;
   applyFilters();
 }
 
@@ -433,6 +438,12 @@ function selectFeature(layer, properties) {
 
 // 4. Ultra-Fast Layer Switching Manager (In-Place Canvas Mutation)
 async function switchLayer(layerName) {
+  if (typeof window.resetForecastView === "function") {
+    window.resetForecastView();
+  }
+  const fcMenu = document.getElementById("forecast-menu");
+  if (fcMenu) fcMenu.style.display = "none";
+
   currentActiveLayerName = layerName;
   showLoading(true);
   closeLayerDropdown();
@@ -808,6 +819,8 @@ function setupEventListeners() {
   if (layerMenuBtn && layerDropdownMenu) {
     layerMenuBtn.addEventListener("click", (e) => {
       e.stopPropagation();
+      const fcMenu = document.getElementById("forecast-menu");
+      if (fcMenu) fcMenu.style.display = "none";
       const isVisible = layerDropdownMenu.style.display === "flex";
       layerDropdownMenu.style.display = isVisible ? "none" : "flex";
     });
@@ -1163,7 +1176,6 @@ function renderOverviewDashboard(stats) {
   const setEl = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
   setEl("ov-mean-hvi", meanHVI);
   setEl("ov-mean-temp", `${(settlementMeanTemp || 49.5).toFixed(1)}°C (LST)`);
-  setEl("topbar-avg-temp", `LST Avg: ${(settlementMeanTemp || 49.5).toFixed(1)}°C`);
   setEl("ov-atrisk-pop", atRiskPop.toLocaleString());
   setEl("ov-critical-count", (counts.Critical || 0).toLocaleString());
   setEl("ov-total-blocks", total.toLocaleString());
