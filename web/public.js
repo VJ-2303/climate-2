@@ -315,7 +315,7 @@
         layer.bindTooltip(
           () => {
             const airStr = liveAirTemp ? `${liveAirTemp}°C` : "28.0°C";
-            return `<strong>Sector ${p.block_id}</strong><br/>${p.risk_class} Risk · HVI ${p.hvi_score}<br/>🌤️ Outdoor Air: ${airStr} &bull; ♨️ Roof Heat: ${p.surface_temp_celsius}°C`;
+            return `<strong>Sector ${p.block_id}</strong><br/>${p.risk_class} Risk &middot; HVI ${p.hvi_score}<br/>Outdoor Air: ${airStr} &bull; Roof Heat: ${p.surface_temp_celsius}&deg;C`;
           },
           { className: "custom-map-tooltip", sticky: true, opacity: 0.95 }
         );
@@ -590,17 +590,28 @@
     // 2. Risk Alert Banner
     const elemRiskBadge = document.getElementById("detail-risk-badge");
     const elemAlertText = document.getElementById("detail-alert-text");
+    const elemAlertIcon = document.getElementById("detail-alert-icon");
     const elemHvi = document.getElementById("detail-hvi-score");
 
     const alertLabels = {
-      Critical: "⚠️ CRITICAL HEAT ALERT",
-      High: "🟠 ELEVATED HEAT RISK",
-      Medium: "🟡 MODERATE HEAT LEVEL",
-      Low: "🟢 SAFE & COMFORTABLE",
+      Critical: "CRITICAL HEAT ALERT",
+      High: "ELEVATED HEAT RISK",
+      Medium: "MODERATE HEAT LEVEL",
+      Low: "SAFE & COMFORTABLE",
+    };
+
+    const alertIcons = {
+      Critical: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
+      High: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
+      Medium: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`,
+      Low: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`,
     };
 
     if (elemRiskBadge) {
       elemRiskBadge.className = `citizen-alert-banner risk-${rc.toLowerCase()}`;
+    }
+    if (elemAlertIcon) {
+      elemAlertIcon.innerHTML = alertIcons[rc] || alertIcons.Medium;
     }
     if (elemAlertText) {
       elemAlertText.textContent = alertLabels[rc] || "HEAT ADVISORY";
@@ -695,7 +706,7 @@
       waterBadge.textContent = distW || distG || "Urban Basin";
     }
 
-    // 7. 5-Day Outlook Strip
+    // 7. 5-Day Outlook Strip (Apple Weather style)
     const trajectory = data.forecast_trajectory || [];
     const elemTimeline = document.getElementById("detail-forecast-timeline");
     if (elemTimeline) {
@@ -706,10 +717,24 @@
           .map((dayItem, idx) => {
             const tier = dayItem.health_risk_tier || "High";
             const tagCls = `tag-${tier.toLowerCase()}`;
+            const wbgtVal = dayItem.local_wbgt != null ? `${dayItem.local_wbgt}°` : "--";
+
+            let weatherIcon = "";
+            if (tier === "Critical") {
+              weatherIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>`;
+            } else if (tier === "High") {
+              weatherIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ea580c" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2"/></svg>`;
+            } else if (tier === "Medium") {
+              weatherIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg>`;
+            } else {
+              weatherIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2"/></svg>`;
+            }
+
             return `
               <div class="forecast-pill ${idx === 0 ? "active-today" : ""}">
                 <span class="forecast-pill-day">${idx === 0 ? "Today" : `Day ${dayItem.day}`}</span>
-                <span class="forecast-pill-wbgt">${dayItem.local_wbgt}°</span>
+                <span class="forecast-pill-icon">${weatherIcon}</span>
+                <span class="forecast-pill-wbgt">${wbgtVal}</span>
                 <span class="forecast-pill-tag ${tagCls}">${tier}</span>
               </div>
             `;
@@ -729,7 +754,9 @@
           const val = Number(f.shap_value || 0);
           const isWarming = val >= 0;
           const cls = isWarming ? "warming" : "cooling";
-          const arrow = isWarming ? "↑" : "↓";
+          const arrow = isWarming
+            ? `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="vertical-align: -1px; margin-right: 2px;"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>`
+            : `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="vertical-align: -1px; margin-right: 2px;"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>`;
           return `
             <div class="shap-driver-row">
               <span style="color: var(--text-main); font-weight: 500;">${f.name || f.feature}</span>

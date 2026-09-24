@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ThermalGuard — Citizen Heat Safety Portal (Madurai)</title>
-  <meta name="description" content="Check hyperlocal urban heat vulnerability, danger hours, health advisories, and microclimate intelligence for your location in Madurai.">
+  <meta name="description" content="Hyperlocal urban heat vulnerability, danger hours, health advisories, and microclimate intelligence for Madurai.">
 
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -14,11 +14,11 @@
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
-  <!-- Core Theme Stylesheet -->
-  <link rel="stylesheet" href="/static/style.css?v=public_v3" />
+  <!-- Core Meteorological Theme Stylesheet -->
+  <link rel="stylesheet" href="/static/style.css?v=meteo_v5" />
 
   <style>
-    /* ─── Layout & Map ─── */
+    /* Public Portal Layout Constraints */
     .app-layout {
       position: relative;
       height: 100vh;
@@ -45,432 +45,9 @@
       background: #090d16;
     }
 
-    /* Topbar Location Chip */
-    .location-chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 7px;
-      background: #eff6ff;
-      border: 1px solid #bfdbfe;
-      color: #1d4ed8;
-      font-size: 0.80rem;
-      font-weight: 600;
-      padding: 4px 12px;
-      border-radius: 20px;
-      white-space: nowrap;
-      animation: chipPop 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-    .location-chip svg { color: #2563eb; flex-shrink: 0; }
-    @keyframes chipPop {
-      0% { opacity: 0; transform: scale(0.92); }
-      100% { opacity: 1; transform: scale(1); }
-    }
-
-    /* Floating "My Location" Button */
-    .btn-my-location {
-      position: absolute;
-      bottom: 22px;
-      right: 92px;
-      z-index: 1050;
-      display: inline-flex;
-      align-items: center;
-      gap: 9px;
-      background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 50%, #3b82f6 100%);
-      color: #ffffff;
-      border: 1px solid rgba(255, 255, 255, 0.25);
-      border-radius: 30px;
-      padding: 10px 20px;
-      font-family: var(--font-sans);
-      font-size: 0.88rem;
-      font-weight: 700;
-      letter-spacing: 0.01em;
-      cursor: pointer;
-      box-shadow: 0 4px 18px rgba(37, 99, 235, 0.42), 0 2px 6px rgba(0, 0, 0, 0.15);
-      transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-    .btn-my-location:hover {
-      transform: translateY(-2px) scale(1.02);
-      box-shadow: 0 6px 24px rgba(37, 99, 235, 0.55), 0 3px 8px rgba(0, 0, 0, 0.2);
-    }
-    .btn-my-location:active { transform: translateY(0) scale(0.98); }
-    .btn-my-location svg {
-      width: 17px; height: 17px;
-      flex-shrink: 0;
-      animation: targetPulse 2.5s infinite;
-    }
-    @keyframes targetPulse {
-      0%, 100% { transform: scale(1); }
-      50% { transform: scale(1.15); }
-    }
-
-    /* Pulsing Beacon Marker on Map */
-    .pulse-marker-container {
-      position: relative;
-      width: 24px; height: 24px;
-    }
-    .pulse-marker-center {
-      position: absolute;
-      top: 5px; left: 5px;
-      width: 14px; height: 14px;
-      background: #2563eb;
-      border: 2.5px solid #ffffff;
-      border-radius: 50%;
-      box-shadow: 0 0 8px rgba(0, 0, 0, 0.4);
-    }
-    .pulse-marker-ring {
-      position: absolute;
-      top: 0; left: 0;
-      width: 24px; height: 24px;
-      border-radius: 50%;
-      background: rgba(37, 99, 235, 0.4);
-      animation: beaconRing 2s ease-out infinite;
-    }
-    @keyframes beaconRing {
-      0% { transform: scale(0.5); opacity: 1; }
-      100% { transform: scale(2.2); opacity: 0; }
-    }
-
-    /* ─── Streamlined Citizen Drawer Content ─── */
-    .citizen-hero-card {
-      background: #ffffff;
-      border: 1px solid var(--border-subtle);
-      border-radius: var(--radius-sm);
-      padding: 16px;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      box-shadow: var(--shadow-sm);
-    }
-
-    .citizen-place-header {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-    }
-    .citizen-place-tag {
-      font-size: 0.68rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: #3b82f6;
-      display: flex;
-      align-items: center;
-      gap: 5px;
-    }
-    .citizen-place-name {
-      font-size: 1.15rem;
-      font-weight: 800;
-      color: var(--text-main);
-      letter-spacing: -0.02em;
-      line-height: 1.25;
-    }
-    .citizen-place-sub {
-      font-size: 0.76rem;
-      color: var(--text-subtle);
-      font-weight: 500;
-    }
-
-    /* Alert Banner (Big & Clear) */
-    .citizen-alert-banner {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 12px 14px;
-      border-radius: var(--radius-xs);
-      font-weight: 700;
-      font-size: 0.85rem;
-    }
-    .citizen-alert-banner.risk-critical { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
-    .citizen-alert-banner.risk-high { background: #ffedd5; color: #c2410c; border: 1px solid #fed7aa; }
-    .citizen-alert-banner.risk-medium { background: #fef9c3; color: #854d0e; border: 1px solid #fef08a; }
-    .citizen-alert-banner.risk-low { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
-
-    /* Three Glanceable Temperature Stats & Explainer */
-    .citizen-temp-row {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 6px;
-    }
-    .citizen-temp-box {
-      background: #f8fafc;
-      border: 1px solid var(--border-subtle);
-      border-radius: var(--radius-xs);
-      padding: 8px 4px;
-      text-align: center;
-    }
-    .citizen-temp-num {
-      font-family: var(--font-mono);
-      font-size: 1.15rem;
-      font-weight: 800;
-      color: var(--text-main);
-      line-height: 1.1;
-    }
-    .citizen-temp-sub {
-      font-size: 0.62rem;
-      font-weight: 700;
-      color: var(--text-subtle);
-      text-transform: uppercase;
-      letter-spacing: 0.02em;
-      margin-top: 4px;
-    }
-    .temp-explainer-card {
-      background: #eff6ff;
-      border: 1px solid #bfdbfe;
-      border-radius: var(--radius-xs);
-      padding: 9px 11px;
-      margin-top: 8px;
-      display: flex;
-      gap: 9px;
-      align-items: flex-start;
-      font-size: 0.72rem;
-      color: #1e3a8a;
-      line-height: 1.35;
-    }
-    .temp-explainer-icon {
-      font-size: 1rem;
-      line-height: 1;
-      flex-shrink: 0;
-      margin-top: 1px;
-    }
-    .temp-explainer-body strong {
-      display: block;
-      color: #1d4ed8;
-      font-weight: 700;
-      margin-bottom: 2px;
-    }
-
-    /* Danger Hours Pill */
-    .danger-hours-card {
-      background: #fff1f2;
-      border: 1px solid #ffe4e6;
-      border-left: 4px solid #f43f5e;
-      border-radius: var(--radius-sm);
-      padding: 12px 14px;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-    .danger-hours-icon {
-      font-size: 1.5rem;
-      line-height: 1;
-      flex-shrink: 0;
-    }
-    .danger-hours-content {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-    }
-    .danger-hours-label {
-      font-size: 0.68rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      color: #be123c;
-    }
-    .danger-hours-val {
-      font-size: 0.92rem;
-      font-weight: 800;
-      color: #9f1239;
-    }
-    .danger-hours-hint {
-      font-size: 0.74rem;
-      color: #e11d48;
-    }
-
-    /* Action Checklist */
-    .action-checklist-card {
-      background: #ffffff;
-      border: 1px solid var(--border-subtle);
-      border-radius: var(--radius-sm);
-      padding: 14px 16px;
-      box-shadow: var(--shadow-sm);
-    }
-    .action-card-title {
-      font-size: 0.72rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      color: var(--text-subtle);
-      margin-bottom: 10px;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .action-checklist {
-      list-style: none;
-      display: flex;
-      flex-direction: column;
-      gap: 9px;
-    }
-    .action-item {
-      display: flex;
-      align-items: flex-start;
-      gap: 10px;
-      font-size: 0.82rem;
-      line-height: 1.45;
-      color: var(--text-main);
-    }
-    .action-item-icon {
-      flex-shrink: 0;
-      width: 22px;
-      height: 22px;
-      border-radius: 50%;
-      background: #f1f5f9;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 0.75rem;
-    }
-
-    /* Neighborhood Microclimate Glance Badges */
-    .quick-badges-row {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 6px;
-    }
-    .quick-badge {
-      background: #f8fafc;
-      border: 1px solid var(--border-subtle);
-      border-radius: var(--radius-xs);
-      padding: 8px 6px;
-      text-align: center;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 2px;
-    }
-    .quick-badge-icon { font-size: 1.05rem; }
-    .quick-badge-title {
-      font-size: 0.64rem;
-      font-weight: 600;
-      color: var(--text-subtle);
-      text-transform: uppercase;
-    }
-    .quick-badge-val {
-      font-size: 0.76rem;
-      font-weight: 700;
-      color: var(--text-main);
-    }
-
-    /* 5-Day Outlook Strip */
-    .forecast-strip-grid {
-      display: grid;
-      grid-template-columns: repeat(5, 1fr);
-      gap: 5px;
-    }
-    .forecast-pill {
-      background: #f8fafc;
-      border: 1px solid var(--border-subtle);
-      border-radius: var(--radius-xs);
-      padding: 7px 3px;
-      text-align: center;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 2px;
-    }
-    .forecast-pill.active-today {
-      border-color: #3b82f6;
-      background: #eff6ff;
-    }
-    .forecast-pill-day {
-      font-size: 0.65rem;
-      font-weight: 700;
-      color: var(--text-subtle);
-      text-transform: uppercase;
-    }
-    .forecast-pill-wbgt {
-      font-family: var(--font-mono);
-      font-size: 0.88rem;
-      font-weight: 800;
-      color: var(--text-main);
-    }
-    .forecast-pill-tag {
-      font-size: 0.58rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      padding: 1px 3px;
-      border-radius: 2px;
-      letter-spacing: -0.01em;
-    }
-    .tag-critical { background: #fee2e2; color: #991b1b; }
-    .tag-high { background: #ffedd5; color: #c2410c; }
-    .tag-medium { background: #fef9c3; color: #854d0e; }
-    .tag-low { background: #dcfce7; color: #166534; }
-
-    /* Collapsible Technical Details (Clean & Out of the way) */
-    .tech-details-accordion {
-      background: #ffffff;
-      border: 1px solid var(--border-subtle);
-      border-radius: var(--radius-sm);
-      overflow: hidden;
-      margin-top: 4px;
-    }
-    .tech-details-accordion summary {
-      padding: 10px 14px;
-      font-size: 0.76rem;
-      font-weight: 700;
-      color: var(--text-subtle);
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      cursor: pointer;
-      user-select: none;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      background: #f8fafc;
-      transition: background 0.15s;
-    }
-    .tech-details-accordion summary:hover {
-      background: #f1f5f9;
-      color: var(--text-main);
-    }
-    .tech-accordion-body {
-      padding: 14px;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      border-top: 1px solid var(--border-subtle);
-      font-size: 0.80rem;
-    }
-    .tech-section-label {
-      font-size: 0.68rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      color: var(--text-subtle);
-      margin-bottom: 6px;
-    }
-
-    /* SHAP Pills inside tech accordion */
-    .shap-driver-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      background: #f8fafc;
-      border: 1px solid var(--border-subtle);
-      border-radius: var(--radius-xs);
-      padding: 6px 10px;
-      margin-bottom: 5px;
-      font-size: 0.78rem;
-    }
-    .shap-driver-val {
-      font-family: var(--font-mono);
-      font-size: 0.78rem;
-      font-weight: 700;
-      padding: 1px 6px;
-      border-radius: 3px;
-    }
-    .shap-driver-val.warming { color: #b91c1c; background: #fee2e2; }
-    .shap-driver-val.cooling { color: #047857; background: #d1fae5; }
-
-    /* Mobile rules */
     @media (max-width: 768px) {
       .topbar { padding: 0 10px; }
       .segmented-control { display: none; }
-      .btn-my-location {
-        bottom: 74px; right: 14px;
-        padding: 8px 14px; font-size: 0.80rem;
-      }
       .vertical-slider-panel { display: none; }
     }
   </style>
@@ -481,17 +58,17 @@
     <!-- ═══ TOP APP BAR ═══ -->
     <header class="topbar">
       <div class="topbar-left">
-        <!-- Brand Group -->
+        <!-- Brand Identity -->
         <div class="brand-group">
           <div class="brand-icon">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <path d="M14 4v10.54a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0Z"/>
             </svg>
           </div>
           <div class="brand-text">
             <span class="brand-title">ThermalGuard</span>
             <div class="brand-sub-row">
-              <span class="brand-location">Citizen Safety Portal · Madurai</span>
+              <span class="brand-location">Citizen Heat Safety · Madurai</span>
               <span class="brand-temp-pill" id="topbar-avg-temp">Live Air: --°C</span>
             </div>
           </div>
@@ -508,7 +85,7 @@
 
         <!-- Dynamic Location Chip -->
         <div class="location-chip" id="location-chip" style="display: none;">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
             <circle cx="12" cy="10" r="3"/>
           </svg>
@@ -519,13 +96,29 @@
       <div class="topbar-right">
         <!-- Search Sector -->
         <div class="search-box">
-          <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="11" cy="11" r="8"/>
             <path d="m21 21-4.35-4.35"/>
           </svg>
           <input type="text" id="search-input" placeholder="Search sector (e.g. KIB-27897)..." autocomplete="off" spellcheck="false" />
-          <button class="search-clear-btn" id="search-clear" title="Clear search" style="display: none;">✕</button>
+          <button class="search-clear-btn" id="search-clear" title="Clear search" style="display: none;">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
         </div>
+
+        <!-- Link to Municipal Officer Console -->
+        <a href="/officer" class="btn btn-outline" style="text-decoration: none;" title="Switch to Municipal Officer Command Center">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="7" height="7" rx="1"/>
+            <rect x="14" y="3" width="7" height="7" rx="1"/>
+            <rect x="3" y="14" width="7" height="7" rx="1"/>
+            <rect x="14" y="14" width="7" height="7" rx="1"/>
+          </svg>
+          <span>Officer Command</span>
+        </a>
       </div>
     </header>
 
@@ -537,7 +130,7 @@
       <div class="floating-panel vertical-slider-panel" id="threshold-panel">
         <div class="slider-panel-header">
           <span class="slider-title">Threshold</span>
-          <span class="slider-val-badge" id="slider-current-val">≥ 0</span>
+          <span class="slider-val-badge" id="slider-current-val">&ge; 0</span>
         </div>
         <div class="slider-track-wrapper">
           <span class="slider-bound-label">100</span>
@@ -562,7 +155,7 @@
       <!-- Floating Basemap Toggle Bar (Default Map vs Satellite View) -->
       <div class="floating-panel basemap-toggle-panel" id="basemap-toggle" role="group" aria-label="Basemap Surface Layer">
         <button class="basemap-btn active" data-basemap="default" id="btn-basemap-default" title="Default Street Map (OpenStreetMap)">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/>
             <line x1="8" y1="2" x2="8" y2="18"/>
             <line x1="16" y1="6" x2="16" y2="22"/>
@@ -570,7 +163,7 @@
           <span>Default</span>
         </button>
         <button class="basemap-btn" data-basemap="satellite" id="btn-basemap-satellite" title="High-Resolution Satellite Imagery">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="10"/>
             <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/>
             <path d="M2 12h20"/>
@@ -591,11 +184,11 @@
             <span>Critical (86–100)</span>
           </div>
           <div class="legend-row">
-            <span class="legend-swatch" style="background: #f97316;"></span>
+            <span class="legend-swatch" style="background: #ea580c;"></span>
             <span>High (71–85)</span>
           </div>
           <div class="legend-row">
-            <span class="legend-swatch" style="background: #eab308;"></span>
+            <span class="legend-swatch" style="background: #d97706;"></span>
             <span>Medium (46–70)</span>
           </div>
           <div class="legend-row">
@@ -608,7 +201,7 @@
       <!-- Quick Reset View Button (Bottom Right) -->
       <div class="map-quick-controls">
         <button class="map-btn" id="btn-reset-view" title="Reset View to Madurai Overview">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
             <path d="M3 3v5h5"/>
           </svg>
@@ -617,9 +210,10 @@
 
       <!-- Prominent "My Location" Floating Button -->
       <button class="btn-my-location" id="btn-my-location" title="Fly to My Current Location">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="3.5"/>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"/>
           <path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
+          <circle cx="12" cy="12" r="7" stroke-dasharray="2 2"/>
         </svg>
         <span>My Location</span>
       </button>
@@ -628,7 +222,12 @@
       <aside class="inspector-drawer" id="sidebar" aria-label="Sector Microclimate Profile">
         <div class="drawer-top">
           <span class="drawer-heading">Area Heat Intelligence</span>
-          <button class="icon-btn close-sidebar-btn" id="sidebar-close" title="Close Panel (Esc)">✕</button>
+          <button class="icon-btn close-sidebar-btn" id="sidebar-close" title="Close Panel (Esc)">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
         </div>
 
         <div class="drawer-body" id="drawer-body">
@@ -646,7 +245,7 @@
             <div class="citizen-hero-card">
               <div class="citizen-place-header">
                 <div class="citizen-place-tag">
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
                     <circle cx="12" cy="10" r="3"/>
                   </svg>
@@ -658,7 +257,16 @@
 
               <!-- Main Status Banner -->
               <div class="citizen-alert-banner risk-critical" id="detail-risk-badge">
-                <span id="detail-alert-text">⚠️ CRITICAL HEAT ALERT</span>
+                <div class="alert-banner-left">
+                  <span id="detail-alert-icon">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
+                      <line x1="12" y1="9" x2="12" y2="13"/>
+                      <line x1="12" y1="17" x2="12.01" y2="17"/>
+                    </svg>
+                  </span>
+                  <span id="detail-alert-text">CRITICAL HEAT ALERT</span>
+                </div>
                 <span id="detail-hvi-score" style="font-family: var(--font-mono); font-size: 0.88rem;">HVI 89/100</span>
               </div>
 
@@ -666,24 +274,39 @@
               <div class="citizen-temp-row">
                 <div class="citizen-temp-box">
                   <div class="citizen-temp-num" id="detail-air-temp" style="color: #0284c7;">--°C</div>
-                  <div class="citizen-temp-sub">🌤️ Outdoor Air</div>
+                  <div class="citizen-temp-sub">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2"/></svg>
+                    Outdoor Air
+                  </div>
                 </div>
                 <div class="citizen-temp-box">
                   <div class="citizen-temp-num" id="detail-surface-temp" style="color: #dc2626;">--°C</div>
-                  <div class="citizen-temp-sub">♨️ Roof & Ground</div>
+                  <div class="citizen-temp-sub">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v4M12 3v4M16 3v4M4 14a8 8 0 0 0 16 0M3 21h18"/></svg>
+                    Roof & Ground
+                  </div>
                 </div>
                 <div class="citizen-temp-box">
                   <div class="citizen-temp-num" id="detail-feels-temp" style="color: #d97706;">--°C</div>
-                  <div class="citizen-temp-sub">💧 Feels Like</div>
+                  <div class="citizen-temp-sub">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>
+                    Feels Like
+                  </div>
                 </div>
               </div>
 
               <!-- Citizen Temperature Explainer Note -->
               <div class="temp-explainer-card" id="detail-temp-explainer">
-                <span class="temp-explainer-icon">ℹ️</span>
+                <span class="temp-explainer-icon">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="12" y1="16" x2="12" y2="12"/>
+                    <line x1="12" y1="8" x2="12.01" y2="8"/>
+                  </svg>
+                </span>
                 <div class="temp-explainer-body">
                   <strong>Why does Roof & Ground reach ~50°C?</strong>
-                  <span>Intense sunlight bakes unshaded metal tin roofs and asphalt roads. The actual outdoor air you breathe is <strong id="explainer-air-val">--°C</strong>.</span>
+                  <span>Intense sunlight bakes unshaded metal tin roofs and asphalt roads. The actual outdoor air you breathe in the shade is <strong id="explainer-air-val">--°C</strong>.</span>
                 </div>
               </div>
             </div>
@@ -698,7 +321,8 @@
                 High canopy vegetation and adequate moisture provide natural evaporative cooling.
               </p>
               <div class="safe-reassurance-note">
-                ✓ Normal daily activities can continue with standard hydration.
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="vertical-align: -2px; margin-right: 4px;"><polyline points="20 6 9 17 4 12"/></svg>
+                Normal daily activities can continue with standard hydration.
               </div>
             </div>
 
@@ -707,7 +331,12 @@
               
               <!-- 2. Danger Hours Banner -->
               <div class="danger-hours-card" id="card-danger-hours">
-                <div class="danger-hours-icon">⏰</div>
+                <div class="danger-hours-icon">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"/>
+                    <polyline points="12 6 12 12 16 14"/>
+                  </svg>
+                </div>
                 <div class="danger-hours-content">
                   <span class="danger-hours-label">Peak Sun Danger Hours</span>
                   <span class="danger-hours-val" id="detail-danger-hours">11:00 AM – 3:30 PM</span>
@@ -718,19 +347,28 @@
               <!-- 3. What You Should Do (Clear 3-Bullet Checklist) -->
               <div class="action-checklist-card">
                 <div class="action-card-title">
-                  <span>🛡️ What You Should Do Right Now</span>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                  </svg>
+                  <span>Protective Health Actions</span>
                 </div>
                 <ul class="action-checklist">
                   <li class="action-item">
-                    <span class="action-item-icon">💧</span>
+                    <span class="action-item-icon">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>
+                    </span>
                     <span id="action-item-hydrate"><strong>Drink water frequently</strong> — consume ORS or water every 45–60 minutes even if not thirsty.</span>
                   </li>
                   <li class="action-item">
-                    <span class="action-item-icon">⛱️</span>
+                    <span class="action-item-icon">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M12 2a8 8 0 0 0-8 8c0 3 4 7 8 7s8-4 8-7a8 8 0 0 0-8-8z"/></svg>
+                    </span>
                     <span id="action-item-shade"><strong>Stay in shaded areas</strong> — avoid direct asphalt or tin-roof walkways during midday sun.</span>
                   </li>
                   <li class="action-item">
-                    <span class="action-item-icon">🪟</span>
+                    <span class="action-item-icon">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.7 7.7a2.5 2.5 0 1 1 1.8 4.3H2M9.6 4.6A2 2 0 1 1 11 8H2M12.6 19.4A2 2 0 1 0 14 16H2"/></svg>
+                    </span>
                     <span id="action-item-ventilate"><strong>Keep interiors ventilated</strong> — open opposing windows to flush radiant metal-roof heat.</span>
                   </li>
                 </ul>
@@ -739,21 +377,37 @@
               <!-- 4. Microclimate at a Glance (3 Simple Visual Badges) -->
               <div class="action-checklist-card" style="padding: 12px 14px;">
                 <div class="action-card-title">
-                  <span>🔍 Area Microclimate At A Glance</span>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"/>
+                    <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/>
+                  </svg>
+                  <span>Area Microclimate At A Glance</span>
                 </div>
                 <div class="quick-badges-row">
                   <div class="quick-badge">
-                    <span class="quick-badge-icon">🌳</span>
+                    <span class="quick-badge-icon">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 19v3M12 10a5 5 0 0 0-5 5c0 2 2 4 5 4s5-2 5-4a5 5 0 0 0-5-5zM12 2a4 4 0 0 0-4 4c0 1.5 1 3 2 3.5M12 2a4 4 0 0 1 4 4c0 1.5-1 3-2 3.5"/>
+                      </svg>
+                    </span>
                     <span class="quick-badge-title">Tree Shade</span>
                     <span class="quick-badge-val" id="quick-shade-badge">45% Cover</span>
                   </div>
                   <div class="quick-badge">
-                    <span class="quick-badge-icon">🏠</span>
+                    <span class="quick-badge-icon">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M3 21h18M5 21V7l7-4 7 4v14M9 10h1M14 10h1M9 14h1M14 14h1M9 18h1M14 18h1"/>
+                      </svg>
+                    </span>
                     <span class="quick-badge-title">Roof Type</span>
                     <span class="quick-badge-val" id="quick-roof-badge">Sheet Metal</span>
                   </div>
                   <div class="quick-badge">
-                    <span class="quick-badge-icon">💧</span>
+                    <span class="quick-badge-icon">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>
+                      </svg>
+                    </span>
                     <span class="quick-badge-title">Cool Buffer</span>
                     <span class="quick-badge-val" id="quick-water-badge">49m to Water</span>
                   </div>
@@ -763,7 +417,13 @@
               <!-- 5. 5-Day Heat Trend Strip -->
               <div class="action-checklist-card" style="padding: 12px 14px;">
                 <div class="action-card-title">
-                  <span>📅 5-Day Heat Forecast Trend</span>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                    <line x1="16" y1="2" x2="16" y2="6"/>
+                    <line x1="8" y1="2" x2="8" y2="6"/>
+                    <line x1="3" y1="10" x2="21" y2="10"/>
+                  </svg>
+                  <span>5-Day Heat Forecast Trend</span>
                 </div>
                 <div class="forecast-strip-grid" id="detail-forecast-timeline">
                   <!-- Populated via JS -->
@@ -774,7 +434,9 @@
               <details class="tech-details-accordion" id="tech-accordion">
                 <summary>
                   <span>View Detailed Science & Sensor Data</span>
-                  <span>▾</span>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="6 9 12 15 18 9"/>
+                  </svg>
                 </summary>
                 <div class="tech-accordion-body">
                   <!-- AI Attributions -->
@@ -808,6 +470,6 @@
   <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <!-- Public Citizen Portal Logic -->
-  <script src="/static/public.js?v=public_v4"></script>
+  <script src="/static/public.js?v=meteo_v5"></script>
 </body>
 </html>

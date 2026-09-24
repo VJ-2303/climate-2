@@ -83,7 +83,7 @@
             <path d="m21 21-4.35-4.35"/>
           </svg>
           <input type="text" id="search-input" placeholder="Search sector (e.g. KIB-0234)..." autocomplete="off" spellcheck="false" />
-          <button class="search-clear-btn" id="search-clear" title="Clear search" style="display: none;">✕</button>
+          <button class="search-clear-btn" id="search-clear" title="Clear search" style="display: none;"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
         </div>
 
         <!-- Layer Selector Dropdown Trigger -->
@@ -180,6 +180,17 @@
           <span id="offline-cache-badge" class="offline-badge">Ready</span>
         </button>
 
+        <!-- Switch to Citizen Portal -->
+        <a href="/public" class="btn btn-outline" style="text-decoration: none;" title="Switch to Citizen Heat Safety Portal">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+          </svg>
+          <span>Citizen Portal</span>
+        </a>
+
         <!-- Export Dataset -->
         <button id="export-btn" class="btn btn-primary" title="Export full GeoJSON dataset">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -204,7 +215,7 @@
           </svg>
           <span class="ov-title">Settlement Overview</span>
         </div>
-        <button class="icon-btn" id="btn-overview-close" title="Close Overview">✕</button>
+        <button class="icon-btn" id="btn-overview-close" title="Close Overview"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       </div>
 
       <div class="ov-body" id="ov-body">
@@ -351,7 +362,7 @@
         <!-- Drawer Header -->
         <div class="drawer-top">
           <span class="drawer-heading">Sector Intelligence</span>
-          <button class="icon-btn close-sidebar-btn" id="sidebar-close" title="Close Panel (Esc)">✕</button>
+          <button class="icon-btn close-sidebar-btn" id="sidebar-close" title="Close Panel (Esc)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
         </div>
 
         <!-- Drawer Content Body -->
@@ -414,7 +425,8 @@
                 Healthy tree canopy and balanced surface temperatures keep this area comfortable.
               </p>
               <div class="safe-reassurance-note">
-                ✓ No active municipal heat interventions are required.
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="vertical-align: -2px; margin-right: 4px;"><polyline points="20 6 9 17 4 12"/></svg>
+                No active municipal heat interventions are required.
               </div>
             </div>
 
@@ -472,7 +484,7 @@
             </svg>
             <span class="zone-modal-title">Zone Intervention Report</span>
           </div>
-          <button class="icon-btn" id="btn-zone-close" title="Clear Zone">✕</button>
+          <button class="icon-btn" id="btn-zone-close" title="Clear Zone"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
         </div>
 
         <!-- Zone KPI Row -->
@@ -544,7 +556,7 @@
             </svg>
             <span class="zone-modal-title">Offline Map Cache Manager</span>
           </div>
-          <button class="icon-btn" id="btn-offline-modal-close" title="Close">✕</button>
+          <button class="icon-btn" id="btn-offline-modal-close" title="Close"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
         </div>
 
         <div class="offline-modal-body">
@@ -631,7 +643,7 @@
         <div class="zone-modal-title-group">
           <span class="zone-modal-title">SMS Emergency Dispatch</span>
         </div>
-        <button class="icon-btn" id="btn-sms-modal-close" title="Close">✕</button>
+        <button class="icon-btn" id="btn-sms-modal-close" title="Close"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       </div>
       <div class="zone-modal-section">
         <div class="zone-modal-section-label">Target Sector</div>
