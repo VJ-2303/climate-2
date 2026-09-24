@@ -91,13 +91,25 @@ def send_twilio_sms(to_number: str, body: str) -> Dict[str, Any]:
             }
         except Exception as e:
             logger.error(f"Twilio SMS failed to {formatted_to}: {e}")
+            err_code = getattr(e, "code", None)
+            err_msg = getattr(e, "msg", str(e))
+            if err_code == 572006:
+                clean_err = "Twilio Trial Restriction: Trial accounts cannot send custom SMS via API. Upgrade Twilio account to unlock live SMS delivery."
+            elif err_code in (572002, 21608):
+                clean_err = f"Twilio Trial Restriction: Recipient {formatted_to} must be added to Verified Caller IDs in Twilio Console."
+            elif err_code:
+                clean_err = f"Twilio Error {err_code}: {err_msg}"
+            else:
+                clean_err = str(e).split("\n")[0] if "\n" in str(e) else str(e)
+
             return {
                 "success": False,
                 "sid": None,
                 "status": "failed",
                 "to": formatted_to,
                 "mode": "live",
-                "error": str(e),
+                "error": clean_err,
+                "code": err_code,
             }
 
     # Simulated Fallback (no credentials configured)
