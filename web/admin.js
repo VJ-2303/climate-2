@@ -1,0 +1,822 @@
+// ThermalGuard — Administrative Command Dashboard Logic (5 Madurai Zones & Sensitive Facilities)
+// Manages Zonal PIN auth, facility directory, contact updates, autonomous alerting, and map markers.
+
+(function () {
+  "use strict";
+
+  let currentAuth = null; // { role, zone_id, zone_name, officer }
+  let currentFacilities = [];
+  let facilityMarkersGroup = null;
+  let activeCategoryFilter = "All";
+  let activeStatusFilter = "All";
+  let searchQuery = "";
+
+  const CATEGORY_ICONS = {
+    "School": "🏫",
+    "Hospital / Clinic": "🏥",
+    "College / University": "🎓",
+  };
+
+  const CATEGORY_COLORS = {
+    "School": "#0284c7",
+    "Hospital / Clinic": "#dc2626",
+    "College / University": "#7c3aed",
+  };
+
+  // -------------------------------------------------------------------------
+  // 1. PIN Authentication
+  // -------------------------------------------------------------------------
+
+  function checkSessionAuth() {
+    const saved = sessionStorage.getItem("thermalguard_admin_auth");
+    if (saved) {
+      try {
+        currentAuth = JSON.parse(saved);
+        onAuthSuccess();
+        return;
+      } catch (e) {
+        sessionStorage.removeItem("thermalguard_admin_auth");
+      }
+    }
+    showAuthModal(true);
+  }
+
+  function showAuthModal(show) {
+    const modal = document.getElementById("admin-auth-modal");
+    if (!modal) return;
+    modal.style.display = show ? "flex" : "none";
+    if (show) {
+      const pinInput = document.getElementById("admin-pin-input");
+      if (pinInput) {
+        pinInput.value = "";
+        pinInput.focus();
+      }
+      const errEl = document.getElementById("admin-pin-error");
+      if (errEl) errEl.style.display = "none";
+    }
+  }
+
+  async function handlePinLogin(pin) {
+    const errEl = document.getElementById("admin-pin-error");
+    if (errEl) errEl.style.display = "none";
+    const btnLogin = document.getElementById("btn-pin-submit");
+    if (btnLogin) btnLogin.textContent = "Verifying...";
+
+    try {
+      const res = await fetch("/api/admin/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pin: pin.trim() }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.detail || "Invalid Zonal PIN");
+      }
+
+      currentAuth = await res.json();
+      sessionStorage.setItem("thermalguard_admin_auth", JSON.stringify(currentAuth));
+      showAuthModal(false);
+      onAuthSuccess();
+    } catch (err) {
+      if (errEl) {
+        errEl.textContent = err.message;
+        errEl.style.display = "block";
+      }
+    } finally {
+      if (btnLogin) btnLogin.textContent = "Unlock Command Center";
+    }
+  }
+
+  function handleLogout() {
+    sessionStorage.removeItem("thermalguard_admin_auth");
+    currentAuth = null;
+    if (facilityMarkersGroup && typeof map !== "undefined" && map) {
+      facilityMarkersGroup.clearLayers();
+    }
+    window.location.reload();
+  }
+
+  // -------------------------------------------------------------------------
+  // 2. Auth Success Initialization
+  // -------------------------------------------------------------------------
+
+  function onAuthSuccess() {
+    if (!currentAuth) return;
+
+    // Update Topbar UI
+    const zonePill = document.getElementById("admin-zone-pill");
+    const zoneNameEl = document.getElementById("admin-zone-name");
+    if (zonePill && zoneNameEl) {
+      zonePill.style.display = "inline-flex";
+      zoneNameEl.textContent = currentAuth.zone_name;
+    }
+
+    const logoutBtn = document.getElementById("btn-admin-logout");
+    if (logoutBtn) logoutBtn.style.display = "inline-flex";
+
+    const autoAlertBtn = document.getElementById("btn-auto-alert-toggle");
+    if (autoAlertBtn) autoAlertBtn.style.display = "inline-flex";
+    updateAutoAlertUI(currentAuth.officer.autonomous_alerts);
+
+    // If DDMA Admin, enable Zone Switcher dropdown
+    const switcherContainer = document.getElementById("admin-zone-switcher-container");
+    if (switcherContainer && currentAuth.role === "ddma_admin") {
+      switcherContainer.style.display = "inline-flex";
+      initZoneSwitcherMenu();
+    }
+
+    // Render Officer Profile Card
+    renderOfficerProfileCard();
+
+    // Load Facilities for this Zone (or Zone 1 default if DDMA)
+    const targetZone = currentAuth.zone_id > 0 ? currentAuth.zone_id : 1;
+    loadZoneFacilities(targetZone);
+
+    // Show Facilities Drawer automatically
+    toggleAdminPanel(true);
+  }
+
+  function updateAutoAlertUI(isActive) {
+    const dot = document.getElementById("auto-alert-dot");
+    const label = document.getElementById("auto-alert-label");
+    if (dot) dot.style.backgroundColor = isActive ? "#16a34a" : "#94a3b8";
+    if (label) label.textContent = isActive ? "Auto-Alert: ACTIVE" : "Auto-Alert: PAUSED";
+  }
+
+  async function toggleAutonomousAlerts() {
+    if (!currentAuth || currentAuth.zone_id <= 0) return;
+    const newStatus = currentAuth.officer.autonomous_alerts ? 0 : 1;
+    try {
+      const res = await fetch(`/api/admin/zones/${currentAuth.zone_id}/officer`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ autonomous_alerts: newStatus }),
+      });
+      if (res.ok) {
+        currentAuth.officer.autonomous_alerts = newStatus;
+        sessionStorage.setItem("thermalguard_admin_auth", JSON.stringify(currentAuth));
+        updateAutoAlertUI(newStatus);
+        renderOfficerProfileCard();
+        showToast(newStatus ? "⚡ Autonomous alerting activated for this Zone" : "⏸️ Autonomous alerting paused");
+      }
+    } catch (e) {
+      console.warn("Toggle auto-alerts failed:", e);
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // 3. Officer Profile & Summary Cards
+  // -------------------------------------------------------------------------
+
+  function renderOfficerProfileCard() {
+    const container = document.getElementById("admin-officer-poc-card");
+    if (!container || !currentAuth) return;
+
+    const off = currentAuth.officer;
+    const isDDMA = currentAuth.role === "ddma_admin";
+    const zoneBadge = isDDMA ? "District Master Command" : currentAuth.zone_name;
+
+    container.innerHTML = `
+      <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px;">
+          <div>
+            <div style="font-size: 10px; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 0.5px;">Point of Contact (POC)</div>
+            <div style="font-size: 14px; font-weight: 800; color: #0f172a;">${off.officer_name}</div>
+            <div style="font-size: 11px; color: #475569; font-weight: 500;">${off.designation} &bull; <span style="color:#0284c7;font-weight:700;">${zoneBadge}</span></div>
+          </div>
+          ${!isDDMA ? '<button class="btn btn-outline" id="btn-edit-officer-profile" style="padding: 3px 8px; font-size: 11px;">Edit POC</button>' : ''}
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px; font-size: 11px; color: #64748b; border-top: 1px solid #f1f5f9; padding-top: 6px; margin-top: 4px;">
+          <span>📞 <strong>${off.phone}</strong></span>
+          <span>✉️ <strong>${off.email}</strong></span>
+          <span>🏢 ${off.office_address}</span>
+        </div>
+      </div>
+    `;
+
+    const btnEdit = document.getElementById("btn-edit-officer-profile");
+    if (btnEdit) {
+      btnEdit.addEventListener("click", () => openOfficerProfileModal());
+    }
+  }
+
+  async function initZoneSwitcherMenu() {
+    const menu = document.getElementById("zone-switcher-menu");
+    const btn = document.getElementById("btn-zone-switcher");
+    if (!menu || !btn) return;
+
+    try {
+      const res = await fetch("/api/admin/zones");
+      if (!res.ok) return;
+      const data = await res.json();
+      const zones = data.zones || [];
+
+      menu.innerHTML = '<div class="menu-section-header">Switch Administrative Zone</div>';
+      zones.forEach((z) => {
+        const item = document.createElement("div");
+        item.className = "menu-layer-item";
+        item.innerHTML = `
+          <div class="menu-layer-info" style="flex:1;">
+            <div style="display:flex; justify-content:space-between;">
+              <span class="menu-layer-title">${z.zone_name}</span>
+              <span style="font-size:10px; color:#64748b; font-weight:700;">${z.total_facilities} sites</span>
+            </div>
+            <span class="menu-layer-desc">${z.officer_name} &bull; ${z.verified_contacts} verified</span>
+          </div>
+        `;
+        item.addEventListener("click", () => {
+          menu.style.display = "none";
+          const zoneNameEl = document.getElementById("admin-zone-name");
+          if (zoneNameEl) zoneNameEl.textContent = z.zone_name;
+          loadZoneFacilities(z.zone_id);
+        });
+        menu.appendChild(item);
+      });
+
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        menu.style.display = menu.style.display === "none" ? "flex" : "none";
+      });
+    } catch (e) {
+      console.warn("Failed to load zones for switcher:", e);
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // 4. Sensitive Facilities Directory
+  // -------------------------------------------------------------------------
+
+  async function loadZoneFacilities(zoneId) {
+    const container = document.getElementById("admin-facilities-list");
+    if (container) {
+      container.innerHTML = '<div style="text-align: center; color: #64748b; padding: 24px;">Loading sensitive facilities...</div>';
+    }
+
+    try {
+      const res = await fetch(`/api/admin/zones/${zoneId}/facilities`);
+      if (!res.ok) throw new Error("Failed to load facilities");
+      const data = await res.json();
+      currentFacilities = data.facilities || [];
+
+      updateStatsSummary();
+      renderFacilitiesList();
+      plotFacilityMarkersOnMap();
+    } catch (err) {
+      if (container) {
+        container.innerHTML = `<div style="text-align: center; color: #ef4444; padding: 24px;">Error: ${err.message}</div>`;
+      }
+    }
+  }
+
+  function updateStatsSummary() {
+    const totalCount = currentFacilities.length;
+    const verifiedCount = currentFacilities.filter((f) => f.status === "verified").length;
+    const missingCount = totalCount - verifiedCount;
+
+    const elTotal = document.getElementById("stat-total-facilities");
+    const elVerified = document.getElementById("stat-verified-facilities");
+    const elMissing = document.getElementById("stat-missing-facilities");
+    const elBadge = document.getElementById("admin-verified-count-badge");
+
+    if (elTotal) elTotal.textContent = totalCount;
+    if (elVerified) elVerified.textContent = verifiedCount;
+    if (elMissing) elMissing.textContent = missingCount;
+    if (elBadge) elBadge.textContent = `${verifiedCount}/${totalCount}`;
+
+    // Update One-Click Category Broadcast counts
+    const schoolVerified = currentFacilities.filter((f) => f.category === "School" && f.status === "verified").length;
+    const hospitalVerified = currentFacilities.filter((f) => f.category === "Hospital / Clinic" && f.status === "verified").length;
+    const collegeVerified = currentFacilities.filter((f) => f.category === "College / University" && f.status === "verified").length;
+
+    const countSchool = document.getElementById("bulk-count-schools");
+    const countHospital = document.getElementById("bulk-count-hospitals");
+    const countCollege = document.getElementById("bulk-count-colleges");
+
+    if (countSchool) countSchool.textContent = `(${schoolVerified} ready)`;
+    if (countHospital) countHospital.textContent = `(${hospitalVerified} ready)`;
+    if (countCollege) countCollege.textContent = `(${collegeVerified} ready)`;
+  }
+
+  function renderFacilitiesList() {
+    const container = document.getElementById("admin-facilities-list");
+    if (!container) return;
+
+    let filtered = currentFacilities.slice();
+
+    // Category filter
+    if (activeCategoryFilter !== "All") {
+      filtered = filtered.filter((f) => f.category === activeCategoryFilter);
+    }
+
+    // Status filter
+    if (activeStatusFilter === "verified") {
+      filtered = filtered.filter((f) => f.status === "verified");
+    } else if (activeStatusFilter === "unverified") {
+      filtered = filtered.filter((f) => f.status === "unverified");
+    }
+
+    // Search query
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      filtered = filtered.filter(
+        (f) =>
+          f.name.toLowerCase().includes(q) ||
+          (f.address && f.address.toLowerCase().includes(q)) ||
+          (f.contact_person && f.contact_person.toLowerCase().includes(q)) ||
+          (f.phone && f.phone.includes(q))
+      );
+    }
+
+    if (filtered.length === 0) {
+      container.innerHTML = `
+        <div style="text-align: center; color: #64748b; padding: 32px 16px;">
+          <div style="font-size: 24px; margin-bottom: 8px;">🔍</div>
+          <div style="font-weight: 600; color: #334155;">No institutions match the filter</div>
+          <div style="font-size: 11px;">Try selecting 'All' or clearing the search query.</div>
+        </div>
+      `;
+      return;
+    }
+
+    let html = "";
+    filtered.forEach((f) => {
+      const isVerified = f.status === "verified";
+      const icon = CATEGORY_ICONS[f.category] || "📍";
+      const catColor = CATEGORY_COLORS[f.category] || "#475569";
+      const statusBadge = isVerified
+        ? '<span style="font-size:10px; background:#dcfce7; color:#166534; padding:2px 6px; border-radius:10px; font-weight:700;">✅ Contact Ready</span>'
+        : '<span style="font-size:10px; background:#fee2e2; color:#991b1b; padding:2px 6px; border-radius:10px; font-weight:700;">⚠️ Contact Required</span>';
+
+      const contactDisplay = isVerified
+        ? `<div style="font-size:11px; color:#1e293b; margin-top:4px;">👤 <strong>${f.contact_person || "Designated In-Charge"}</strong> &bull; 📞 <span style="font-family:var(--font-mono);font-weight:700;color:#0284c7;">${f.phone}</span></div>`
+        : `<div style="font-size:11px; color:#dc2626; margin-top:4px; font-weight:500;">No phone registered &bull; Alerting locked until contact added</div>`;
+
+      const lastAlertInfo = f.last_alert_time
+        ? `<div style="font-size:10px; color:#64748b; margin-top:3px;">Last Alert: ${f.last_alert_time}</div>`
+        : "";
+
+      html += `
+        <div class="facility-card" data-id="${f.id}" style="background:#ffffff; border:1px solid #e2e8f0; border-radius:8px; padding:10px 12px; margin-bottom:8px; box-shadow:0 1px 2px rgba(0,0,0,0.03);">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+            <div style="flex:1; padding-right:8px;">
+              <div style="display:flex; align-items:center; gap:6px; margin-bottom:2px;">
+                <span style="font-size:14px;">${icon}</span>
+                <span style="font-size:13px; font-weight:700; color:#0f172a;">${f.name}</span>
+              </div>
+              <div style="font-size:11px; color:${catColor}; font-weight:600;">${f.category} &bull; <span style="color:#64748b;font-weight:400;">${f.address || "Madurai"}</span></div>
+              ${contactDisplay}
+              ${lastAlertInfo}
+            </div>
+            <div>${statusBadge}</div>
+          </div>
+
+          <div style="display:flex; gap:6px; margin-top:8px; border-top:1px solid #f1f5f9; padding-top:8px;">
+            <button class="btn btn-outline btn-edit-contact" data-id="${f.id}" style="padding:3px 8px; font-size:11px;">
+              ✏️ ${isVerified ? "Edit Contact" : "Add Phone"}
+            </button>
+            <button class="btn btn-outline btn-locate-facility" data-lat="${f.latitude}" data-lon="${f.longitude}" data-name="${f.name}" style="padding:3px 8px; font-size:11px;">
+              📍 Locate
+            </button>
+            <button class="btn btn-primary btn-alert-facility" data-id="${f.id}" data-name="${f.name}" ${!isVerified ? 'disabled style="opacity:0.5; cursor:not-allowed;" title="Add contact phone first"' : 'style="background:#dc2626;"'}>
+              🚨 Alert Site
+            </button>
+          </div>
+        </div>
+      `;
+    });
+
+    container.innerHTML = html;
+
+    // Attach card event listeners
+    container.querySelectorAll(".btn-edit-contact").forEach((b) => {
+      b.addEventListener("click", () => {
+        const facId = b.getAttribute("data-id");
+        openFacilityContactModal(facId);
+      });
+    });
+
+    container.querySelectorAll(".btn-locate-facility").forEach((b) => {
+      b.addEventListener("click", () => {
+        const lat = parseFloat(b.getAttribute("data-lat"));
+        const lon = parseFloat(b.getAttribute("data-lon"));
+        const name = b.getAttribute("data-name");
+        locateFacilityOnMap(lat, lon, name);
+      });
+    });
+
+    container.querySelectorAll(".btn-alert-facility").forEach((b) => {
+      b.addEventListener("click", () => {
+        const facId = b.getAttribute("data-id");
+        const facName = b.getAttribute("data-name");
+        dispatchSingleFacilityAlert(facId, facName);
+      });
+    });
+  }
+
+  // -------------------------------------------------------------------------
+  // 5. Leaflet Map Markers Integration
+  // -------------------------------------------------------------------------
+
+  function plotFacilityMarkersOnMap() {
+    if (typeof map === "undefined" || !map || typeof L === "undefined") return;
+
+    if (!facilityMarkersGroup) {
+      facilityMarkersGroup = L.layerGroup().addTo(map);
+    } else {
+      facilityMarkersGroup.clearLayers();
+    }
+
+    currentFacilities.forEach((f) => {
+      const color = CATEGORY_COLORS[f.category] || "#475569";
+      const iconText = CATEGORY_ICONS[f.category] || "📍";
+
+      const customIcon = L.divIcon({
+        className: "custom-facility-pin",
+        html: `<div style="background:${color}; width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 4px rgba(0,0,0,0.3); border:2px solid #ffffff; font-size:12px; cursor:pointer;" title="${f.name}">${iconText}</div>`,
+        iconSize: [24, 24],
+        iconAnchor: [12, 12],
+      });
+
+      const marker = L.marker([f.latitude, f.longitude], { icon: customIcon });
+
+      const isVerified = f.status === "verified";
+      const popupHtml = `
+        <div style="font-family:var(--font-sans); min-width:180px;">
+          <div style="font-weight:700; font-size:13px; color:#0f172a; margin-bottom:2px;">${iconText} ${f.name}</div>
+          <div style="font-size:11px; color:${color}; font-weight:600; margin-bottom:6px;">${f.category}</div>
+          <div style="font-size:11px; color:#475569; margin-bottom:6px;">${f.address || "Madurai"}</div>
+          <div style="font-size:11px; margin-bottom:8px;">
+            ${isVerified ? `📞 <strong>${f.phone}</strong> (${f.contact_person || "In-Charge"})` : '<span style="color:#dc2626;font-weight:600;">⚠️ No contact phone added</span>'}
+          </div>
+          <div style="display:flex; gap:6px;">
+            <button class="btn btn-outline" onclick="window.adminOpenContactModal('${f.id}')" style="padding:2px 8px; font-size:10px; width:100%;">
+              ${isVerified ? "Edit Phone" : "Add Phone"}
+            </button>
+          </div>
+        </div>
+      `;
+
+      marker.bindPopup(popupHtml);
+      facilityMarkersGroup.addLayer(marker);
+    });
+  }
+
+  function locateFacilityOnMap(lat, lon, name) {
+    if (typeof map === "undefined" || !map) return;
+    map.flyTo([lat, lon], 17, { duration: 1.2 });
+    showToast(`📍 Centered on ${name}`);
+  }
+
+  // -------------------------------------------------------------------------
+  // 6. Contact & Profile Modals
+  // -------------------------------------------------------------------------
+
+  function openFacilityContactModal(facilityId) {
+    const fac = currentFacilities.find((f) => f.id === facilityId);
+    if (!fac) return;
+
+    const modal = document.getElementById("facility-contact-modal");
+    if (!modal) return;
+
+    document.getElementById("contact-facility-name").textContent = fac.name;
+    document.getElementById("contact-facility-cat").textContent = `${fac.category} &bull; ${fac.address || "Madurai"}`;
+    document.getElementById("input-facility-id").value = fac.id;
+    document.getElementById("input-contact-person").value = fac.contact_person || "";
+    document.getElementById("input-contact-phone").value = fac.phone || "";
+    document.getElementById("input-contact-email").value = fac.email || "";
+    document.getElementById("contact-modal-error").style.display = "none";
+
+    modal.style.display = "flex";
+  }
+
+  function closeFacilityContactModal() {
+    const modal = document.getElementById("facility-contact-modal");
+    if (modal) modal.style.display = "none";
+  }
+
+  async function saveFacilityContact() {
+    const facId = document.getElementById("input-facility-id").value;
+    const person = document.getElementById("input-contact-person").value.trim();
+    const phone = document.getElementById("input-contact-phone").value.trim();
+    const email = document.getElementById("input-contact-email").value.trim();
+    const errEl = document.getElementById("contact-modal-error");
+
+    if (errEl) errEl.style.display = "none";
+
+    try {
+      const res = await fetch(`/api/admin/facilities/${facId}/contact`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contact_person: person, phone: phone, email: email }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.detail || "Failed to update contact");
+      }
+
+      const updated = await res.json();
+      const idx = currentFacilities.findIndex((f) => f.id === facId);
+      if (idx !== -1) currentFacilities[idx] = updated;
+
+      updateStatsSummary();
+      renderFacilitiesList();
+      plotFacilityMarkersOnMap();
+      closeFacilityContactModal();
+      showToast(`✅ Contact details verified for ${updated.name}`);
+    } catch (err) {
+      if (errEl) {
+        errEl.textContent = err.message;
+        errEl.style.display = "block";
+      }
+    }
+  }
+
+  function openOfficerProfileModal() {
+    if (!currentAuth) return;
+    const modal = document.getElementById("officer-profile-modal");
+    if (!modal) return;
+
+    const off = currentAuth.officer;
+    document.getElementById("profile-zone-name").textContent = currentAuth.zone_name;
+    document.getElementById("input-officer-name").value = off.officer_name || "";
+    document.getElementById("input-officer-designation").value = off.designation || "";
+    document.getElementById("input-officer-phone").value = off.phone || "";
+    document.getElementById("input-officer-email").value = off.email || "";
+    document.getElementById("input-officer-address").value = off.office_address || "";
+    document.getElementById("input-officer-thresh").value = off.critical_wbgt_threshold || 38.0;
+    document.getElementById("profile-modal-error").style.display = "none";
+
+    modal.style.display = "flex";
+  }
+
+  function closeOfficerProfileModal() {
+    const modal = document.getElementById("officer-profile-modal");
+    if (modal) modal.style.display = "none";
+  }
+
+  async function saveOfficerProfile() {
+    if (!currentAuth || currentAuth.zone_id <= 0) return;
+    const errEl = document.getElementById("profile-modal-error");
+    if (errEl) errEl.style.display = "none";
+
+    const payload = {
+      officer_name: document.getElementById("input-officer-name").value.trim(),
+      designation: document.getElementById("input-officer-designation").value.trim(),
+      phone: document.getElementById("input-officer-phone").value.trim(),
+      email: document.getElementById("input-officer-email").value.trim(),
+      office_address: document.getElementById("input-officer-address").value.trim(),
+      critical_wbgt_threshold: parseFloat(document.getElementById("input-officer-thresh").value) || 38.0,
+    };
+
+    try {
+      const res = await fetch(`/api/admin/zones/${currentAuth.zone_id}/officer`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) throw new Error("Failed to update profile");
+      const updated = await res.json();
+      currentAuth.officer = updated;
+      sessionStorage.setItem("thermalguard_admin_auth", JSON.stringify(currentAuth));
+
+      renderOfficerProfileCard();
+      closeOfficerProfileModal();
+      showToast("✅ Zonal Point of Contact profile saved");
+    } catch (err) {
+      if (errEl) {
+        errEl.textContent = err.message;
+        errEl.style.display = "block";
+      }
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // 7. Alerting Actions (Single & Bulk)
+  // -------------------------------------------------------------------------
+
+  async function dispatchSingleFacilityAlert(facId, facName) {
+    if (!confirm(`Broadcast official heat advisory to ${facName}?`)) return;
+
+    try {
+      const res = await fetch("/api/admin/alerts/dispatch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ facility_id: facId }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.detail || "Alert dispatch failed");
+      }
+
+      const audit = await res.json();
+      showDispatchSuccessModal(audit);
+      // Update last alert time locally
+      const idx = currentFacilities.findIndex((f) => f.id === facId);
+      if (idx !== -1) currentFacilities[idx].last_alert_time = audit.timestamp;
+      renderFacilitiesList();
+    } catch (err) {
+      alert(`Dispatch Error: ${err.message}`);
+    }
+  }
+
+  async function dispatchBulkCategoryAlert(category) {
+    const verifiedCount = currentFacilities.filter(
+      (f) => (category === "All" || f.category === category) && f.status === "verified"
+    ).length;
+
+    if (verifiedCount === 0) {
+      alert(`Cannot broadcast: No verified contacts found for ${category}. Please add phone numbers first.`);
+      return;
+    }
+
+    const label = category === "All" ? "all verified institutions" : `all ${verifiedCount} verified ${category}s`;
+    if (!confirm(`🚨 Broadcast emergency heat advisory to ${label} in this zone?`)) return;
+
+    const targetZone = currentAuth.zone_id > 0 ? currentAuth.zone_id : (currentFacilities[0] ? currentFacilities[0].zone_id : 1);
+
+    try {
+      const res = await fetch("/api/admin/alerts/dispatch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ zone_id: targetZone, category: category }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.detail || "Bulk dispatch failed");
+      }
+
+      const audit = await res.json();
+      showDispatchSuccessModal(audit);
+      // Reload zone facilities to refresh last alert times
+      loadZoneFacilities(targetZone);
+    } catch (err) {
+      alert(`Bulk Dispatch Error: ${err.message}`);
+    }
+  }
+
+  function showDispatchSuccessModal(audit) {
+    const modal = document.getElementById("admin-dispatch-result-modal");
+    if (!modal) return;
+
+    document.getElementById("res-alert-id").textContent = audit.alert_id;
+    document.getElementById("res-alert-recipients").textContent = `${audit.recipients_count} Institutions`;
+    document.getElementById("res-alert-channels").textContent = (audit.channels || []).join(", ");
+    document.getElementById("res-alert-wbgt").textContent = `${audit.local_wbgt}°C WBGT`;
+    document.getElementById("res-alert-msg-en").textContent = audit.message_en;
+    document.getElementById("res-alert-msg-ta").textContent = audit.message_ta;
+
+    modal.style.display = "flex";
+  }
+
+  // -------------------------------------------------------------------------
+  // 8. Toast Helper & Panel Toggle
+  // -------------------------------------------------------------------------
+
+  function showToast(msg) {
+    let toast = document.getElementById("admin-toast");
+    if (!toast) {
+      toast = document.createElement("div");
+      toast.id = "admin-toast";
+      toast.style.cssText = "position:fixed; bottom:20px; right:20px; background:#0f172a; color:#fff; padding:10px 18px; border-radius:6px; font-size:12px; font-weight:600; z-index:9999; box-shadow:0 4px 12px rgba(0,0,0,0.15); transition:opacity 0.3s ease;";
+      document.body.appendChild(toast);
+    }
+    toast.textContent = msg;
+    toast.style.opacity = "1";
+    setTimeout(() => { toast.style.opacity = "0"; }, 3500);
+  }
+
+  function toggleAdminPanel(forceOpen) {
+    const panel = document.getElementById("admin-directory-panel");
+    const btn = document.getElementById("btn-admin-panel");
+    if (!panel) return;
+
+    const isHidden = panel.style.display === "none" || !panel.style.display;
+    const shouldOpen = forceOpen !== undefined ? forceOpen : isHidden;
+
+    panel.style.display = shouldOpen ? "flex" : "none";
+    if (btn) {
+      if (shouldOpen) btn.classList.add("active");
+      else btn.classList.remove("active");
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // 9. Event Setup & Boot
+  // -------------------------------------------------------------------------
+
+  function setupAdminEvents() {
+    // PIN submit
+    const btnPin = document.getElementById("btn-pin-submit");
+    const pinInput = document.getElementById("admin-pin-input");
+    if (btnPin && pinInput) {
+      btnPin.addEventListener("click", () => handlePinLogin(pinInput.value));
+      pinInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") handlePinLogin(pinInput.value);
+      });
+    }
+
+    // Quick PIN demo chips
+    document.querySelectorAll(".pin-demo-chip").forEach((chip) => {
+      chip.addEventListener("click", () => {
+        const pin = chip.getAttribute("data-pin");
+        if (pinInput) {
+          pinInput.value = pin;
+          handlePinLogin(pin);
+        }
+      });
+    });
+
+    // Logout
+    const btnLogout = document.getElementById("btn-admin-logout");
+    if (btnLogout) btnLogout.addEventListener("click", handleLogout);
+
+    // Auto-alert toggle
+    const btnAuto = document.getElementById("btn-auto-alert-toggle");
+    if (btnAuto) btnAuto.addEventListener("click", toggleAutonomousAlerts);
+
+    // Panel Toggle
+    const btnPanel = document.getElementById("btn-admin-panel");
+    if (btnPanel) btnPanel.addEventListener("click", () => toggleAdminPanel());
+
+    const btnPanelClose = document.getElementById("btn-admin-panel-close");
+    if (btnPanelClose) btnPanelClose.addEventListener("click", () => toggleAdminPanel(false));
+
+    // Category filter tabs
+    document.querySelectorAll(".cat-filter-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll(".cat-filter-btn").forEach((b) => b.classList.remove("active"));
+        btn.classList.add("active");
+        activeCategoryFilter = btn.getAttribute("data-cat");
+        renderFacilitiesList();
+      });
+    });
+
+    // Status filter select
+    const statusSelect = document.getElementById("admin-status-filter");
+    if (statusSelect) {
+      statusSelect.addEventListener("change", (e) => {
+        activeStatusFilter = e.target.value;
+        renderFacilitiesList();
+      });
+    }
+
+    // Live search input
+    const searchInp = document.getElementById("admin-facility-search");
+    if (searchInp) {
+      searchInp.addEventListener("input", (e) => {
+        searchQuery = e.target.value.trim();
+        renderFacilitiesList();
+      });
+    }
+
+    // Bulk Alert Buttons
+    const btnBulkSchools = document.getElementById("btn-bulk-alert-schools");
+    if (btnBulkSchools) btnBulkSchools.addEventListener("click", () => dispatchBulkCategoryAlert("School"));
+
+    const btnBulkHospitals = document.getElementById("btn-bulk-alert-hospitals");
+    if (btnBulkHospitals) btnBulkHospitals.addEventListener("click", () => dispatchBulkCategoryAlert("Hospital / Clinic"));
+
+    const btnBulkColleges = document.getElementById("btn-bulk-alert-colleges");
+    if (btnBulkColleges) btnBulkColleges.addEventListener("click", () => dispatchBulkCategoryAlert("College / University"));
+
+    // Modals close & save
+    const btnSaveContact = document.getElementById("btn-save-contact");
+    if (btnSaveContact) btnSaveContact.addEventListener("click", saveFacilityContact);
+
+    const btnCloseContact = document.getElementById("btn-close-contact-modal");
+    if (btnCloseContact) btnCloseContact.addEventListener("click", closeFacilityContactModal);
+
+    const btnSaveProfile = document.getElementById("btn-save-profile");
+    if (btnSaveProfile) btnSaveProfile.addEventListener("click", saveOfficerProfile);
+
+    const btnCloseProfile = document.getElementById("btn-close-profile-modal");
+    if (btnCloseProfile) btnCloseProfile.addEventListener("click", closeOfficerProfileModal);
+
+    const btnCloseResult = document.getElementById("btn-close-result-modal");
+    if (btnCloseResult) {
+      btnCloseResult.addEventListener("click", () => {
+        const m = document.getElementById("admin-dispatch-result-modal");
+        if (m) m.style.display = "none";
+      });
+    }
+  }
+
+  // Expose global helper for popup clicks
+  window.adminOpenContactModal = openFacilityContactModal;
+
+  // Boot
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", () => {
+      setupAdminEvents();
+      checkSessionAuth();
+    });
+  } else {
+    setupAdminEvents();
+    checkSessionAuth();
+  }
+})();

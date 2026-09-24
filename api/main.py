@@ -7,9 +7,9 @@ import json
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Body, FastAPI, HTTPException, Query
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -379,4 +379,101 @@ def get_forecast_days() -> JSONResponse:
         },
         headers={"Cache-Control": "public, max-age=1800"}
     )
+
+
+# -------------------------------------------------------------------------
+# Administrative Command Dashboard API (5 Madurai Zones & Sensitive POIs)
+# -------------------------------------------------------------------------
+
+@app.post("/api/admin/auth")
+def admin_auth(payload: Dict[str, Any] = Body(...)) -> JSONResponse:
+    from api.admin import authenticate_pin
+    pin = payload.get("pin", "")
+    auth_data = authenticate_pin(pin)
+    if not auth_data:
+        raise HTTPException(status_code=401, detail="Invalid Zonal Officer PIN")
+    return JSONResponse(content=auth_data)
+
+
+@app.get("/api/admin/zones")
+def admin_get_zones() -> JSONResponse:
+    from api.admin import get_zones_summary
+    return JSONResponse(content={"zones": get_zones_summary()})
+
+
+@app.get("/api/admin/zones/{zone_id}")
+def admin_get_zone(zone_id: int) -> JSONResponse:
+    from api.admin import get_zone_details
+    details = get_zone_details(zone_id)
+    if not details:
+        raise HTTPException(status_code=404, detail="Zone not found")
+    return JSONResponse(content=details)
+
+
+@app.put("/api/admin/zones/{zone_id}/officer")
+def admin_update_officer(zone_id: int, payload: Dict[str, Any] = Body(...)) -> JSONResponse:
+    from api.admin import update_officer_profile
+    updated = update_officer_profile(zone_id, payload)
+    return JSONResponse(content=updated)
+
+
+@app.get("/api/admin/zones/{zone_id}/facilities")
+def admin_get_facilities(
+    zone_id: int,
+    category: Optional[str] = Query(None),
+    status: Optional[str] = Query(None),
+    search: Optional[str] = Query(None),
+) -> JSONResponse:
+    from api.admin import get_facilities
+    facs = get_facilities(zone_id=zone_id, category=category, status=status, search=search)
+    return JSONResponse(content={"zone_id": zone_id, "facilities": facs, "count": len(facs)})
+
+
+@app.put("/api/admin/facilities/{facility_id}/contact")
+def admin_update_facility_contact(facility_id: str, payload: Dict[str, Any] = Body(...)) -> JSONResponse:
+    from api.admin import update_facility_contact
+    try:
+        updated = update_facility_contact(
+            facility_id=facility_id,
+            contact_person=payload.get("contact_person"),
+            phone=payload.get("phone"),
+            email=payload.get("email"),
+        )
+        return JSONResponse(content=updated)
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/api/admin/alerts/dispatch")
+def admin_dispatch_alert(payload: Dict[str, Any] = Body(...)) -> JSONResponse:
+    from api.admin import dispatch_institutional_alert
+    try:
+        res = dispatch_institutional_alert(
+            zone_id=payload.get("zone_id"),
+            facility_id=payload.get("facility_id"),
+            category=payload.get("category"),
+            trigger_type=payload.get("trigger_type", "manual"),
+        )
+        return JSONResponse(content=res)
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/api/admin/alerts/audit")
+def admin_get_audit(zone_id: Optional[int] = Query(None), limit: int = Query(50)) -> JSONResponse:
+    from api.admin import get_alerts_audit_log
+    logs = get_alerts_audit_log(zone_id=zone_id, limit=limit)
+    return JSONResponse(content={"logs": logs, "count": len(logs)})
+
+
+@app.post("/api/admin/autonomous/check")
+def admin_autonomous_check() -> JSONResponse:
+    from api.admin import evaluate_autonomous_alerts
+    res = evaluate_autonomous_alerts()
+    return JSONResponse(content=res)
+
 
