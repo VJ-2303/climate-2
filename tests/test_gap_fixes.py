@@ -12,33 +12,33 @@ client = TestClient(app)
 
 MOCK_FORECAST = {
     "daily": [
-        {"day": 1, "date": "2026-09-24", "wbgt_max": 29.0},
-        {"day": 2, "date": "2026-09-25", "wbgt_max": 30.5},
-        {"day": 3, "date": "2026-09-26", "wbgt_max": 32.5},
-        {"day": 4, "date": "2026-09-27", "wbgt_max": 31.0},
-        {"day": 5, "date": "2026-09-28", "wbgt_max": 28.0},
+        {"day": 1, "date": "2026-09-24", "wbgt_max": 31.0},
+        {"day": 2, "date": "2026-09-25", "wbgt_max": 35.0},
+        {"day": 3, "date": "2026-09-26", "wbgt_max": 38.5},
+        {"day": 4, "date": "2026-09-27", "wbgt_max": 36.0},
+        {"day": 5, "date": "2026-09-28", "wbgt_max": 29.0},
     ]
 }
 
 
-# --- Slice 1: Plan 3.1 tier thresholds — Critical: WBGT > 32C ---
+# --- Slice 1: Calibrated WBGT tier thresholds — Critical: WBGT > 38C ---
 
-def test_critical_threshold_is_32():
-    assert classify_wbgt_risk(32.1) == "Critical"
-    assert classify_wbgt_risk(32.0) == "High"
-    assert classify_wbgt_risk(30.0) == "High"
-    assert classify_wbgt_risk(29.9) == "Moderate"
-    assert classify_wbgt_risk(28.0) == "Moderate"
-    assert classify_wbgt_risk(27.9) == "Low"
+def test_critical_threshold_is_38():
+    assert classify_wbgt_risk(38.1) == "Critical"
+    assert classify_wbgt_risk(38.0) == "High"
+    assert classify_wbgt_risk(34.0) == "High"
+    assert classify_wbgt_risk(33.9) == "Moderate"
+    assert classify_wbgt_risk(30.0) == "Moderate"
+    assert classify_wbgt_risk(29.9) == "Low"
 
 
-def test_trajectory_critical_threshold_is_32():
+def test_trajectory_critical_threshold_is_38():
     props = {"block_id": "KIB-0001", "temp_anomaly_celsius": 0.0, "population_density": 50, "building_density": 50}
-    traj = evaluate_5day_health_trajectory(props, {"daily": [{"day": 1, "date": "d", "wbgt_max": 32.1}]})
+    traj = evaluate_5day_health_trajectory(props, {"daily": [{"day": 1, "date": "d", "wbgt_max": 38.1}]})
     assert traj[0]["health_risk_tier"] == "Critical"
 
 
-# --- Slice 2: Plan 3.1 — modulate tier by social sensitivity (pop + metal roofs) ---
+# --- Slice 2: Modulate tier by social sensitivity (pop + density) ---
 
 def test_tier_modulated_by_social_sensitivity():
     # High social sensitivity (pop 90, building 90 -> 0.7*90+0.3*90 = 90 >= 70) bumps tier up one level
@@ -48,7 +48,7 @@ def test_tier_modulated_by_social_sensitivity():
     traj_high = evaluate_5day_health_trajectory(high_sens, MOCK_FORECAST)
     traj_low = evaluate_5day_health_trajectory(low_sens, MOCK_FORECAST)
 
-    # Day 1: wbgt 29.0 -> base tier Moderate. High sensitivity must bump to High; low stays Moderate.
+    # Day 1: wbgt 31.0 -> base tier Moderate. High sensitivity must bump to High; low stays Moderate.
     assert traj_high[0]["health_risk_tier"] == "High"
     assert traj_low[0]["health_risk_tier"] == "Moderate"
 
@@ -98,7 +98,7 @@ def test_vulnerability_blocks_have_shap_top_factors():
 
 def test_open_meteo_url_is_daily_only():
     from api.weather import build_open_meteo_url
-    url = build_open_meteo_url(-1.317, 36.789)
+    url = build_open_meteo_url(9.921851, 78.118200)
     assert "hourly=" not in url
     assert "daily=temperature_2m_max" in url
 
@@ -115,6 +115,6 @@ def test_process_open_meteo_uses_daily_max_temp():
             "shortwave_radiation_sum": [20.0],
         },
     }
-    result = process_open_meteo(raw, -1.317, 36.789)
+    result = process_open_meteo(raw, 9.921851, 78.118200)
     assert result["daily"][0]["wbgt_max"] == calculate_wbgt(30.0, 60.0)
 

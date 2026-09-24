@@ -12,9 +12,9 @@
   let smsTargetBlockId = null;
 
   function scoreColor(score) {
-    if (score <= 30) return TIER_COLORS.Low;
-    if (score <= 55) return TIER_COLORS.Medium;
-    if (score <= 75) return TIER_COLORS.High;
+    if (score <= 45) return TIER_COLORS.Low;
+    if (score <= 70) return TIER_COLORS.Medium;
+    if (score <= 85) return TIER_COLORS.High;
     return TIER_COLORS.Critical;
   }
 
@@ -177,7 +177,7 @@
       const maxAbs = Math.max(...shapFactors.map((f) => Math.abs(f.shap_value)), 0.01);
       const sec = document.createElement("div");
       sec.innerHTML = `<div style="font-size: 12px; font-weight: 700; color: #334155; margin-bottom: 6px;">
-        AI Heat Drivers (SHAP) — base ${Number(data.shap_base_temp || 29.4).toFixed(1)}°C</div>`;
+        AI Heat Drivers (SHAP) — base ${Number(data.shap_base_temp || 49.6).toFixed(1)}°C</div>`;
       shapFactors.forEach((f) => {
         const val = Number(f.shap_value);
         const row = document.createElement("div");

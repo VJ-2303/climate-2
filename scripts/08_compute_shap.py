@@ -42,16 +42,16 @@ def main():
         print(f"Error: {model_path} not found.")
         sys.exit(1)
         
-    kibera_path = "data/processed/kibera_blocks_50m.geojson"
-    if not os.path.exists(kibera_path):
-        print(f"Error: {kibera_path} not found.")
+    madurai_path = "data/processed/madurai_blocks_50m.geojson"
+    if not os.path.exists(madurai_path):
+        print(f"Error: {madurai_path} not found.")
         sys.exit(1)
 
     # 1. Load model and block table
     model = XGBRegressor()
     model.load_model(model_path)
     
-    gdf = gpd.read_file(kibera_path)
+    gdf = gpd.read_file(madurai_path)
     print(f"Loaded {len(gdf)} blocks for SHAP analysis.")
     
     X = gdf[FEATURE_COLS].copy()

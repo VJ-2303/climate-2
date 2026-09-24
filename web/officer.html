@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ThermalGuard — Officer Command Center (Kibera)</title>
+  <title>ThermalGuard — Officer Command Center (Madurai)</title>
   
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -33,7 +33,7 @@
           <div class="brand-text">
             <span class="brand-title">ThermalGuard</span>
             <div class="brand-sub-row">
-              <span class="brand-location">Officer Command · Kibera</span>
+              <span class="brand-location">Officer Command · Madurai</span>
               <span class="brand-temp-pill" id="topbar-avg-temp">Avg: --°C</span>
             </div>
           </div>
@@ -170,7 +170,7 @@
         </div>
 
         <!-- Offline Satellite Basemap Cache Trigger -->
-        <button id="btn-offline-cache" class="btn btn-outline" title="Pre-download Kibera Satellite Map for Instant Offline Loading">
+        <button id="btn-offline-cache" class="btn btn-outline" title="Pre-download Madurai Satellite Map for Instant Offline Loading">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
             <polyline points="7 10 12 15 17 10"/>
@@ -331,7 +331,7 @@
 
         <!-- Floating Zoom / Reset View Control -->
         <div class="map-quick-controls">
-          <button class="map-btn" id="btn-reset-view" title="Reset View to Kibera">
+          <button class="map-btn" id="btn-reset-view" title="Reset View to Madurai">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
               <path d="M3 3v5h5"/>
@@ -498,13 +498,13 @@
           <div class="zone-dominant-intv" id="zm-dominant-intv">--</div>
         </div>
 
-        <!-- Kibera Settlement Baseline Temperature -->
+        <!-- Madurai Settlement Baseline Temperature -->
         <div class="zone-modal-section">
           <div class="zone-modal-section-label">Settlement Temperature Baseline</div>
           <div class="zone-baseline-row">
             <div class="zone-baseline-item">
-              <span class="zone-baseline-label">Kibera Avg Temp</span>
-              <span class="zone-baseline-val" id="zm-kibera-avg-temp">--</span>
+              <span class="zone-baseline-label">Madurai Avg Temp</span>
+              <span class="zone-baseline-val" id="zm-settlement-avg-temp">--</span>
             </div>
             <div class="zone-baseline-divider"></div>
             <div class="zone-baseline-item">
@@ -544,13 +544,13 @@
 
         <div class="offline-modal-body">
           <p class="offline-modal-desc">
-            Pre-download high-resolution satellite imagery and reference labels for <strong>Kibera + 2km Buffer Zone</strong> directly into your browser's local cache. Once downloaded, the map will load instantly with <strong>zero internet latency</strong> and remain 100% accessible offline in the field.
+            Pre-download high-resolution satellite imagery and reference labels for <strong>Madurai City + Buffer Zone</strong> directly into your browser's local cache. Once downloaded, the map will load instantly with <strong>zero internet latency</strong> and remain 100% accessible offline in the field.
           </p>
 
           <div class="offline-specs-grid">
             <div class="offline-spec-item">
               <span class="offline-spec-label">Target Area</span>
-              <span class="offline-spec-val">Kibera + Buffer (5km × 5km)</span>
+              <span class="offline-spec-val">Madurai + Buffer (14km × 10km)</span>
             </div>
             <div class="offline-spec-item">
               <span class="offline-spec-label">Zoom Levels</span>
@@ -607,8 +607,8 @@
     <div id="loading-overlay" class="loading-curtain">
       <div class="loading-dialog">
         <div class="loading-spinner"></div>
-        <div class="loading-text">Loading Kibera Climate Map...</div>
-        <div class="loading-subtext">Rendering 18,040 50m sectors</div>
+        <div class="loading-text">Loading Madurai Climate Map...</div>
+        <div class="loading-subtext">Rendering 36,913 50m sectors</div>
       </div>
     </div>
   </div>

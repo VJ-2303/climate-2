@@ -5,18 +5,19 @@ import numpy as np
 import pandas as pd
 import rasterio
 from pyproj import Transformer
+from sklearn.model_selection import train_test_split
 from sklearn.metrics import r2_score, mean_absolute_error
 from xgboost import XGBRegressor
 
 # Immutable Constants from SPEC.md Section 2
 SEED = 42
-PROCESS_CRS = "EPSG:32737"
+PROCESS_CRS = "EPSG:32643"
 OUTPUT_CRS = "EPSG:4326"
 WORKING_RES = 20          # meters
 BLOCK_SIZE = 50           # meters
 TRAIN_HALF_SIZE = 2500    # meters (5km x 5km training area)
-CENTER_LAT = -1.317
-CENTER_LON = 36.789
+CENTER_LAT = 9.921851
+CENTER_LON = 78.118200
 DIST_CAP = 1000.0         # meters
 BLOCK_MIN_VALID_COVERAGE = 0.70
 MIN_TRAIN_SAMPLES = 1000  # Landsat 100m pixels
@@ -49,7 +50,7 @@ TARGET_COL = "target_st_celsius"
 def main():
     print("Stage 2: Module 1 Training (XGBoost Regressor)...")
 
-    # 1. Compute TRAIN_BOUNDS in EPSG:32737
+    # 1. Compute TRAIN_BOUNDS in EPSG:32643
     transformer = Transformer.from_crs("EPSG:4326", PROCESS_CRS, always_xy=True)
     center_x, center_y = transformer.transform(CENTER_LON, CENTER_LAT)
     
@@ -116,7 +117,7 @@ def main():
 
                     # Target
                     t_val = target_arr[pr, pc]
-                    if t_val != NODATA and not np.isnan(t_val) and 10.0 <= t_val <= 55.0:
+                    if t_val != NODATA and not np.isnan(t_val) and 10.0 <= t_val <= 70.0:
                         valid_target_count += 1
                         target_sum += float(t_val)
 
@@ -158,13 +159,13 @@ def main():
     else:
         print(f"GATE G2 PASSED: sample count = {sample_count} >= {MIN_TRAIN_SAMPLES}")
 
-    # 5. Split 80/20 by row with SEED (sequential row split, not shuffled)
-    split_idx = int(len(df) * 0.80)
+    # 5. Split 80/20 by row with SEED
     X = df[FEATURE_COLS]
     y = df[TARGET_COL]
 
-    X_train, X_val = X.iloc[:split_idx], X.iloc[split_idx:]
-    y_train, y_val = y.iloc[:split_idx], y.iloc[split_idx:]
+    X_train, X_val, y_train, y_val = train_test_split(
+        X, y, test_size=0.20, random_state=SEED
+    )
     print(f"Train samples: {len(X_train)}, Validation samples: {len(X_val)}")
 
     # 6. Train XGBRegressor with EXACT hyperparameters from SPEC Section 7

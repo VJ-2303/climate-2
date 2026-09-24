@@ -9,13 +9,13 @@ from xgboost import XGBRegressor
 
 # Immutable Constants from SPEC.md Section 2
 SEED = 42
-PROCESS_CRS = "EPSG:32737"
+PROCESS_CRS = "EPSG:32643"
 OUTPUT_CRS = "EPSG:4326"
 WORKING_RES = 20          # meters
 BLOCK_SIZE = 50           # meters
 TRAIN_HALF_SIZE = 2500    # meters (5km x 5km training area)
-CENTER_LAT = -1.317
-CENTER_LON = 36.789
+CENTER_LAT = 9.921851
+CENTER_LON = 78.118200
 DIST_CAP = 1000.0         # meters
 BLOCK_MIN_VALID_COVERAGE = 0.70
 MIN_TRAIN_SAMPLES = 1000  # Landsat 100m pixels
@@ -57,7 +57,7 @@ def main():
     model.load_model(model_path)
     print(f"Loaded model from {model_path}")
 
-    # Compute TRAIN_BOUNDS in EPSG:32737
+    # Compute TRAIN_BOUNDS in EPSG:32643
     transformer = Transformer.from_crs("EPSG:4326", PROCESS_CRS, always_xy=True)
     center_x, center_y = transformer.transform(CENTER_LON, CENTER_LAT)
     
@@ -83,17 +83,27 @@ def main():
     # 1. Identify valid 20m pixels inside TRAIN_BOUNDS and predict
     valid_pixels = []  # list of (r, c, cell_r, cell_c, feat_dict)
     cell_size = 100.0
-    num_cols = int(round((train_maxx - train_minx) / cell_size))
-    num_rows = int(round((train_maxy - train_miny) / cell_size))
+    r_minx = transform[2]
+    r_maxy = transform[5]
+    r_maxx = r_minx + raster_width * transform[0]
+    r_miny = r_maxy + raster_height * transform[4]
+
+    grid_minx = math.floor(min(r_minx, r_maxx) / cell_size) * cell_size
+    grid_maxx = math.ceil(max(r_minx, r_maxx) / cell_size) * cell_size
+    grid_miny = math.floor(min(r_miny, r_maxy) / cell_size) * cell_size
+    grid_maxy = math.ceil(max(r_miny, r_maxy) / cell_size) * cell_size
+
+    num_cols = int(round((grid_maxx - grid_minx) / cell_size))
+    num_rows = int(round((grid_maxy - grid_miny) / cell_size))
 
     # Pre-calculate 100m cell targets
     cell_targets = {}
     for cr in range(num_rows):
-        cell_top = train_maxy - cr * cell_size
-        cell_bot = train_maxy - (cr + 1) * cell_size
+        cell_top = grid_maxy - cr * cell_size
+        cell_bot = grid_maxy - (cr + 1) * cell_size
         for cc in range(num_cols):
-            cell_left = train_minx + cc * cell_size
-            cell_right = train_minx + (cc + 1) * cell_size
+            cell_left = grid_minx + cc * cell_size
+            cell_right = grid_minx + (cc + 1) * cell_size
 
             c_min = max(0, int(math.floor((cell_left - transform[2]) / transform[0])))
             c_max = min(raster_width, int(math.ceil((cell_right - transform[2]) / transform[0])))
@@ -110,7 +120,7 @@ def main():
                     if not (cell_left <= px < cell_right):
                         continue
                     t_val = target_arr[pr, pc]
-                    if t_val != NODATA and not np.isnan(t_val) and 10.0 <= t_val <= 55.0:
+                    if t_val != NODATA and not np.isnan(t_val) and 10.0 <= t_val <= 70.0:
                         t_vals.append(float(t_val))
 
             if len(t_vals) > 0:
@@ -118,20 +128,20 @@ def main():
 
     print(f"Computed target_100m for {len(cell_targets)} cells")
 
-    # Collect 20m pixels inside TRAIN_BOUNDS for inference
+    # Collect 20m pixels inside full grid for inference
     pixel_records = []
     for r in range(raster_height):
         py = transform[5] + (r + 0.5) * transform[4]
-        if not (train_miny <= py < train_maxy):
+        if not (grid_miny <= py < grid_maxy):
             continue
-        cr = int(math.floor((train_maxy - py) / cell_size))
+        cr = int(math.floor((grid_maxy - py) / cell_size))
         cr = min(max(0, cr), num_rows - 1)
 
         for c in range(raster_width):
             px = transform[2] + (c + 0.5) * transform[0]
-            if not (train_minx <= px < train_maxx):
+            if not (grid_minx <= px < grid_maxx):
                 continue
-            cc = int(math.floor((px - train_minx) / cell_size))
+            cc = int(math.floor((px - grid_minx) / cell_size))
             cc = min(max(0, cc), num_cols - 1)
 
             # Check if all feature rasters are valid
@@ -203,7 +213,7 @@ def main():
     else:
         print(f"GATE G4 PASSED: max_abs_diff={max_abs_diff:.6f} <= 0.01")
 
-    # 4. Save data/processed/ai_heat_base_20m.tif (CRS 32737, nodata -9999)
+    # 4. Save data/processed/ai_heat_base_20m.tif (CRS 32643, nodata -9999)
     out_raster = np.full((raster_height, raster_width), NODATA, dtype=np.float32)
     for _, row in df_pixels.iterrows():
         out_raster[int(row["r"]), int(row["c"])] = np.float32(row["corrected_20m"])

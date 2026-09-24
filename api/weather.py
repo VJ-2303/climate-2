@@ -10,8 +10,8 @@ import time
 import urllib.request
 from typing import Dict, Any, Optional
 
-DEFAULT_LAT = -1.317
-DEFAULT_LON = 36.789
+DEFAULT_LAT = 9.921851
+DEFAULT_LON = 78.118200
 CACHE_TTL_SECONDS = 3600  # 1 hour
 FALLBACK_FILE = os.path.join(os.path.dirname(__file__), "..", "data", "fallback_forecast.json")
 
@@ -67,12 +67,12 @@ def calculate_full_wbgt(temp_celsius: float, humidity_pct: float, direct_radiati
     return 0.57 * tg + 0.32 * ea + 0.11 * temp_celsius
 
 def classify_wbgt_risk(wbgt: float) -> str:
-    """Classifies physiological heat risk from WBGT. Critical: WBGT > 32C (SIH26083 plan spec)."""
-    if wbgt > 32.0:
+    """Classifies physiological heat risk from WBGT calibrated for Indian tropical climate (IMD/NDMA standards)."""
+    if wbgt > 38.0:
         return "Critical"
-    elif wbgt >= 30.0:
+    elif wbgt >= 34.0:
         return "High"
-    elif wbgt >= 28.0:
+    elif wbgt >= 30.0:
         return "Moderate"
     else:
         return "Low"
@@ -85,7 +85,7 @@ def _load_fallback(fallback_path: str = FALLBACK_FILE) -> Dict[str, Any]:
             return json.load(f)
     # Ultimate hardcoded fallback if file missing
     return {
-        "location": "Kibera, Nairobi",
+        "location": "Madurai, Tamil Nadu",
         "latitude": DEFAULT_LAT,
         "longitude": DEFAULT_LON,
         "source": "Emergency Fallback Cache",
@@ -112,7 +112,7 @@ def build_open_meteo_url(lat: float, lon: float) -> str:
         f"latitude={lat}&longitude={lon}&"
         f"models=ecmwf_ifs025,icon_seamless,gfs025&"
         f"daily=temperature_2m_max,temperature_2m_min,relative_humidity_2m_mean,wind_speed_10m_max,shortwave_radiation_sum&"
-        f"timezone=Africa%2FNairobi&forecast_days=5"
+        f"timezone=Asia%2FKolkata&forecast_days=5"
     )
 
 BLEND_FIELDS = (
@@ -194,7 +194,7 @@ def process_open_meteo(raw_data: Dict[str, Any], lat: float, lon: float) -> Dict
     max_overall_wbgt = max(d["wbgt_max"] for d in processed_days) if processed_days else 30.0
     is_blend = _is_multi_model(raw_data.get("daily", {}))
     return {
-        "location": "Kibera, Nairobi",
+        "location": "Madurai, Tamil Nadu",
         "latitude": lat,
         "longitude": lon,
         "source": "Open-Meteo Multi-Model Blend (ECMWF + ICON + GFS)" if is_blend else "Open-Meteo Live API",

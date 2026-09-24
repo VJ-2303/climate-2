@@ -15,7 +15,7 @@ def test_evaluate_5day_health_trajectory():
         "daily": [
             {"day": 1, "date": "2026-09-24", "wbgt_max": 29.0},
             {"day": 2, "date": "2026-09-25", "wbgt_max": 30.5},
-            {"day": 3, "date": "2026-09-26", "wbgt_max": 32.5},
+            {"day": 3, "date": "2026-09-26", "wbgt_max": 38.0},
             {"day": 4, "date": "2026-09-27", "wbgt_max": 31.0},
             {"day": 5, "date": "2026-09-28", "wbgt_max": 28.0},
         ]
@@ -23,8 +23,8 @@ def test_evaluate_5day_health_trajectory():
     traj = evaluate_5day_health_trajectory(props, mock_forecast)
     assert len(traj) == 5
     assert traj[0]["day"] == 1
-    # Day 3 base wbgt 32.5 + anomaly 1.5 * 0.4 = 33.1 => Critical
-    assert traj[2]["local_wbgt"] == 33.1
+    # Day 3 base wbgt 38.0 + anomaly 1.5 * 0.4 = 38.6 => Critical (> 38.0)
+    assert traj[2]["local_wbgt"] == 38.6
     assert traj[2]["health_risk_tier"] == "Critical"
     assert "risk_score" in traj[2]
     assert "advisory" in traj[2]

@@ -1,8 +1,8 @@
 {
-  "location": "Kibera, Nairobi",
-  "latitude": -1.317,
-  "longitude": 36.789,
-  "timezone": "Africa/Nairobi",
+  "location": "Madurai, Tamil Nadu",
+  "latitude": 9.921851,
+  "longitude": 78.1182,
+  "timezone": "Asia/Kolkata",
   "generated_at": "2026-09-24T06:00:00Z",
   "source": "Open-Meteo ECMWF Ensemble (Offline Cached Baseline)",
   "summary": "Severe 5-day heatwave warning. Peak air temperature 34.5°C at 65% humidity on Day 3, max WBGT reaching 37.4°C.",

@@ -1,6 +1,6 @@
 """
 HeatViz Climate Intelligence API
-FastAPI backend serving GeoJSON layers and hyperlocal microclimate intelligence for Kibera.
+FastAPI backend serving GeoJSON layers and hyperlocal microclimate intelligence for Madurai.
 """
 
 import json
@@ -49,7 +49,7 @@ def load_dataset_into_memory() -> None:
     """Loads vulnerability blocks GeoJSON into memory, creates 2D spatial grid, and precomputes benchmark distributions."""
     global blocks_db, shap_db, block_to_grid, grid_to_block, all_hvi_scores, total_blocks_count, layer_attributes_cache
     geojson_path = OUTPUT_DIR / "vulnerability_blocks.geojson"
-    processed_path = PROCESSED_DIR / "kibera_blocks_50m.geojson"
+    processed_path = PROCESSED_DIR / "madurai_blocks_50m.geojson"
     shap_path = PROCESSED_DIR / "block_shap_explanations.json"
 
     if not geojson_path.is_file():
@@ -142,7 +142,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="HeatViz Climate Intelligence API",
-    description="Hyperlocal Urban Heat Vulnerability Platform for Kibera",
+    description="Hyperlocal Urban Heat Vulnerability Platform for Madurai",
     version="2.0.0",
     lifespan=lifespan,
 )
@@ -207,7 +207,7 @@ async def dispatch_sms_alert(payload: Dict[str, Any]) -> JSONResponse:
         "recipient_group": recipient_group,
         "recipients_count": recipients_count,
         "message": message,
-        "channels": ["SMS (AfricasTalking/Twilio)", "USSD Broadcast", "Community Health Volunteers"]
+        "channels": ["SMS (TNSDMA Common Alerting Protocol / BSNL)", "WhatsApp Emergency Broadcast", "Ward Health Volunteers / UPHC Outreach", "108 Emergency Ambulance Staging"]
     }
     logger.info(f"Dispatched SMS emergency advisory: {audit_entry['audit_id']} to {recipients_count} recipients in {block_id}")
     return JSONResponse(content=audit_entry)
@@ -246,7 +246,7 @@ def get_forecast_day_attributes(day: int) -> JSONResponse:
         pop_norm = float(props.get("population_density", 50.0))
         bldg_norm = float(props.get("building_density", 50.0))
         local_wbgt = base_wbgt + (anomaly * 0.4)
-        base_score = min(100.0, max(0.0, (local_wbgt - 24.0) * 10.0))
+        base_score = min(100.0, max(0.0, (local_wbgt - 28.0) * 10.0))
         risk_score = int(round(min(100.0, max(0.0, base_score * 0.75 + (pop_norm * 0.15) + (bldg_norm * 0.10)))))
         attr_map[bid] = risk_score
 
@@ -310,7 +310,7 @@ def get_block_intelligence(block_id: str) -> JSONResponse:
 
     # Attach explainable AI (SHAP) feature attributions (top 3 per SIH26083 plan 2.3)
     payload["shap_factors"] = shap_factors[:3]
-    payload["shap_base_temp"] = shap_info.get("base_value", 29.4)
+    payload["shap_base_temp"] = shap_info.get("base_value", 49.59)
 
     return JSONResponse(
         content=payload,

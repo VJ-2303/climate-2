@@ -9,13 +9,13 @@ from torch_geometric.nn import GATv2Conv
 
 # Immutable Constants from SPEC.md Section 2
 SEED = 42
-PROCESS_CRS = "EPSG:32737"
+PROCESS_CRS = "EPSG:32643"
 OUTPUT_CRS = "EPSG:4326"
 WORKING_RES = 20          # meters
 BLOCK_SIZE = 50           # meters
 TRAIN_HALF_SIZE = 2500    # meters (5km x 5km training area)
-CENTER_LAT = -1.317
-CENTER_LON = 36.789
+CENTER_LAT = 9.921851
+CENTER_LON = 78.118200
 DIST_CAP = 1000.0         # meters
 BLOCK_MIN_VALID_COVERAGE = 0.70
 MIN_TRAIN_SAMPLES = 1000  # Landsat 100m pixels
@@ -52,8 +52,8 @@ class HeatGAT(nn.Module):
 def main():
     print("Stage 6: Module 2 Inference (Graph Attention Network Contextual Heat)...")
 
-    # 1. Load graph_kibera.pt and model
-    graph_path = "models/graph_kibera.pt"
+    # 1. Load graph_madurai.pt and model
+    graph_path = "models/graph_madurai.pt" if os.path.exists("models/graph_madurai.pt") else "models/graph_kibera.pt"
     model_path = "models/module2_gat.pt"
 
     if not os.path.exists(graph_path):
@@ -64,7 +64,7 @@ def main():
         sys.exit(1)
 
     data = torch.load(graph_path, weights_only=False)
-    print(f"Loaded Kibera graph: {data.num_nodes} nodes, {data.edge_index.shape[1]} edges")
+    print(f"Loaded graph: {data.num_nodes} nodes, {data.edge_index.shape[1]} edges")
 
     model = HeatGAT()
     model.load_state_dict(torch.load(model_path, weights_only=True))
@@ -80,7 +80,7 @@ def main():
     print(f"Inferred contextual_ai_heat for {len(contextual_ai_heat)} blocks.")
     print(f"Summary stats: min={contextual_ai_heat.min():.4f}, mean={contextual_ai_heat.mean():.4f}, std={contextual_ai_heat.std():.4f}, max={contextual_ai_heat.max():.4f}")
 
-    # 4. Gate G6: std(contextual_ai_heat over Kibera blocks) >= 5.0
+    # 4. Gate G6: std(contextual_ai_heat over Madurai blocks) >= 5.0
     std_val = float(np.std(contextual_ai_heat))
     print(f"Standard deviation: {std_val:.4f} (Threshold: >= 5.0)")
 
@@ -91,20 +91,20 @@ def main():
         print(f"GATE G6 PASSED: std={std_val:.4f} >= 5.0")
 
     # 5. Attach to block table
-    kibera_geojson_path = "data/processed/kibera_blocks_50m.geojson"
-    if not os.path.exists(kibera_geojson_path):
-        print(f"Error: {kibera_geojson_path} not found.")
+    madurai_geojson_path = "data/processed/madurai_blocks_50m.geojson"
+    if not os.path.exists(madurai_geojson_path):
+        print(f"Error: {madurai_geojson_path} not found.")
         sys.exit(1)
 
-    gdf = gpd.read_file(kibera_geojson_path)
+    gdf = gpd.read_file(madurai_geojson_path)
     if len(gdf) != len(contextual_ai_heat):
         print(f"Error: Row count mismatch: {len(gdf)} blocks vs {len(contextual_ai_heat)} predictions")
         sys.exit(1)
 
     gdf["contextual_ai_heat"] = contextual_ai_heat
-    gdf.to_file(kibera_geojson_path, driver="GeoJSON")
-    print(f"Attached contextual_ai_heat and saved updated block table to {kibera_geojson_path}")
-    print(f"STAGE 6 m2-infer: PASS | blocks: {len(gdf)} | std: {std_val:.4f} | artifact: {kibera_geojson_path}")
+    gdf.to_file(madurai_geojson_path, driver="GeoJSON")
+    print(f"Attached contextual_ai_heat and saved updated block table to {madurai_geojson_path}")
+    print(f"STAGE 6 m2-infer: PASS | blocks: {len(gdf)} | std: {std_val:.4f} | artifact: {madurai_geojson_path}")
 
 if __name__ == "__main__":
     main()

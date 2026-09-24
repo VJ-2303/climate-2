@@ -19,7 +19,7 @@ def test_calculate_wbgt_bounds():
 
 def test_get_5day_forecast_fallback():
     # Using forced fallback
-    forecast = get_5day_forecast(lat=-1.317, lon=36.789, force_fallback=True)
+    forecast = get_5day_forecast(lat=9.921851, lon=78.118200, force_fallback=True)
     assert "daily" in forecast
     assert len(forecast["daily"]) == 5
     first_day = forecast["daily"][0]

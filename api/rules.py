@@ -156,32 +156,32 @@ def calculate_intervention_sizing(props: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def select_ecological_species(props: Dict[str, Any]) -> Dict[str, str]:
-    """Selects indigenous Kenyan botanical species tailored to soil moisture and structural density."""
+    """Selects native Tamil Nadu botanical species tailored to soil moisture and urban structural density."""
     dist_water = props.get("distance_to_water", 500)
     bld_dens = props.get("building_density", 0)
 
     if dist_water <= 150:
         return {
-            "primary_species": "Acacia xanthophloea (Yellow-Barked Fever Tree) & Syzygium cordatum (Water Berry)",
-            "botanical_rationale": "High moisture tolerance, rapid transpiration cooling, and stabilization of riparian runoff corridors.",
-            "planting_zone": "Along drainage swales and moist alluvial pathways",
+            "primary_species": "Terminalia arjuna (Marudham / நீர்மருது) & Syzygium cumini (Jamun / நாவல்)",
+            "botanical_rationale": "High moisture tolerance, riparian riverbank stabilization along the Vaigai river and drainage kanmois, and rapid evaporative transpiration cooling.",
+            "planting_zone": "Along Vaigai riverfront, irrigation channels, and low-lying drainage corridors",
         }
     elif bld_dens >= 40:
         return {
-            "primary_species": "Markhamia lutea (Siala) & Croton megalocarpus",
-            "botanical_rationale": "Deep non-invasive taproots safe for narrow alleys near foundations; dense evergreen shade with low leaf litter.",
-            "planting_zone": "Narrow pedestrian alleys and pocket courtyards",
+            "primary_species": "Pongamia pinnata (Pungan / புங்க மரம்) & Mimusops elengi (Magizham / மகிழ மரம்)",
+            "botanical_rationale": "Deep non-invasive taproots safe for dense urban street foundations; dense evergreen shade canopy blocking intense western afternoon solar heat with low leaf litter.",
+            "planting_zone": "Narrow pedestrian lanes, dense residential wards, and inner street courtyards",
         }
     else:
         return {
-            "primary_species": "Azadirachta indica (Mwarobaini / Neem) & Tipuana tipu (Rosewood)",
-            "botanical_rationale": "Broad umbrella canopy providing up to 80% solar irradiance reduction and exceptional drought resilience.",
-            "planting_zone": "Open thoroughfares and communal gathering nodes",
+            "primary_species": "Azadirachta indica (Neem / வேம்பு) & Albizia lebbeck (Vagai / வாகை மரம்)",
+            "botanical_rationale": "Broad umbrella canopy providing up to 80% solar irradiance reduction and exceptional drought resilience in Madurai semi-arid climate.",
+            "planting_zone": "Major thoroughfares, open public grounds, and municipal parks",
         }
 
 
 def evaluate_heat_health_advisory(props: Dict[str, Any]) -> Dict[str, str]:
-    """Evaluates diurnal physiological heat stress and provides targeted community advisories for Nairobi latitude."""
+    """Evaluates diurnal physiological heat stress and provides targeted community advisories for Madurai tropical latitude (9.92°N)."""
     heat = props.get("ai_heat_exposure", 0)
     pop = props.get("estimated_population", 0)
     is_hot = heat >= 50
@@ -224,17 +224,20 @@ def evaluate_microclimate_diagnosis(props: Dict[str, Any], block_id: str = "") -
     risk_class = props.get("risk_class", "Medium")
 
     # Extract or accurately compute physical Land Surface Temperature in °C
-    if "mean_landsat_st_celsius" in props and props["mean_landsat_st_celsius"]:
-        st_val = float(props["mean_landsat_st_celsius"])
+    if "surface_temp_celsius" in props and props["surface_temp_celsius"] is not None:
+        surface_temp = round(float(props["surface_temp_celsius"]), 1)
+        temp_anomaly = round(float(props.get("temp_anomaly_celsius", 0.0)), 1)
+    elif "mean_landsat_st_celsius" in props and props["mean_landsat_st_celsius"]:
+        surface_temp = round(float(props["mean_landsat_st_celsius"]), 1)
+        temp_anomaly = round(float(props.get("temp_anomaly_celsius", surface_temp - 49.5)), 1)
     else:
-        # Scale ai_heat_exposure (0-100) to physical Kibera temperature range [20.24, 38.61]
-        st_val = 20.24 + (heat / 100.0) * (38.61 - 20.24)
+        # Scale ai_heat_exposure (0-100) to physical temperature range [32.7, 64.2]
+        surface_temp = round(32.7 + (heat / 100.0) * (64.2 - 32.7), 1)
+        temp_anomaly = round(surface_temp - 49.5, 1)
 
-    surface_temp = round(st_val, 1)
-    temp_anomaly = round(surface_temp - 28.7, 1)
-    # Peak metal roof solar radiant temperature under direct equatorial sun
-    peak_roof_temp = round(min(55.0, max(surface_temp, surface_temp + (ndbi / 100.0) * 16.0)), 1)
-    ambient_air_temp = round(24.5 + (surface_temp - 20.0) * 0.45, 1)
+    # Peak metal roof solar radiant temperature under direct sun
+    peak_roof_temp = round(min(70.0, max(surface_temp, surface_temp + (ndbi / 100.0) * 16.0)), 1)
+    ambient_air_temp = round(28.0 + (surface_temp - 32.0) * 0.35, 1)
 
     # 1. Physical Land-Cover Classification
     land_type, land_desc = classify_land_cover(props)
@@ -325,7 +328,7 @@ def evaluate_microclimate_diagnosis(props: Dict[str, Any], block_id: str = "") -
     }
 
 
-def format_humanized_factors(props: Dict[str, Any], surface_temp: float = 28.7, temp_anomaly: float = 0.0) -> List[Dict[str, Any]]:
+def format_humanized_factors(props: Dict[str, Any], surface_temp: float = 49.5, temp_anomaly: float = 0.0) -> List[Dict[str, Any]]:
     """Translates raw sensor & model metrics into human-understandable cards with status indicators."""
     heat = props.get("ai_heat_exposure", 0)
     ndvi = props.get("ndvi", 0)
@@ -389,7 +392,7 @@ def format_humanized_factors(props: Dict[str, Any], surface_temp: float = 28.7, 
             "value_display": f"{surface_temp:.1f}°C",
             "status": f"{surface_temp:.1f}°C ({temp_anomaly:+.1f}°C Anomaly)",
             "color": heat_color,
-            "desc": f"Observed satellite and AI-downscaled skin temperature ({surface_temp:.1f}°C) relative to settlement average (28.7°C).",
+            "desc": f"Observed satellite and AI-downscaled skin temperature ({surface_temp:.1f}°C) relative to regional settlement average ({surface_temp - temp_anomaly:.1f}°C).",
         },
         {
             "id": "greenery",
@@ -490,7 +493,7 @@ def build_block_intelligence(
         "peak_roof_temp_display": f"~{diag['peak_roof_temp_celsius']:.1f}°C",
         "ambient_temp_celsius": diag["ambient_temp_celsius"],
         "ambient_temp_display": f"~{diag['ambient_temp_celsius']:.1f}°C",
-        "settlement_avg_temp": 28.7,
+        "settlement_avg_temp": round(diag["surface_temp_celsius"] - diag["temp_anomaly_celsius"], 1),
         
         # 1. Detailed Information About This Area
         "land_cover_type": diag["land_cover_type"],
@@ -570,26 +573,26 @@ def evaluate_5day_health_trajectory(props: Dict[str, Any], forecast: Dict[str, A
         # Microclimate downscaling of WBGT: Sector anomaly scales WBGT by ~0.4
         local_wbgt = round(base_wbgt + (anomaly * 0.4), 1)
 
-        if local_wbgt > 32.0:
+        if local_wbgt > 38.0:
             tier = "Critical"
             risk_label = "Hospitalization Surge Hazard"
-        elif local_wbgt >= 30.0:
+        elif local_wbgt >= 34.0:
             tier = "High"
             risk_label = "Severe Heat Exhaustion Threat"
-        elif local_wbgt >= 28.0:
+        elif local_wbgt >= 30.0:
             tier = "Moderate"
             risk_label = "Occupational Heat Stress"
         else:
             tier = "Low"
             risk_label = "Temperate Physiological Baseline"
 
-        # Social sensitivity modulation (SIH26083 plan 3.1): high population density +
+        # Social sensitivity modulation: high population density +
         # metal roof concentration escalate the tier by one level (HVI weights 0.70/0.30).
         social = 0.70 * pop_norm + 0.30 * bldg_norm
         if social >= 70.0 and tier != "Critical":
             tier = {"Low": "Moderate", "Moderate": "High", "High": "Critical"}[tier]
 
-        base_score = min(100.0, max(0.0, (local_wbgt - 24.0) * 10.0))
+        base_score = min(100.0, max(0.0, (local_wbgt - 28.0) * 10.0))
         risk_score = int(round(min(100.0, max(0.0, base_score * 0.75 + (pop_norm * 0.15) + (bldg_norm * 0.10)))))
 
         trajectory.append({

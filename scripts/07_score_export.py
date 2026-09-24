@@ -7,13 +7,13 @@ import geopandas as gpd
 
 # Immutable Constants from SPEC.md Section 2
 SEED = 42
-PROCESS_CRS = "EPSG:32737"
+PROCESS_CRS = "EPSG:32643"
 OUTPUT_CRS = "EPSG:4326"
 WORKING_RES = 20          # meters
 BLOCK_SIZE = 50           # meters
 TRAIN_HALF_SIZE = 2500    # meters (5km x 5km training area)
-CENTER_LAT = -1.317
-CENTER_LON = 36.789
+CENTER_LAT = 9.921851
+CENTER_LON = 78.118200
 DIST_CAP = 1000.0         # meters
 BLOCK_MIN_VALID_COVERAGE = 0.70
 MIN_TRAIN_SAMPLES = 1000  # Landsat 100m pixels
@@ -32,11 +32,11 @@ def inv(x):
     return 100.0 - norm(x)
 
 def get_risk_class(score):
-    if score <= 30:
+    if score <= 45:
         return "Low"
-    elif score <= 55:
+    elif score <= 70:
         return "Medium"
-    elif score <= 75:
+    elif score <= 85:
         return "High"
     else:
         return "Critical"
@@ -62,7 +62,7 @@ INTERVENTIONS = {
 def main():
     print("Stage 7: Vulnerability Scoring, Explainability Drivers & Export...")
 
-    input_path = "data/processed/kibera_blocks_50m.geojson"
+    input_path = "data/processed/madurai_blocks_50m.geojson"
     if not os.path.exists(input_path):
         print(f"Error: {input_path} not found.")
         sys.exit(1)
@@ -168,8 +168,9 @@ def main():
 
     # Physical Temperature Properties from Satellite LST & AI Model
     st_raw = gdf["mean_landsat_st_celsius"].values if "mean_landsat_st_celsius" in gdf.columns else (20.24 + (ai_heat_exposure / 100.0) * 18.37)
+    settlement_mean = round(float(np.nanmean(st_raw)), 1)
     gdf_out["surface_temp_celsius"] = [round(float(x), 1) for x in st_raw]
-    gdf_out["temp_anomaly_celsius"] = [round(float(x) - 28.7, 1) for x in st_raw]
+    gdf_out["temp_anomaly_celsius"] = [round(float(x) - settlement_mean, 1) for x in st_raw]
 
     # Reproject to EPSG:4326
     print(f"Reprojecting blocks from {gdf_out.crs} to {OUTPUT_CRS}...")
@@ -255,11 +256,9 @@ def main():
         if col_src != prop_name:
             layer_gdf = layer_gdf.rename(columns={col_src: prop_name})
         
-        # Save in both data/output/layers/{name}.geojson and data/output/{name}.geojson for API flexibility
+        # Save in data/output/layers/{name}.geojson
         layer_out1 = f"data/output/layers/{layer_file}.geojson"
-        layer_out2 = f"data/output/{layer_file}.geojson"
         layer_gdf.to_file(layer_out1, driver="GeoJSON")
-        layer_gdf.to_file(layer_out2, driver="GeoJSON")
         print(f"Exported layer {layer_file} to {layer_out1}")
 
     # Risk class distribution

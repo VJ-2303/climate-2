@@ -31,7 +31,7 @@ def test_full_wbgt_formula_components():
 
 
 def test_url_is_daily_only():
-    url = build_open_meteo_url(-1.317, 36.789)
+    url = build_open_meteo_url(9.921851, 78.118200)
     assert "hourly=" not in url
     assert "daily=temperature_2m_max,temperature_2m_min,relative_humidity_2m_mean,wind_speed_10m_max,shortwave_radiation_sum" in url
 
@@ -47,12 +47,12 @@ def test_wbgt_from_daily_max_temperature():
             "shortwave_radiation_sum": [20.0, 27.0],
         },
     }
-    result = process_open_meteo(raw, -1.317, 36.789)
+    result = process_open_meteo(raw, 9.921851, 78.118200)
     d1, d2 = result["daily"][0], result["daily"][1]
     # WBGT computed from the day's max temperature + mean humidity, nothing else
     assert d1["wbgt_max"] == calculate_wbgt(30.0, 60.0)
     assert d2["wbgt_max"] == calculate_wbgt(34.5, 65.0)
-    assert d2["risk_tier"] == "Critical"
+    assert d2["risk_tier"] == "High"
 
 
 def test_process_open_meteo_blends_multi_model():
@@ -75,7 +75,7 @@ def test_process_open_meteo_blends_multi_model():
         "shortwave_radiation_sum_icon_seamless": [22.0],
         "shortwave_radiation_sum_gfs025": [21.0],
     }}
-    result = process_open_meteo(raw, -1.317, 36.789)
+    result = process_open_meteo(raw, 9.921851, 78.118200)
     d1 = result["daily"][0]
     # Blend = element-wise mean: Tmax (32+28+30)/3 = 30.0, RH 60.0
     assert d1["temp_max"] == 30.0
@@ -101,6 +101,6 @@ def test_wbgt_ignores_hourly_data_if_present():
             "wind_speed_10m": [1.0],
         },
     }
-    result = process_open_meteo(raw, -1.317, 36.789)
+    result = process_open_meteo(raw, 9.921851, 78.118200)
     # Hourly 35C/80% would give a higher WBGT — must be ignored
     assert result["daily"][0]["wbgt_max"] == calculate_wbgt(30.0, 60.0)

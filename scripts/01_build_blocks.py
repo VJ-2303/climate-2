@@ -9,13 +9,13 @@ from pyproj import Transformer
 
 # Immutable Constants from SPEC.md Section 2
 SEED = 42
-PROCESS_CRS = "EPSG:32737"
+PROCESS_CRS = "EPSG:32643"
 OUTPUT_CRS = "EPSG:4326"
 WORKING_RES = 20          # meters
 BLOCK_SIZE = 50           # meters
 TRAIN_HALF_SIZE = 2500    # meters (5km x 5km training area)
-CENTER_LAT = -1.317
-CENTER_LON = 36.789
+CENTER_LAT = 9.921851
+CENTER_LON = 78.118200
 DIST_CAP = 1000.0         # meters
 BLOCK_MIN_VALID_COVERAGE = 0.70
 MIN_TRAIN_SAMPLES = 1000  # Landsat 100m pixels
@@ -36,7 +36,7 @@ RASTERS = {
 def main():
     print("Stage 1: Building 50m Block Grid...")
 
-    # 1. Project CENTER_LON, CENTER_LAT to EPSG:32737
+    # 1. Project CENTER_LON, CENTER_LAT to EPSG:32643
     transformer = Transformer.from_crs("EPSG:4326", PROCESS_CRS, always_xy=True)
     center_x, center_y = transformer.transform(CENTER_LON, CENTER_LAT)
     
@@ -46,8 +46,8 @@ def main():
     train_maxy = center_y + TRAIN_HALF_SIZE
     print(f"TRAIN_BOUNDS: ({train_minx}, {train_miny}, {train_maxx}, {train_maxy})")
 
-    # Load kibera boundary
-    boundary_path = "data/processed/kibera_boundary.geojson"
+    # Load study area boundary
+    boundary_path = "data/processed/madurai_boundary.geojson"
     if not os.path.exists(boundary_path):
         print(f"Error: Boundary file {boundary_path} not found.")
         sys.exit(1)
@@ -57,7 +57,7 @@ def main():
         boundary_gdf = boundary_gdf.to_crs(PROCESS_CRS)
     boundary_geom = boundary_gdf.geometry.union_all() if hasattr(boundary_gdf.geometry, 'union_all') else boundary_gdf.geometry.unary_union
 
-    # 2. Create square 50m grid covering kibera_boundary bounds,
+    # 2. Create square 50m grid covering study area boundary bounds,
     # aligned so grid origin = floor(bounds_min / 50) * 50
     b_minx, b_miny, b_maxx, b_maxy = boundary_geom.bounds
     grid_minx = math.floor(b_minx / BLOCK_SIZE) * BLOCK_SIZE
@@ -192,9 +192,9 @@ def main():
     else:
         print(f"GATE G1 PASSED: block count = {block_count} >= 500")
 
-    # Save data/processed/kibera_blocks_50m.geojson (CRS 32737)
+    # Save data/processed/madurai_blocks_50m.geojson
     out_gdf = gpd.GeoDataFrame(valid_blocks, crs=PROCESS_CRS)
-    out_path = "data/processed/kibera_blocks_50m.geojson"
+    out_path = "data/processed/madurai_blocks_50m.geojson"
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     out_gdf.to_file(out_path, driver="GeoJSON")
     print(f"Saved block grid to {out_path}")

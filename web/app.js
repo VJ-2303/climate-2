@@ -33,16 +33,17 @@ const LAYER_TITLES = {
   social_sensitivity_blocks: "Social Vulnerability & Sensitivity",
 };
 
-const CENTER = [-1.317, 36.789];
-const DEFAULT_ZOOM = 15;
-const MIN_ZOOM = 13; // Locks zoom-out to 2x buffer overview
+const CENTER = [9.921851, 78.118200];
+const DEFAULT_ZOOM = 13;
+const MIN_ZOOM = 11; // Locks zoom-out to 2x buffer overview
 const MAX_ZOOM = 18; // Detailed rooftop inspection
 
-// 2x Buffer Spatial Lock Bounds around Kibera Target Area
-const KIBERA_BOUNDS_2X = [
-  [-1.355, 36.735], // Southwest coordinate (2x buffer)
-  [-1.280, 36.845], // Northeast coordinate (2x buffer)
+// 2x Buffer Spatial Lock Bounds around Madurai Target Area
+const MADURAI_BOUNDS_2X = [
+  [9.850, 78.000], // Southwest coordinate (2x buffer)
+  [10.000, 78.230], // Northeast coordinate (2x buffer)
 ];
+const KIBERA_BOUNDS_2X = MADURAI_BOUNDS_2X;
 
 // Global Application State
 let map;
@@ -70,7 +71,7 @@ let drawControl = null;
 let drawnZoneLayer = null;
 let zoneHighlightLayer = null;
 let isDrawingZone = false;
-let kiberaMeanSurfaceTemp = 28.7;
+let maduraiMeanSurfaceTemp = 49.5;
 
 document.addEventListener("DOMContentLoaded", initApp);
 
@@ -564,19 +565,19 @@ function renderBlockIntelligence(data) {
   setText("detail-population", `~${data.population || 0}`);
 
   // Surface Temperature KPI
-  const tempNum = data.surface_temp_celsius !== undefined ? data.surface_temp_celsius : 28.7;
+  const tempNum = data.surface_temp_celsius !== undefined ? data.surface_temp_celsius : 49.5;
   const tempEl = document.getElementById("detail-surface-temp");
   if (tempEl) {
     tempEl.textContent = `${tempNum.toFixed(1)}°C`;
-    tempEl.className = `kpi-val temp-kpi-val ${tempNum >= 31.0 ? "temp-hot" : (tempNum <= 26.0 ? "temp-cool" : "temp-mild")}`;
+    tempEl.className = `kpi-val temp-kpi-val ${tempNum >= 52.0 ? "temp-hot" : (tempNum <= 47.0 ? "temp-cool" : "temp-mild")}`;
   }
 
   // Temperature Anomaly KPI
-  const anomNum = data.temp_anomaly_celsius !== undefined ? data.temp_anomaly_celsius : (tempNum - 28.7);
+  const anomNum = data.temp_anomaly_celsius !== undefined ? data.temp_anomaly_celsius : (tempNum - 49.5);
   const anomEl = document.getElementById("detail-temp-anomaly");
   if (anomEl) {
     anomEl.textContent = `${anomNum > 0 ? "+" : ""}${anomNum.toFixed(1)}°C`;
-    anomEl.className = `kpi-val temp-kpi-anomaly ${anomNum > 1.5 ? "temp-hot" : (anomNum < -1.5 ? "temp-cool" : "temp-mild")}`;
+    anomEl.className = `kpi-val temp-kpi-anomaly ${anomNum > 2.0 ? "temp-hot" : (anomNum < -2.0 ? "temp-cool" : "temp-mild")}`;
   }
 
   // 2. Safe vs Risk State Handling
@@ -668,19 +669,19 @@ function generateFallbackIntelligence(props) {
   const hvi = props.hvi_score || 0;
   const pop = props.estimated_population || 0;
   const risk = props.risk_class || "Medium";
-  const is_safe = risk.toLowerCase() === "low" || hvi < 30;
+  const is_safe = risk.toLowerCase() === "low" || hvi < 45;
   const heat = props.ai_heat_exposure || 50;
 
   const st_val = props.surface_temp_celsius !== undefined
     ? Number(props.surface_temp_celsius)
     : (props.mean_landsat_st_celsius !== undefined
       ? Number(props.mean_landsat_st_celsius)
-      : (20.24 + (heat / 100.0) * 18.37));
+      : (42.0 + (heat / 100.0) * 15.0));
   const surface_temp_c = Math.round(st_val * 10) / 10;
   const temp_anomaly = props.temp_anomaly_celsius !== undefined
     ? Number(props.temp_anomaly_celsius)
-    : (Math.round((surface_temp_c - 28.7) * 10) / 10);
-  const peak_roof = Math.round(Math.min(55.0, Math.max(surface_temp_c, surface_temp_c + ((props.ndbi || 50) / 100.0) * 16.0)) * 10) / 10;
+    : (Math.round((surface_temp_c - 49.5) * 10) / 10);
+  const peak_roof = Math.round(Math.min(65.0, Math.max(surface_temp_c, surface_temp_c + ((props.ndbi || 50) / 100.0) * 12.0)) * 10) / 10;
 
   return {
     block_id: props.block_id || "KIB-0000",
@@ -709,7 +710,7 @@ function generateFallbackIntelligence(props) {
       "Deploy shaded community rest and water kiosks",
     ],
     factors: [
-      { name: "Land Surface Temperature", score: heat, status: `${surface_temp_c.toFixed(1)}°C (${temp_anomaly > 0 ? "+" : ""}${temp_anomaly.toFixed(1)}°C)`, color: surface_temp_c >= 31 ? "critical" : (surface_temp_c <= 26 ? "optimal" : "moderate") },
+      { name: "Land Surface Temperature", score: heat, status: `${surface_temp_c.toFixed(1)}°C (${temp_anomaly > 0 ? "+" : ""}${temp_anomaly.toFixed(1)}°C)`, color: surface_temp_c >= 52 ? "critical" : (surface_temp_c <= 47 ? "optimal" : "moderate") },
       { name: "Tree Canopy & Greenery", score: props.ndvi || 40, status: "Moderate", color: "moderate" },
       { name: "Tin Roofs & Impervious Mass", score: props.ndbi || 60, status: "Elevated", color: "elevated" },
     ],
@@ -862,7 +863,7 @@ function setupEventListeners() {
     exportBtn.addEventListener("click", () => {
       const a = document.createElement("a");
       a.href = "/data/vulnerability_blocks.geojson";
-      a.download = "kibera_vulnerability_blocks.geojson";
+      a.download = "madurai_vulnerability_blocks.geojson";
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -1003,10 +1004,10 @@ function updateLegend(layerName) {
     if (legendUnit) legendUnit.textContent = "HVI Score (0–100)";
 
     const items = [
-      { label: "Critical (76–100)", color: RISK_COLORS.Critical },
-      { label: "High (56–75)", color: RISK_COLORS.High },
-      { label: "Medium (31–55)", color: RISK_COLORS.Medium },
-      { label: "Low / Safe (0–30)", color: RISK_COLORS.Low },
+      { label: "Critical (86–100)", color: RISK_COLORS.Critical },
+      { label: "High (71–85)", color: RISK_COLORS.High },
+      { label: "Medium (46–70)", color: RISK_COLORS.Medium },
+      { label: "Low / Safe (0–45)", color: RISK_COLORS.Low },
     ];
 
     items.forEach((item) => {
@@ -1107,7 +1108,7 @@ function computeSettlementStats(features) {
   const total = features.length;
   const meanHVI = total > 0 ? Math.round(hviSum / total) : 0;
   if (tempCount > 0) {
-    kiberaMeanSurfaceTemp = tempSum / tempCount;
+    maduraiMeanSurfaceTemp = tempSum / tempCount;
   }
 
   const top5 = allBlocks
@@ -1124,7 +1125,7 @@ function computeSettlementStats(features) {
     totalPop: Math.round(totalPop),
     atRiskPop: Math.round(atRiskPop),
     meanHVI,
-    kiberaMeanTemp: kiberaMeanSurfaceTemp,
+    settlementMeanTemp: maduraiMeanSurfaceTemp,
     top5,
     sortedInterventions,
     sortedCriticalIntvs,
@@ -1137,15 +1138,15 @@ function computeSettlementStats(features) {
  */
 function renderOverviewDashboard(stats) {
   const {
-    counts, total, atRiskPop, meanHVI, kiberaMeanTemp,
+    counts, total, atRiskPop, meanHVI, settlementMeanTemp,
     top5, sortedCriticalIntvs, dominantIntervention,
   } = stats;
 
   // KPI values
   const setEl = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
   setEl("ov-mean-hvi", meanHVI);
-  setEl("ov-mean-temp", `${(kiberaMeanTemp || 28.7).toFixed(1)}°C`);
-  setEl("topbar-avg-temp", `Avg: ${(kiberaMeanTemp || 28.7).toFixed(1)}°C`);
+  setEl("ov-mean-temp", `${(settlementMeanTemp || 49.5).toFixed(1)}°C`);
+  setEl("topbar-avg-temp", `Avg: ${(settlementMeanTemp || 49.5).toFixed(1)}°C`);
   setEl("ov-atrisk-pop", atRiskPop.toLocaleString());
   setEl("ov-critical-count", (counts.Critical || 0).toLocaleString());
   setEl("ov-total-blocks", total.toLocaleString());
@@ -1468,8 +1469,8 @@ function computeZoneReport(features) {
 
   const total = features.length;
   const meanHVI = total > 0 ? Math.round(hviSum / total) : 0;
-  const zoneMeanTemp = validTempCount > 0 ? (zoneTempSum / validTempCount) : kiberaMeanSurfaceTemp;
-  const tempDelta = zoneMeanTemp - kiberaMeanSurfaceTemp;
+  const zoneMeanTemp = validTempCount > 0 ? (zoneTempSum / validTempCount) : maduraiMeanSurfaceTemp;
+  const tempDelta = zoneMeanTemp - maduraiMeanSurfaceTemp;
 
   const sortedIntvs = Object.entries(interventionCounts).sort(([, a], [, b]) => b - a);
   const dominantIntervention = sortedIntvs.length > 0 ? sortedIntvs[0][0] : "--";
@@ -1480,7 +1481,7 @@ function computeZoneReport(features) {
     atRiskPop: Math.round(atRiskPop),
     meanHVI,
     zoneMeanTemp,
-    kiberaMeanTemp: kiberaMeanSurfaceTemp,
+    settlementMeanTemp: maduraiMeanSurfaceTemp,
     tempDelta,
     dominantIntervention,
   };
@@ -1490,7 +1491,7 @@ function computeZoneReport(features) {
  * Populates and shows the Zone Intervention Report modal.
  */
 function renderZoneModal(report) {
-  const { total, counts, atRiskPop, meanHVI, zoneMeanTemp, kiberaMeanTemp, tempDelta, dominantIntervention } = report;
+  const { total, counts, atRiskPop, meanHVI, zoneMeanTemp, settlementMeanTemp, tempDelta, dominantIntervention } = report;
 
   // KPI values
   const setEl = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
@@ -1524,7 +1525,9 @@ function renderZoneModal(report) {
   setEl("zm-dominant-intv", dominantIntervention);
 
   // Settlement Baseline Temperature Comparison
-  setEl("zm-kibera-avg-temp", `${kiberaMeanTemp.toFixed(1)}°C`);
+  const baselineDisplay = `${(settlementMeanTemp || 49.5).toFixed(1)}°C`;
+  setEl("zm-settlement-avg-temp", baselineDisplay);
+  setEl("zm-kibera-avg-temp", baselineDisplay);
   setEl("zm-zone-avg-temp", `${zoneMeanTemp.toFixed(1)}°C`);
   
   const deltaEl = document.getElementById("zm-temp-delta");
@@ -1569,15 +1572,16 @@ function clearZone(hideModal = true) {
 // ---------------------------------------------------------------------------
 // Feature 3 — Offline Tile Cache Manager
 // ---------------------------------------------------------------------------
-const KIBERA_CACHE_CONFIG = {
-  // 5km x 5km bounding box covering Kibera settlement + surrounding buffer
-  minLat: -1.345,
-  maxLat: -1.290,
-  minLon: 36.755,
-  maxLon: 36.825,
-  minZoom: 13,
-  maxZoom: 17,
+const MADURAI_CACHE_CONFIG = {
+  // Bounding box covering Madurai city study area + surrounding buffer
+  minLat: 9.880,
+  maxLat: 9.965,
+  minLon: 78.060,
+  maxLon: 78.180,
+  minZoom: 12,
+  maxZoom: 16,
 };
+const KIBERA_CACHE_CONFIG = MADURAI_CACHE_CONFIG;
 
 let isCachingInProgress = false;
 
@@ -1589,7 +1593,7 @@ function latLonToTileCoords(lat, lon, zoom) {
   return { x, y };
 }
 
-function getKiberaTileUrlList() {
+function getMaduraiTileUrlList() {
   const urls = [];
   const esriSatPattern =
     "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
@@ -1598,9 +1602,9 @@ function getKiberaTileUrlList() {
   const osmPattern =
     "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
 
-  for (let z = KIBERA_CACHE_CONFIG.minZoom; z <= KIBERA_CACHE_CONFIG.maxZoom; z++) {
-    const pTopLeft = latLonToTileCoords(KIBERA_CACHE_CONFIG.maxLat, KIBERA_CACHE_CONFIG.minLon, z);
-    const pBottomRight = latLonToTileCoords(KIBERA_CACHE_CONFIG.minLat, KIBERA_CACHE_CONFIG.maxLon, z);
+  for (let z = MADURAI_CACHE_CONFIG.minZoom; z <= MADURAI_CACHE_CONFIG.maxZoom; z++) {
+    const pTopLeft = latLonToTileCoords(MADURAI_CACHE_CONFIG.maxLat, MADURAI_CACHE_CONFIG.minLon, z);
+    const pBottomRight = latLonToTileCoords(MADURAI_CACHE_CONFIG.minLat, MADURAI_CACHE_CONFIG.maxLon, z);
 
     const minX = Math.min(pTopLeft.x, pBottomRight.x);
     const maxX = Math.max(pTopLeft.x, pBottomRight.x);
@@ -1617,6 +1621,7 @@ function getKiberaTileUrlList() {
   }
   return urls;
 }
+const getKiberaTileUrlList = getMaduraiTileUrlList;
 
 async function checkTileCacheStatus() {
   const badge = document.getElementById("offline-cache-badge");
@@ -1625,7 +1630,7 @@ async function checkTileCacheStatus() {
   const specCount = document.getElementById("offline-spec-count");
   const specSize = document.getElementById("offline-spec-size");
 
-  const urls = getKiberaTileUrlList();
+  const urls = getMaduraiTileUrlList();
   const totalTiles = urls.length;
   if (specCount) specCount.textContent = `${totalTiles} tiles`;
   if (specSize) specSize.textContent = `~${((totalTiles * 22) / 1024).toFixed(1)} MB`;
@@ -1699,7 +1704,7 @@ async function startTileCacheDownload() {
   }
   if (dot) dot.className = "offline-status-dot dot-active";
 
-  const urls = getKiberaTileUrlList();
+  const urls = getMaduraiTileUrlList();
   const total = urls.length;
   let completed = 0;
   let failed = 0;

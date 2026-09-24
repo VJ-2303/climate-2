@@ -11,13 +11,13 @@ from torch_geometric.data import Data
 
 # Immutable Constants from SPEC.md Section 2
 SEED = 42
-PROCESS_CRS = "EPSG:32737"
+PROCESS_CRS = "EPSG:32643"
 OUTPUT_CRS = "EPSG:4326"
 WORKING_RES = 20          # meters
 BLOCK_SIZE = 50           # meters
 TRAIN_HALF_SIZE = 2500    # meters (5km x 5km training area)
-CENTER_LAT = -1.317
-CENTER_LON = 36.789
+CENTER_LAT = 9.921851
+CENTER_LON = 78.118200
 DIST_CAP = 1000.0         # meters
 BLOCK_MIN_VALID_COVERAGE = 0.70
 MIN_TRAIN_SAMPLES = 1000  # Landsat 100m pixels
@@ -132,11 +132,11 @@ def extract_blocks_for_train_area(raster_data, transform, raster_width, raster_h
     return pd.DataFrame(blocks)
 
 def main():
-    print("Stage 4: Building Block Graphs for Train Area and Kibera...")
+    print("Stage 4: Building Block Graphs for Train Area and Madurai...")
     torch.manual_seed(SEED)
     np.random.seed(SEED)
 
-    # 1. Compute TRAIN_BOUNDS in EPSG:32737
+    # 1. Compute TRAIN_BOUNDS in EPSG:32643
     transformer = Transformer.from_crs("EPSG:4326", PROCESS_CRS, always_xy=True)
     center_x, center_y = transformer.transform(CENTER_LON, CENTER_LAT)
     
@@ -171,14 +171,14 @@ def main():
         print(f"Error: Not enough valid train blocks ({len(df_train)} < 500)")
         sys.exit(1)
 
-    # (b) Load and aggregate for Kibera blocks
-    kibera_geojson_path = "data/processed/kibera_blocks_50m.geojson"
+    # (b) Load and aggregate for Madurai blocks
+    kibera_geojson_path = "data/processed/madurai_blocks_50m.geojson" if os.path.exists("data/processed/madurai_blocks_50m.geojson") else "data/processed/kibera_blocks_50m.geojson"
     if not os.path.exists(kibera_geojson_path):
         print(f"Error: {kibera_geojson_path} not found.")
         sys.exit(1)
 
     kibera_gdf = gpd.read_file(kibera_geojson_path)
-    print(f"Loaded {len(kibera_gdf)} Kibera blocks.")
+    print(f"Loaded {len(kibera_gdf)} blocks.")
 
     # Aggregate mean_ai_heat_base for each Kibera block
     ai_heat_arr = raster_data["mean_ai_heat_base"]
@@ -250,11 +250,11 @@ def main():
     train_coords = list(zip(df_train["grid_i"].values, df_train["grid_j"].values))
     edge_index_train = build_edges_8_neighborhood(train_coords)
 
-    kibera_coords = list(zip(kibera_gdf["grid_i"].values, kibera_gdf["grid_j"].values))
-    edge_index_kibera = build_edges_8_neighborhood(kibera_coords)
+    madurai_coords = list(zip(kibera_gdf["grid_i"].values, kibera_gdf["grid_j"].values))
+    edge_index_madurai = build_edges_8_neighborhood(madurai_coords)
 
     print(f"TRAIN graph: {len(df_train)} nodes, {edge_index_train.shape[1]} edges")
-    print(f"KIBERA graph: {len(kibera_gdf)} nodes, {edge_index_kibera.shape[1]} edges")
+    print(f"MADURAI graph: {len(kibera_gdf)} nodes, {edge_index_madurai.shape[1]} edges")
 
     # Build PyG Data objects
     graph_train = Data(
@@ -265,28 +265,28 @@ def main():
         grid_j=torch.tensor(df_train["grid_j"].values, dtype=torch.long),
     )
 
-    graph_kibera = Data(
+    graph_madurai = Data(
         x=torch.tensor(X_kibera_norm, dtype=torch.float32),
-        edge_index=edge_index_kibera,
+        edge_index=edge_index_madurai,
         y=torch.tensor(y_kibera, dtype=torch.float32).unsqueeze(1),
         grid_i=torch.tensor(kibera_gdf["grid_i"].values, dtype=torch.long),
         grid_j=torch.tensor(kibera_gdf["grid_j"].values, dtype=torch.long),
     )
 
-    # 4. Save PyG objects to models/graph_train.pt and models/graph_kibera.pt
+    # 4. Save PyG objects to models/graph_train.pt and models/graph_madurai.pt
     os.makedirs("models", exist_ok=True)
     train_graph_path = "models/graph_train.pt"
-    kibera_graph_path = "models/graph_kibera.pt"
+    madurai_graph_path = "models/graph_madurai.pt"
 
     torch.save(graph_train, train_graph_path)
-    torch.save(graph_kibera, kibera_graph_path)
+    torch.save(graph_madurai, madurai_graph_path)
 
     # Also save the scaler params for later stages if needed
     scaler_df = pd.DataFrame([{"feature": fn, "p2": p2_dict[fn], "p98": p98_dict[fn]} for fn in FEATURE_NAMES])
     scaler_df.to_csv("models/graph_feature_scaler.csv", index=False)
 
-    print(f"Saved {train_graph_path} and {kibera_graph_path}")
-    print(f"STAGE 4 graph: PASS | train_nodes: {graph_train.num_nodes}, train_edges: {graph_train.num_edges} | kibera_nodes: {graph_kibera.num_nodes}, kibera_edges: {graph_kibera.num_edges} | artifact: {train_graph_path}")
+    print(f"Saved {train_graph_path} and {madurai_graph_path}")
+    print(f"STAGE 4 graph: PASS | train_nodes: {graph_train.num_nodes}, train_edges: {graph_train.num_edges} | study_nodes: {graph_madurai.num_nodes}, study_edges: {graph_madurai.num_edges} | artifact: {train_graph_path}")
 
 if __name__ == "__main__":
     main()
