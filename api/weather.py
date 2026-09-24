@@ -35,6 +35,37 @@ def calculate_wbgt(temp_c: float, humidity_pct: float) -> float:
     wbgt = 0.567 * t + 0.393 * e + 3.94
     return round(wbgt, 2)
 
+def estimate_globe_temperature(ta_celsius: float, direct_radiation: float, wind_speed: float) -> float:
+    """Estimates black globe temperature (Tg) from the globe energy balance (Liljegren 2002).
+
+    Solves: eps*sigma*(Tg^4 - Ta^4) + h*(Tg - Ta) = (1 - alpha) * Sr / 4
+    Standard 150mm matte-black globe: r=0.15m, alpha=0.05, eps=0.95.
+    """
+    if direct_radiation <= 0:
+        return ta_celsius
+    ta_k = ta_celsius + 273.15
+    h = 5.65 * max(wind_speed, 0.1) ** 0.8  # convective coefficient, W/m2K
+    alpha, eps, sigma = 0.05, 0.95, 5.67e-8
+    absorbed = (1.0 - alpha) * direct_radiation / 4.0
+
+    def imbalance(tg_k: float) -> float:
+        return eps * sigma * (tg_k ** 4 - ta_k ** 4) + h * (tg_k - ta_k) - absorbed
+
+    lo, hi = ta_k, ta_k + 100.0
+    for _ in range(60):  # bisection — monotonic in Tg
+        mid = (lo + hi) / 2.0
+        if imbalance(mid) > 0:
+            hi = mid
+        else:
+            lo = mid
+    return (lo + hi) / 2.0 - 273.15
+
+def calculate_full_wbgt(temp_celsius: float, humidity_pct: float, direct_radiation: float, wind_speed: float) -> float:
+    """Full ACGIH outdoor WBGT: 0.57*Tg + 0.32*ea + 0.11*Ta (solar-loaded globe temperature)."""
+    ea = (humidity_pct / 100.0) * 6.105 * math.exp((17.27 * temp_celsius) / (237.7 + temp_celsius))
+    tg = estimate_globe_temperature(temp_celsius, direct_radiation, wind_speed)
+    return 0.57 * tg + 0.32 * ea + 0.11 * temp_celsius
+
 def classify_wbgt_risk(wbgt: float) -> str:
     """Classifies physiological heat risk from WBGT. Critical: WBGT > 32C (SIH26083 plan spec)."""
     if wbgt > 32.0:
@@ -80,7 +111,7 @@ def build_open_meteo_url(lat: float, lon: float) -> str:
         f"https://api.open-meteo.com/v1/forecast?"
         f"latitude={lat}&longitude={lon}&"
         f"daily=temperature_2m_max,temperature_2m_min,relative_humidity_2m_mean,wind_speed_10m_max,shortwave_radiation_sum&"
-        f"hourly=temperature_2m,relative_humidity_2m&"
+        f"hourly=temperature_2m,relative_humidity_2m,direct_radiation,wind_speed_10m&"
         f"timezone=Africa%2FNairobi&forecast_days=5"
     )
 
@@ -94,11 +125,13 @@ def process_open_meteo(raw_data: Dict[str, Any], lat: float, lon: float) -> Dict
     wind = daily_raw.get("wind_speed_10m_max", [])
     solar = daily_raw.get("shortwave_radiation_sum", [])
 
-    # Hourly T/RH pairs: peak WBGT per day computed from actual hourly conditions
+    # Hourly T/RH/solar/wind pairs: peak FULL WBGT per day (ACGIH outdoor formula)
     hourly_raw = raw_data.get("hourly", {})
     h_times = hourly_raw.get("time", [])
     h_temp = hourly_raw.get("temperature_2m", [])
     h_rh = hourly_raw.get("relative_humidity_2m", [])
+    h_rad = hourly_raw.get("direct_radiation", [])
+    h_wind = hourly_raw.get("wind_speed_10m", [])
     hourly_peak_wbgt: Dict[str, float] = {}
     for i in range(len(h_times)):
         if i >= len(h_temp) or i >= len(h_rh):
@@ -106,7 +139,10 @@ def process_open_meteo(raw_data: Dict[str, Any], lat: float, lon: float) -> Dict
         if h_temp[i] is None or h_rh[i] is None:
             continue
         day_key = h_times[i][:10]
-        wbgt_h = calculate_wbgt(float(h_temp[i]), float(h_rh[i]))
+        if i < len(h_rad) and h_rad[i] is not None and i < len(h_wind) and h_wind[i] is not None:
+            wbgt_h = calculate_full_wbgt(float(h_temp[i]), float(h_rh[i]), float(h_rad[i]), float(h_wind[i]))
+        else:
+            wbgt_h = calculate_wbgt(float(h_temp[i]), float(h_rh[i]))
         if day_key not in hourly_peak_wbgt or wbgt_h > hourly_peak_wbgt[day_key]:
             hourly_peak_wbgt[day_key] = wbgt_h
 
