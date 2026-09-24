@@ -1,0 +1,22 @@
+{
+  "source_path": "AGENTS.md",
+  "type": "SPEC",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "HeatViz / ThermalGuard Implementation Contract",
+  "summary": "Agent implementation contract specifying immutable constants, pipeline quality gates G1-G7, and hard prohibitions.",
+  "scope": [
+    "Constants",
+    "Pipeline Stages",
+    "Quality Gates",
+    "Prohibitions",
+    "Output Schema"
+  ],
+  "cross_refs": [
+    "SPEC.md",
+    "docs/DATASETS.md"
+  ],
+  "locked": true,
+  "precedence": null,
+  "notes": "Defines frozen weights, CRS EPSG:32643, and immutable physical constants."
+}

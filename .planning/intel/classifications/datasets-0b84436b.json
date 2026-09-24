@@ -1,0 +1,20 @@
+{
+  "source_path": "docs/DATASETS.md",
+  "type": "DOC",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "Datasets Specification",
+  "summary": "Documentation of raw satellite and open data sources including Sentinel-2, Landsat, OSM, and WorldPop.",
+  "scope": [
+    "Sentinel-2",
+    "Landsat 8/9",
+    "OpenStreetMap",
+    "WorldPop"
+  ],
+  "cross_refs": [
+    "SPEC.md"
+  ],
+  "locked": false,
+  "precedence": null,
+  "notes": ""
+}

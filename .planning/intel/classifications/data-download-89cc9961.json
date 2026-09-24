@@ -1,0 +1,19 @@
+{
+  "source_path": "docs/DATA_DOWNLOAD.md",
+  "type": "DOC",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "Data Download Guide",
+  "summary": "Step-by-step instructions for acquiring satellite granules and OpenStreetMap data for Madurai.",
+  "scope": [
+    "USGS EarthExplorer",
+    "Copernicus Hub",
+    "Overpass API"
+  ],
+  "cross_refs": [
+    "docs/DATASETS.md"
+  ],
+  "locked": false,
+  "precedence": null,
+  "notes": ""
+}
