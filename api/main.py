@@ -35,8 +35,9 @@ LAYER_NAMES = {
     "population_density_blocks",
 }
 
-# In-memory fast cache for block lookups, 2D spatial grid, settlement statistics, and layer attributes
+# In-memory fast cache for block lookups, 2D spatial grid, settlement statistics, layer attributes, and SHAP explainability
 blocks_db: Dict[str, Dict[str, Any]] = {}
+shap_db: Dict[str, Dict[str, Any]] = {}
 block_to_grid: Dict[str, Tuple[int, int]] = {}
 grid_to_block: Dict[Tuple[int, int], str] = {}
 layer_attributes_cache: Dict[str, Dict[str, float]] = {}
@@ -46,9 +47,10 @@ total_blocks_count: int = 0
 
 def load_dataset_into_memory() -> None:
     """Loads vulnerability blocks GeoJSON into memory, creates 2D spatial grid, and precomputes benchmark distributions."""
-    global blocks_db, block_to_grid, grid_to_block, all_hvi_scores, total_blocks_count, layer_attributes_cache
+    global blocks_db, shap_db, block_to_grid, grid_to_block, all_hvi_scores, total_blocks_count, layer_attributes_cache
     geojson_path = OUTPUT_DIR / "vulnerability_blocks.geojson"
     processed_path = PROCESSED_DIR / "kibera_blocks_50m.geojson"
+    shap_path = PROCESSED_DIR / "block_shap_explanations.json"
 
     if not geojson_path.is_file():
         logger.warning(f"Primary GeoJSON not found at {geojson_path}")
@@ -109,6 +111,16 @@ def load_dataset_into_memory() -> None:
                 except Exception as le:
                     logger.warning(f"Could not precompute attributes for {layer_name}: {le}")
 
+        # Load SHAP explainability cache
+        shap_db.clear()
+        if shap_path.is_file():
+            try:
+                with open(shap_path, "r", encoding="utf-8") as sf:
+                    shap_db.update(json.load(sf))
+                logger.info(f"Loaded {len(shap_db)} block SHAP explanations successfully.")
+            except Exception as se:
+                logger.warning(f"Could not load SHAP explanations: {se}")
+
         all_hvi_scores = sorted(scores)
         total_blocks_count = len(blocks_db)
         logger.info(f"Loaded {total_blocks_count} blocks and {len(layer_attributes_cache)} layer attribute caches successfully.")
@@ -121,6 +133,7 @@ async def lifespan(app: FastAPI):
     load_dataset_into_memory()
     yield
     blocks_db.clear()
+    shap_db.clear()
     block_to_grid.clear()
     grid_to_block.clear()
     layer_attributes_cache.clear()
@@ -228,6 +241,11 @@ def get_block_intelligence(block_id: str) -> JSONResponse:
         grid_to_block=grid_to_block,
         blocks_db=blocks_db,
     )
+
+    # Attach explainable AI (SHAP) feature attributions
+    shap_info = shap_db.get(block_id, {})
+    payload["shap_factors"] = shap_info.get("factors", [])
+    payload["shap_base_temp"] = shap_info.get("base_value", 29.4)
 
     return JSONResponse(
         content=payload,
