@@ -153,37 +153,64 @@
           </div>
         </div>
 
-        <!-- Offline Satellite Basemap Cache Trigger -->
-        <button id="btn-offline-cache" class="btn btn-outline" title="Pre-download Madurai Satellite Map for Instant Offline Loading">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-            <polyline points="7 10 12 15 17 10"/>
-            <line x1="12" y1="15" x2="12" y2="3"/>
-          </svg>
-          <span id="offline-cache-label">Offline Basemap</span>
-          <span id="offline-cache-badge" class="offline-badge">Ready</span>
-        </button>
+        <!-- Settings & Tools Dropdown -->
+        <div class="layer-dropdown-container">
+          <button class="btn btn-outline" id="btn-settings-menu" title="Settings & Tools" style="padding: 0 10px;" aria-label="Settings">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            </svg>
+          </button>
+          <div class="layer-dropdown-menu" id="settings-menu" style="display: none; width: 270px; right: 0; left: auto;">
+            <div class="menu-section-header">Settings & Tools</div>
 
-        <!-- Emergency Advisory Audit Log Trigger -->
-        <button id="btn-audit-logs" class="btn btn-outline" title="View Emergency Advisory Dispatch Audit Log">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-            <polyline points="14 2 14 8 20 8"/>
-            <line x1="16" y1="13" x2="8" y2="13"/>
-            <line x1="16" y1="17" x2="8" y2="17"/>
-          </svg>
-          <span>Audit Log</span>
-        </button>
+            <!-- Offline Basemap Download -->
+            <button class="menu-layer-item" id="btn-offline-cache" title="Pre-download Madurai Satellite Map for Offline Field Use" style="background: none; border: none; width: 100%; text-align: left; font-family: inherit; font-size: inherit; color: inherit;">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-top: 2px; flex-shrink: 0; color: #475569;">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              <div class="menu-layer-info" style="flex: 1;">
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                  <span class="menu-layer-title" id="offline-cache-label">Offline Basemap</span>
+                  <span id="offline-cache-badge" class="offline-badge" style="margin-left: 6px;">Ready</span>
+                </div>
+                <span class="menu-layer-desc">Download satellite map for field use</span>
+              </div>
+            </button>
 
-        <!-- Citizen Safety Portal Link -->
-        <a href="/public" target="_blank" class="btn btn-outline" style="text-decoration:none; display:inline-flex; align-items:center; gap:6px;" title="Open Citizen Public Heat Safety Portal">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
-            <polyline points="15 3 21 3 21 9"/>
-            <line x1="10" y1="14" x2="21" y2="3"/>
-          </svg>
-          <span>Citizen Portal</span>
-        </a>
+            <!-- Audit Logs -->
+            <button class="menu-layer-item" id="btn-audit-logs" title="View Emergency Advisory Dispatch Audit Log" style="background: none; border: none; width: 100%; text-align: left; font-family: inherit; font-size: inherit; color: inherit;">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-top: 2px; flex-shrink: 0; color: #475569;">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <line x1="16" y1="13" x2="8" y2="13"/>
+                <line x1="16" y1="17" x2="8" y2="17"/>
+              </svg>
+              <div class="menu-layer-info">
+                <span class="menu-layer-title">Audit Logs</span>
+                <span class="menu-layer-desc">Advisory dispatch history (SQLite)</span>
+              </div>
+            </button>
+
+            <!-- Citizen Portal Link -->
+            <a href="/public" target="_blank" class="menu-layer-item" id="btn-citizen-portal" style="text-decoration: none; color: inherit;" title="Open Citizen Public Heat Safety Portal">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-top: 2px; flex-shrink: 0; color: #475569;">
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                <polyline points="15 3 21 3 21 9"/>
+                <line x1="10" y1="14" x2="21" y2="3"/>
+              </svg>
+              <div class="menu-layer-info" style="flex: 1;">
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                  <span class="menu-layer-title">Citizen Portal</span>
+                  <span style="font-size: 10px; color: #0284c7; font-weight: 600;">↗</span>
+                </div>
+                <span class="menu-layer-desc">Public heat safety & hydration view</span>
+              </div>
+            </a>
+          </div>
+        </div>
 
         <!-- Export Dataset -->
         <button id="export-btn" class="btn btn-primary" title="Export full GeoJSON dataset">

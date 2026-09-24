@@ -759,6 +759,8 @@ function closeSidebar() {
 function closeLayerDropdown() {
   const menu = document.getElementById("layer-dropdown-menu");
   if (menu) menu.style.display = "none";
+  const settingsMenu = document.getElementById("settings-menu");
+  if (settingsMenu) settingsMenu.style.display = "none";
 }
 
 // 6. Event Listeners
@@ -821,6 +823,8 @@ function setupEventListeners() {
       e.stopPropagation();
       const fcMenu = document.getElementById("forecast-menu");
       if (fcMenu) fcMenu.style.display = "none";
+      const settingsMenu = document.getElementById("settings-menu");
+      if (settingsMenu) settingsMenu.style.display = "none";
       const isVisible = layerDropdownMenu.style.display === "flex";
       layerDropdownMenu.style.display = isVisible ? "none" : "flex";
     });

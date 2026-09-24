@@ -401,16 +401,45 @@
   function setupOfficerEvents() {
     const btn = document.getElementById("forecast-menu-btn");
     const menu = document.getElementById("forecast-menu");
+    const settingsBtn = document.getElementById("btn-settings-menu");
+    const settingsMenu = document.getElementById("settings-menu");
+
     if (btn && menu) {
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
         const isHidden = menu.style.display === "none" || !menu.style.display;
+        if (settingsMenu) settingsMenu.style.display = "none";
+        const layerMenu = document.getElementById("layer-dropdown-menu");
+        if (layerMenu) layerMenu.style.display = "none";
         menu.style.display = isHidden ? "flex" : "none";
       });
       document.addEventListener("click", (e) => {
         if (!menu.contains(e.target) && e.target !== btn) {
           closeForecastMenu();
         }
+      });
+    }
+
+    if (settingsBtn && settingsMenu) {
+      settingsBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const isHidden = settingsMenu.style.display === "none" || !settingsMenu.style.display;
+        if (menu) menu.style.display = "none";
+        const layerMenu = document.getElementById("layer-dropdown-menu");
+        if (layerMenu) layerMenu.style.display = "none";
+        settingsMenu.style.display = isHidden ? "flex" : "none";
+      });
+
+      document.addEventListener("click", (e) => {
+        if (!settingsMenu.contains(e.target) && e.target !== settingsBtn) {
+          settingsMenu.style.display = "none";
+        }
+      });
+
+      settingsMenu.querySelectorAll(".menu-layer-item").forEach((item) => {
+        item.addEventListener("click", () => {
+          settingsMenu.style.display = "none";
+        });
       });
     }
 
