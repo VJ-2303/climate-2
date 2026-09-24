@@ -233,3 +233,31 @@ def get_block_intelligence(block_id: str) -> JSONResponse:
         content=payload,
         headers={"Cache-Control": "public, max-age=3600"},
     )
+
+
+@app.get("/api/forecast/summary")
+def get_forecast_summary() -> JSONResponse:
+    """Returns 5-day heatwave forecast, WBGT thermal stress indices, and macro settlement advisory."""
+    from api.weather import get_5day_forecast
+    data = get_5day_forecast()
+    return JSONResponse(content=data, headers={"Cache-Control": "public, max-age=1800"})
+
+
+@app.get("/api/forecast/days")
+def get_forecast_days() -> JSONResponse:
+    """Returns lightweight 5-day timeline for map scrubber controls."""
+    from api.weather import get_5day_forecast
+    data = get_5day_forecast()
+    days = [
+        {
+            "day": d["day"],
+            "date": d["date"],
+            "temp_max": d["temp_max"],
+            "humidity_mean": d["humidity_mean"],
+            "wbgt_max": d["wbgt_max"],
+            "risk_tier": d["risk_tier"]
+        }
+        for d in data.get("daily", [])
+    ]
+    return JSONResponse(content={"days": days}, headers={"Cache-Control": "public, max-age=1800"})
+
