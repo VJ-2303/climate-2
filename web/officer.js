@@ -18,41 +18,90 @@
     return TIER_COLORS.Critical;
   }
 
-  // ---------- 5-Day Forecast Scrubber ----------
+  // ---------- 5-Day Forecast Dropdown ----------
+
+  function patchForecastColors() {
+    // In forecast mode, hover/click/reset must use forecast colors, not HVI colors
+    const original = window.getLayerFillColor;
+    if (!original) return;
+    window.getLayerFillColor = function (layer) {
+      if (activeForecastDay && forecastAttrMap && layer && layer.feature) {
+        const bid = layer.feature.properties.block_id;
+        const score = forecastAttrMap[bid] !== undefined ? forecastAttrMap[bid] : 0;
+        return scoreColor(score);
+      }
+      return original(layer);
+    };
+  }
 
   async function initOfficer() {
+    patchForecastColors();
     try {
       const res = await fetch("/api/forecast/days");
       if (!res.ok) return;
       const data = await res.json();
       forecastDays = data.days || [];
 
-      const scrubber = document.getElementById("forecast-scrubber");
-      if (!scrubber) return;
-      scrubber.innerHTML = "";
+      const menu = document.getElementById("forecast-menu");
+      const btn = document.getElementById("forecast-menu-btn");
+      if (!menu || !btn) return;
+      menu.innerHTML = "";
 
-      const base = document.createElement("button");
-      base.className = "segment-btn active";
-      base.textContent = "HVI (Current)";
-      base.addEventListener("click", () => resetForecastView(base));
-      scrubber.appendChild(base);
+      const addHeader = (text) => {
+        const h = document.createElement("div");
+        h.className = "menu-section-header";
+        h.textContent = text;
+        menu.appendChild(h);
+      };
+      const addItem = (label, sub, active, onClick) => {
+        const item = document.createElement("div");
+        item.className = "menu-layer-item" + (active ? " active" : "");
+        item.innerHTML = `<div class="menu-layer-info"><span class="menu-layer-title">${label}</span><span class="menu-layer-desc">${sub}</span></div>`;
+        item.addEventListener("click", onClick);
+        menu.appendChild(item);
+      };
 
+      addHeader("Map View");
+      addItem("HVI (Current)", "Static vulnerability index", activeForecastDay === null, () => {
+        resetForecastView();
+        closeForecastMenu();
+      });
+      addHeader("5-Day WBGT Forecast");
       forecastDays.forEach((d) => {
-        const b = document.createElement("button");
-        b.className = "segment-btn";
-        b.dataset.day = d.day;
-        b.innerHTML = `Day ${d.day}<br><small>${Number(d.wbgt_max).toFixed(1)}°C WBGT</small>`;
-        b.addEventListener("click", () => selectForecastDay(d.day, b));
-        scrubber.appendChild(b);
+        addItem(
+          `Day ${d.day} — ${d.date}`,
+          `${Number(d.wbgt_max).toFixed(1)}°C WBGT · ${d.risk_tier}`,
+          activeForecastDay === d.day,
+          () => {
+            selectForecastDay(d.day);
+            closeForecastMenu();
+          }
+        );
+      });
+
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        menu.style.display = menu.style.display === "none" ? "flex" : "none";
+      });
+      document.addEventListener("click", (e) => {
+        if (!menu.contains(e.target) && e.target !== btn) closeForecastMenu();
       });
     } catch (err) {
-      console.warn("Officer forecast scrubber init failed:", err);
+      console.warn("Officer forecast dropdown init failed:", err);
     }
   }
 
-  async function selectForecastDay(day, btn) {
-    document.querySelectorAll("#forecast-scrubber .segment-btn").forEach((b) => b.classList.remove("active"));
-    if (btn) btn.classList.add("active");
+  function closeForecastMenu() {
+    const menu = document.getElementById("forecast-menu");
+    if (menu) menu.style.display = "none";
+  }
+
+  function setForecastLabel(text) {
+    const label = document.getElementById("forecast-menu-label");
+    if (label) label.textContent = text;
+  }
+
+  async function selectForecastDay(day) {
     try {
       const res = await fetch(`/api/layers/forecast_day_${day}/attributes`);
       if (!res.ok) return;
@@ -65,16 +114,15 @@
           return { stroke: false, fillOpacity: 0.65, fillColor: scoreColor(score) };
         });
       }
-      const label = document.getElementById("active-layer-name");
-      if (label) label.textContent = `Day ${day} WBGT Risk Forecast`;
+      const nameEl = document.getElementById("active-layer-name");
+      if (nameEl) nameEl.textContent = `Day ${day} WBGT Risk Forecast`;
+      setForecastLabel(`Day ${day} Forecast`);
     } catch (err) {
       console.warn("Forecast day load failed:", err);
     }
   }
 
-  function resetForecastView(btn) {
-    document.querySelectorAll("#forecast-scrubber .segment-btn").forEach((b) => b.classList.remove("active"));
-    if (btn) btn.classList.add("active");
+  function resetForecastView() {
     activeForecastDay = null;
     forecastAttrMap = null;
     if (typeof currentLayer !== "undefined" && currentLayer) {
@@ -86,6 +134,7 @@
     }
     const label = document.getElementById("active-layer-name");
     if (label) label.textContent = "Heat Vulnerability (HVI)";
+    setForecastLabel("Forecast");
   }
 
   // ---------- Sector Inspector: SHAP Waterfall + 5-Day Sparkline + SMS ----------
