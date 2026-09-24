@@ -81,6 +81,7 @@
     map = L.map("ow-map", {
       renderer: L.canvas({ padding: 0.5 }),
       zoomControl: false,
+      scrollWheelZoom: false, // Prevents map from trapping mouse-wheel page scroll
       minZoom: 11,
       maxZoom: 18,
       maxBounds: [
@@ -92,6 +93,14 @@
 
     // Zoom control in bottom right
     L.control.zoom({ position: "bottomright" }).addTo(map);
+
+    // Allow wheel zoom only when user actively clicks on map; release when mouse leaves
+    map.on("click", () => {
+      map.scrollWheelZoom.enable();
+    });
+    mapContainer.addEventListener("mouseleave", () => {
+      map.scrollWheelZoom.disable();
+    });
   }
 
   // ─── Basemaps ───

@@ -56,6 +56,32 @@ html, body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Explicit document root scroll override for scrollable citizen portal */
+html.citizen-openweather-html,
+html:has(body.citizen-openweather-body) {
+  height: auto !important;
+  min-height: 100% !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  scroll-behavior: smooth;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.35) rgba(15, 23, 42, 0.7);
+}
+
+html.citizen-openweather-html::-webkit-scrollbar {
+  width: 10px;
+}
+html.citizen-openweather-html::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.7);
+}
+html.citizen-openweather-html::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.35);
+  border-radius: 5px;
+}
+html.citizen-openweather-html::-webkit-scrollbar-thumb:hover {
+  background: #ea580c;
+}
+
 /* --------------------------------------------------------------------------
    Top Global App Bar
    -------------------------------------------------------------------------- */
@@ -2645,6 +2671,7 @@ body.citizen-openweather-body {
   overflow-x: hidden !important;
   height: auto !important;
   min-height: 100vh !important;
+  -webkit-overflow-scrolling: touch;
   background: 
     linear-gradient(rgba(15, 23, 42, 0.72), rgba(15, 23, 42, 0.88)), 
     url('https://images.unsplash.com/photo-1534088568595-a066f410bcda?auto=format&fit=crop&w=1920&q=80') center center / cover no-repeat fixed,
