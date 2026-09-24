@@ -3595,13 +3595,312 @@ body.citizen-openweather-body {
   flex: 1;
 }
 
-/* Facility Card Animation & Hover */
+/* Officer POC Card */
+.admin-poc-card {
+  background: #ffffff;
+  border: 1px solid var(--border-medium);
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 12px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+.admin-poc-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 8px;
+}
+
+.admin-poc-role-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #64748b;
+  letter-spacing: 0.5px;
+}
+
+.admin-poc-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-main);
+  line-height: 1.3;
+}
+
+.admin-poc-subtitle {
+  font-size: 11px;
+  color: #475569;
+  font-weight: 500;
+  margin-top: 2px;
+}
+
+.admin-poc-zone {
+  color: #0284c7;
+  font-weight: 700;
+}
+
+.admin-poc-meta-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 12px;
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 8px;
+  margin-top: 4px;
+}
+
+.admin-poc-meta-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-poc-meta-label {
+  font-size: 9px;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: #94a3b8;
+  letter-spacing: 0.4px;
+}
+
+.admin-poc-meta-value {
+  font-size: 11px;
+  font-weight: 600;
+  color: #334155;
+  font-family: var(--font-mono);
+}
+
+/* Facility Card & Items */
 .facility-card {
+  background: #ffffff;
+  border: 1px solid var(--border-medium);
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
+
 .facility-card:hover {
   border-color: #cbd5e1;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.facility-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.facility-card-info {
+  flex: 1;
+  padding-right: 8px;
+}
+
+.facility-card-title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 2px;
+}
+
+.facility-category-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.facility-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.3;
+}
+
+.facility-meta {
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.facility-address {
+  color: #64748b;
+  font-weight: 400;
+}
+
+.facility-contact-row {
+  font-size: 11px;
+  color: #1e293b;
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.facility-contact-person {
+  font-weight: 600;
+}
+
+.facility-contact-sep {
+  color: #94a3b8;
+}
+
+.facility-contact-phone {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: #0284c7;
+}
+
+.facility-contact-missing {
+  font-size: 11px;
+  color: #dc2626;
+  margin-top: 4px;
+  font-weight: 500;
+}
+
+.facility-last-alert {
+  font-size: 10px;
+  color: #64748b;
+  margin-top: 3px;
+  font-family: var(--font-mono);
+}
+
+.facility-card-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 8px;
+}
+
+.facility-card-actions .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.facility-card-actions .btn-alert-facility {
+  background: #dc2626;
+  border-color: #dc2626;
+}
+
+.facility-card-actions .btn-alert-facility:hover:not(:disabled) {
+  background: #b91c1c;
+  border-color: #b91c1c;
+}
+
+.facility-card-actions .btn-alert-facility:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  background: #94a3b8;
+  border-color: #94a3b8;
+}
+
+/* Status Pill */
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 12px;
+  white-space: nowrap;
+}
+
+.status-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+}
+
+.status-pill.status-ready {
+  background: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+}
+
+.status-pill.status-ready .status-dot {
+  background: #059669;
+}
+
+.status-pill.status-unregistered {
+  background: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+.status-pill.status-unregistered .status-dot {
+  background: #dc2626;
+}
+
+/* Empty State */
+.admin-empty-state {
+  text-align: center;
+  color: #64748b;
+  padding: 32px 16px;
+}
+
+.admin-empty-icon {
+  margin-bottom: 8px;
+  color: #94a3b8;
+}
+
+.admin-empty-title {
+  font-weight: 600;
+  color: #334155;
+  font-size: 13px;
+}
+
+.admin-empty-desc {
+  font-size: 11px;
+  margin-top: 2px;
+}
+
+/* Map Marker & Popup */
+.facility-map-marker {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  border: 2px solid #ffffff;
+  cursor: pointer;
+  color: #ffffff;
+  transition: transform 0.15s ease;
+}
+
+.facility-map-marker:hover {
+  transform: scale(1.15);
+}
+
+.facility-popup-content {
+  font-family: var(--font-sans);
+  min-width: 190px;
+}
+
+.facility-popup-title {
+  font-weight: 700;
+  font-size: 13px;
+  color: #0f172a;
+  margin-bottom: 2px;
+}
+
+.facility-popup-meta {
+  font-size: 11px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.facility-popup-contact {
+  font-size: 11px;
+  color: #334155;
+  margin-bottom: 6px;
 }
 
 /* Admin PIN Auth Modal Specifics */

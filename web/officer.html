@@ -224,8 +224,9 @@
         </div>
 
         <!-- Zonal Indicator Pill -->
-        <div id="admin-zone-pill" style="display:none; align-items:center; gap:6px; background:#eff6ff; border:1px solid #bfdbfe; border-radius:20px; padding:3px 10px; font-size:11px; font-weight:700; color:#1e40af;">
-          <span>📍</span> <span id="admin-zone-name">Madurai</span>
+        <div id="admin-zone-pill" style="display:none; align-items:center; gap:6px; background:#f1f5f9; border:1px solid #cbd5e1; border-radius:20px; padding:3px 10px; font-size:11px; font-weight:700; color:#0f172a;">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+          <span id="admin-zone-name">Madurai</span>
         </div>
 
         <!-- Zone Switcher for DDMA Master Admin -->
@@ -368,20 +369,29 @@
           </div>
         </div>
 
-        <!-- Quick Broadcast Section -->
+        <!-- Emergency Broadcast Actions -->
         <div class="admin-section-box">
-          <div class="admin-section-title">One-Click Emergency Broadcast</div>
+          <div class="admin-section-title">Emergency Broadcast Dispatch</div>
           <div class="admin-broadcast-actions">
             <button class="btn btn-broadcast btn-broadcast-schools" id="btn-bulk-alert-schools">
-              <span>🏫 Alert Schools</span>
+              <span class="broadcast-label">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+                <span>Alert Schools</span>
+              </span>
               <span class="broadcast-count" id="bulk-count-schools">(0 ready)</span>
             </button>
             <button class="btn btn-broadcast btn-broadcast-hospitals" id="btn-bulk-alert-hospitals">
-              <span>🏥 Alert Hospitals</span>
+              <span class="broadcast-label">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+                <span>Alert Hospitals</span>
+              </span>
               <span class="broadcast-count" id="bulk-count-hospitals">(0 ready)</span>
             </button>
             <button class="btn btn-broadcast btn-broadcast-colleges" id="btn-bulk-alert-colleges">
-              <span>🎓 Alert Colleges</span>
+              <span class="broadcast-label">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c0 2 3 3 6 3s6-1 6-3v-5"/></svg>
+                <span>Alert Colleges</span>
+              </span>
               <span class="broadcast-count" id="bulk-count-colleges">(0 ready)</span>
             </button>
           </div>
@@ -833,8 +843,13 @@
   <div class="zone-modal-overlay" id="admin-auth-modal" style="display:none;" role="dialog" aria-modal="true" aria-label="Administrative Authentication">
     <div class="zone-modal-card admin-auth-card">
       <div class="admin-auth-header">
-        <div class="admin-auth-icon">🛡️</div>
-        <h3 class="admin-auth-title">Madurai Command Center Login</h3>
+        <div class="admin-auth-icon-wrap">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+          </svg>
+        </div>
+        <h3 class="admin-auth-title">Command Center Authentication</h3>
         <p class="admin-auth-desc">Enter your 4-digit Municipal Zonal PIN or District Master PIN to access sensitive institution directories and advisory broadcast channels.</p>
       </div>
 
@@ -941,7 +956,10 @@
     <div class="zone-modal-card" style="max-width: 580px;">
       <div class="zone-modal-header" style="background:#ecfdf5; border-bottom:1px solid #a7f3d0; margin:-16px -16px 16px -16px; padding:16px;">
         <div class="zone-modal-title-group">
-          <span class="zone-modal-title" style="color:#065f46;">🚨 Advisory Dispatched Successfully</span>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg>
+            <span class="zone-modal-title" style="color:#065f46;">Advisory Dispatched</span>
+          </div>
           <div style="font-size:11px; color:#047857; margin-top:2px;">Logged to SQLite persistent audit log</div>
         </div>
         <button class="icon-btn" id="btn-close-result-modal" title="Close">✕</button>

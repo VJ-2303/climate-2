@@ -11,15 +11,15 @@
   let activeStatusFilter = "All";
   let searchQuery = "";
 
-  const CATEGORY_ICONS = {
-    "School": "🏫",
-    "Hospital / Clinic": "🏥",
-    "College / University": "🎓",
+  const CATEGORY_SVGS = {
+    "School": `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>`,
+    "Hospital / Clinic": `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>`,
+    "College / University": `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c0 2 3 3 6 3s6-1 6-3v-5"/></svg>`,
   };
 
   const CATEGORY_COLORS = {
     "School": "#0284c7",
-    "Hospital / Clinic": "#dc2626",
+    "Hospital / Clinic": "#e11d48",
     "College / University": "#7c3aed",
   };
 
@@ -158,7 +158,7 @@
         sessionStorage.setItem("thermalguard_admin_auth", JSON.stringify(currentAuth));
         updateAutoAlertUI(newStatus);
         renderOfficerProfileCard();
-        showToast(newStatus ? "⚡ Autonomous alerting activated for this Zone" : "⏸️ Autonomous alerting paused");
+        showToast(newStatus ? "Autonomous alerting activated for this Zone" : "Autonomous alerting paused");
       }
     } catch (e) {
       console.warn("Toggle auto-alerts failed:", e);
@@ -178,19 +178,28 @@
     const zoneBadge = isDDMA ? "District Master Command" : currentAuth.zone_name;
 
     container.innerHTML = `
-      <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
-        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px;">
+      <div class="admin-poc-card">
+        <div class="admin-poc-header">
           <div>
-            <div style="font-size: 10px; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 0.5px;">Point of Contact (POC)</div>
-            <div style="font-size: 14px; font-weight: 800; color: #0f172a;">${off.officer_name}</div>
-            <div style="font-size: 11px; color: #475569; font-weight: 500;">${off.designation} &bull; <span style="color:#0284c7;font-weight:700;">${zoneBadge}</span></div>
+            <div class="admin-poc-role-label">Point of Contact (POC)</div>
+            <div class="admin-poc-name">${off.officer_name}</div>
+            <div class="admin-poc-subtitle">${off.designation} &bull; <span class="admin-poc-zone">${zoneBadge}</span></div>
           </div>
           ${!isDDMA ? '<button class="btn btn-outline" id="btn-edit-officer-profile" style="padding: 3px 8px; font-size: 11px;">Edit POC</button>' : ''}
         </div>
-        <div style="display: flex; flex-wrap: wrap; gap: 8px; font-size: 11px; color: #64748b; border-top: 1px solid #f1f5f9; padding-top: 6px; margin-top: 4px;">
-          <span>📞 <strong>${off.phone}</strong></span>
-          <span>✉️ <strong>${off.email}</strong></span>
-          <span>🏢 ${off.office_address}</span>
+        <div class="admin-poc-meta-grid">
+          <div class="admin-poc-meta-item">
+            <span class="admin-poc-meta-label">Phone</span>
+            <span class="admin-poc-meta-value">${off.phone}</span>
+          </div>
+          <div class="admin-poc-meta-item">
+            <span class="admin-poc-meta-label">Email</span>
+            <span class="admin-poc-meta-value">${off.email}</span>
+          </div>
+          <div class="admin-poc-meta-item" style="grid-column: span 2;">
+            <span class="admin-poc-meta-label">Office</span>
+            <span class="admin-poc-meta-value">${off.office_address}</span>
+          </div>
         </div>
       </div>
     `;
@@ -330,10 +339,12 @@
 
     if (filtered.length === 0) {
       container.innerHTML = `
-        <div style="text-align: center; color: #64748b; padding: 32px 16px;">
-          <div style="font-size: 24px; margin-bottom: 8px;">🔍</div>
-          <div style="font-weight: 600; color: #334155;">No institutions match the filter</div>
-          <div style="font-size: 11px;">Try selecting 'All' or clearing the search query.</div>
+        <div class="admin-empty-state">
+          <div class="admin-empty-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          </div>
+          <div class="admin-empty-title">No institutions match the filter</div>
+          <div class="admin-empty-desc">Try selecting 'All' or clearing the search query.</div>
         </div>
       `;
       return;
@@ -342,44 +353,53 @@
     let html = "";
     filtered.forEach((f) => {
       const isVerified = f.status === "verified";
-      const icon = CATEGORY_ICONS[f.category] || "📍";
+      const svgIcon = CATEGORY_SVGS[f.category] || `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/></svg>`;
       const catColor = CATEGORY_COLORS[f.category] || "#475569";
       const statusBadge = isVerified
-        ? '<span style="font-size:10px; background:#dcfce7; color:#166534; padding:2px 6px; border-radius:10px; font-weight:700;">✅ Contact Ready</span>'
-        : '<span style="font-size:10px; background:#fee2e2; color:#991b1b; padding:2px 6px; border-radius:10px; font-weight:700;">⚠️ Contact Required</span>';
+        ? '<span class="status-pill status-ready"><span class="status-dot"></span>Ready</span>'
+        : '<span class="status-pill status-unregistered"><span class="status-dot"></span>Unregistered</span>';
 
       const contactDisplay = isVerified
-        ? `<div style="font-size:11px; color:#1e293b; margin-top:4px;">👤 <strong>${f.contact_person || "Designated In-Charge"}</strong> &bull; 📞 <span style="font-family:var(--font-mono);font-weight:700;color:#0284c7;">${f.phone}</span></div>`
-        : `<div style="font-size:11px; color:#dc2626; margin-top:4px; font-weight:500;">No phone registered &bull; Alerting locked until contact added</div>`;
+        ? `<div class="facility-contact-row">
+             <span class="facility-contact-person">${f.contact_person || "Designated In-Charge"}</span>
+             <span class="facility-contact-sep">&bull;</span>
+             <span class="facility-contact-phone">${f.phone}</span>
+           </div>`
+        : `<div class="facility-contact-missing">No phone registered &bull; Alerting locked until contact added</div>`;
 
       const lastAlertInfo = f.last_alert_time
-        ? `<div style="font-size:10px; color:#64748b; margin-top:3px;">Last Alert: ${f.last_alert_time}</div>`
+        ? `<div class="facility-last-alert">Last Alert: ${f.last_alert_time}</div>`
         : "";
 
       html += `
-        <div class="facility-card" data-id="${f.id}" style="background:#ffffff; border:1px solid #e2e8f0; border-radius:8px; padding:10px 12px; margin-bottom:8px; box-shadow:0 1px 2px rgba(0,0,0,0.03);">
-          <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-            <div style="flex:1; padding-right:8px;">
-              <div style="display:flex; align-items:center; gap:6px; margin-bottom:2px;">
-                <span style="font-size:14px;">${icon}</span>
-                <span style="font-size:13px; font-weight:700; color:#0f172a;">${f.name}</span>
+        <div class="facility-card" data-id="${f.id}">
+          <div class="facility-card-header">
+            <div class="facility-card-info">
+              <div class="facility-card-title-row">
+                <span class="facility-category-icon" style="color:${catColor};">${svgIcon}</span>
+                <span class="facility-name">${f.name}</span>
               </div>
-              <div style="font-size:11px; color:${catColor}; font-weight:600;">${f.category} &bull; <span style="color:#64748b;font-weight:400;">${f.address || "Madurai"}</span></div>
+              <div class="facility-meta" style="color:${catColor};">
+                ${f.category} <span class="facility-address">&bull; ${f.address || "Madurai"}</span>
+              </div>
               ${contactDisplay}
               ${lastAlertInfo}
             </div>
             <div>${statusBadge}</div>
           </div>
 
-          <div style="display:flex; gap:6px; margin-top:8px; border-top:1px solid #f1f5f9; padding-top:8px;">
-            <button class="btn btn-outline btn-edit-contact" data-id="${f.id}" style="padding:3px 8px; font-size:11px;">
-              ✏️ ${isVerified ? "Edit Contact" : "Add Phone"}
+          <div class="facility-card-actions">
+            <button class="btn btn-outline btn-edit-contact" data-id="${f.id}">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+              <span>${isVerified ? "Edit Phone" : "Add Phone"}</span>
             </button>
-            <button class="btn btn-outline btn-locate-facility" data-lat="${f.latitude}" data-lon="${f.longitude}" data-name="${f.name}" style="padding:3px 8px; font-size:11px;">
-              📍 Locate
+            <button class="btn btn-outline btn-locate-facility" data-lat="${f.latitude}" data-lon="${f.longitude}" data-name="${f.name}">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
+              <span>Focus</span>
             </button>
-            <button class="btn btn-primary btn-alert-facility" data-id="${f.id}" data-name="${f.name}" ${!isVerified ? 'disabled style="opacity:0.5; cursor:not-allowed;" title="Add contact phone first"' : 'style="background:#dc2626;"'}>
-              🚨 Alert Site
+            <button class="btn btn-primary btn-alert-facility" data-id="${f.id}" data-name="${f.name}" ${!isVerified ? 'disabled title="Add contact phone first"' : ''}>
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              <span>Dispatch Alert</span>
             </button>
           </div>
         </div>
@@ -429,28 +449,27 @@
 
     currentFacilities.forEach((f) => {
       const color = CATEGORY_COLORS[f.category] || "#475569";
-      const iconText = CATEGORY_ICONS[f.category] || "📍";
+      const svgIcon = CATEGORY_SVGS[f.category] || `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2"><circle cx="12" cy="12" r="3"/></svg>`;
 
       const customIcon = L.divIcon({
         className: "custom-facility-pin",
-        html: `<div style="background:${color}; width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 4px rgba(0,0,0,0.3); border:2px solid #ffffff; font-size:12px; cursor:pointer;" title="${f.name}">${iconText}</div>`,
-        iconSize: [24, 24],
-        iconAnchor: [12, 12],
+        html: `<div class="facility-map-marker" style="background:${color};" title="${f.name}">${svgIcon}</div>`,
+        iconSize: [26, 26],
+        iconAnchor: [13, 13],
       });
 
       const marker = L.marker([f.latitude, f.longitude], { icon: customIcon });
 
       const isVerified = f.status === "verified";
       const popupHtml = `
-        <div style="font-family:var(--font-sans); min-width:180px;">
-          <div style="font-weight:700; font-size:13px; color:#0f172a; margin-bottom:2px;">${iconText} ${f.name}</div>
-          <div style="font-size:11px; color:${color}; font-weight:600; margin-bottom:6px;">${f.category}</div>
-          <div style="font-size:11px; color:#475569; margin-bottom:6px;">${f.address || "Madurai"}</div>
-          <div style="font-size:11px; margin-bottom:8px;">
-            ${isVerified ? `📞 <strong>${f.phone}</strong> (${f.contact_person || "In-Charge"})` : '<span style="color:#dc2626;font-weight:600;">⚠️ No contact phone added</span>'}
+        <div class="facility-popup-content">
+          <div class="facility-popup-title">${f.name}</div>
+          <div class="facility-popup-meta" style="color:${color};">${f.category} &bull; <span style="color:#64748b;font-weight:400;">${f.address || "Madurai"}</span></div>
+          <div class="facility-popup-contact">
+            ${isVerified ? `<strong>${f.phone}</strong> &bull; ${f.contact_person || "In-Charge"}` : '<span style="color:#dc2626;font-weight:600;">No contact phone added</span>'}
           </div>
-          <div style="display:flex; gap:6px;">
-            <button class="btn btn-outline" onclick="window.adminOpenContactModal('${f.id}')" style="padding:2px 8px; font-size:10px; width:100%;">
+          <div style="margin-top:8px;">
+            <button class="btn btn-outline" onclick="window.adminOpenContactModal('${f.id}')" style="padding:3px 8px; font-size:11px; width:100%; justify-content:center;">
               ${isVerified ? "Edit Phone" : "Add Phone"}
             </button>
           </div>
@@ -465,7 +484,7 @@
   function locateFacilityOnMap(lat, lon, name) {
     if (typeof map === "undefined" || !map) return;
     map.flyTo([lat, lon], 17, { duration: 1.2 });
-    showToast(`📍 Centered on ${name}`);
+    showToast(`Centered on ${name}`);
   }
 
   // -------------------------------------------------------------------------
@@ -524,7 +543,7 @@
       renderFacilitiesList();
       plotFacilityMarkersOnMap();
       closeFacilityContactModal();
-      showToast(`✅ Contact details verified for ${updated.name}`);
+      showToast(`Contact details verified for ${updated.name}`);
     } catch (err) {
       if (errEl) {
         errEl.textContent = err.message;
@@ -584,7 +603,7 @@
 
       renderOfficerProfileCard();
       closeOfficerProfileModal();
-      showToast("✅ Zonal Point of Contact profile saved");
+      showToast("Zonal Point of Contact profile saved");
     } catch (err) {
       if (errEl) {
         errEl.textContent = err.message;
@@ -634,7 +653,7 @@
     }
 
     const label = category === "All" ? "all verified institutions" : `all ${verifiedCount} verified ${category}s`;
-    if (!confirm(`🚨 Broadcast emergency heat advisory to ${label} in this zone?`)) return;
+    if (!confirm(`Broadcast emergency heat advisory to ${label} in this zone?`)) return;
 
     const targetZone = currentAuth.zone_id > 0 ? currentAuth.zone_id : (currentFacilities[0] ? currentFacilities[0].zone_id : 1);
 
