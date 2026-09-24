@@ -255,17 +255,27 @@
       const weatherSec = document.createElement("div");
       weatherSec.style.cssText = "background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; margin-bottom: 12px;";
       weatherSec.innerHTML = `
-        <div style="font-size: 11px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">
-          🌡️ Real-Time Station Weather (Madurai)
+        <div style="font-size: 11px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; display: flex; align-items: center; gap: 5px;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4v10.54a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0Z"/></svg>
+          Real-Time Station Weather (Madurai)
         </div>
         <div style="display: flex; justify-content: space-between; align-items: baseline;">
           <span style="font-size: 16px; font-weight: 800; color: #0f172a;">${Number(rw.temperature_celsius).toFixed(1)}°C Air</span>
           <span style="font-size: 12px; color: #64748b;">Feels ${Number(rw.apparent_temperature_celsius).toFixed(1)}°C</span>
         </div>
-        <div style="display: flex; gap: 10px; margin-top: 6px; font-size: 11px; color: #475569;">
-          <span>💧 ${Number(rw.relative_humidity_pct).toFixed(0)}% RH</span>
-          <span>💨 ${Number(rw.wind_speed_kmh).toFixed(1)} km/h</span>
-          <span>🔥 WBGT ${Number(rw.wbgt_celsius).toFixed(1)}°C (${rw.risk_tier})</span>
+        <div style="display: flex; gap: 12px; margin-top: 6px; font-size: 11px; color: #475569; align-items: center;">
+          <span style="display: inline-flex; align-items: center; gap: 4px;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>
+            ${Number(rw.relative_humidity_pct).toFixed(0)}% RH
+          </span>
+          <span style="display: inline-flex; align-items: center; gap: 4px;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M17.7 7.7a2.5 2.5 0 1 1 1.8 4.3H2M9.6 4.6A2 2 0 1 1 11 8H2M12.6 19.4A2 2 0 1 0 14 16H2"/></svg>
+            ${Number(rw.wind_speed_kmh).toFixed(1)} km/h
+          </span>
+          <span style="display: inline-flex; align-items: center; gap: 4px;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2"/></svg>
+            WBGT ${Number(rw.wbgt_celsius).toFixed(1)}°C (${rw.risk_tier})
+          </span>
         </div>
       `;
       wrap.appendChild(weatherSec);
@@ -344,7 +354,12 @@
     const smsBtn = document.createElement("button");
     smsBtn.className = "btn btn-primary";
     smsBtn.style.width = "100%";
-    smsBtn.textContent = "📡 Dispatch SMS Alert to This Sector";
+    smsBtn.innerHTML = `
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="margin-right: 6px; vertical-align: -2px;">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+      </svg>
+      Dispatch SMS Alert to This Sector
+    `;
     smsBtn.addEventListener("click", () => openSmsModal(data));
     btnRow.appendChild(smsBtn);
     wrap.appendChild(btnRow);
@@ -391,8 +406,8 @@
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const audit = await res.json();
-      resultEl.textContent =
-        `✓ ${audit.audit_id} — ${audit.recipients_count} recipients via ${audit.channels.join(", ")}`;
+      resultEl.innerHTML =
+        `<span style="color: #16a34a; font-weight: 700;">[Dispatched]</span> ${audit.audit_id} &mdash; ${audit.recipients_count} recipients via ${audit.channels.join(", ")}`;
     } catch (err) {
       resultEl.textContent = `Dispatch failed: ${err.message}`;
     }

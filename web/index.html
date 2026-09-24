@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>HeatViz — Madurai Climate Vulnerability Platform</title>
+  <title>ThermalGuard — Officer Command Center (Madurai)</title>
   
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -31,9 +31,9 @@
             </svg>
           </div>
           <div class="brand-text">
-            <span class="brand-title">HeatViz</span>
+            <span class="brand-title">ThermalGuard</span>
             <div class="brand-sub-row">
-              <span class="brand-location">Madurai, Tamil Nadu</span>
+              <span class="brand-location">Officer Command · Madurai</span>
               <span class="brand-temp-pill" id="topbar-avg-temp">Avg: --°C</span>
             </div>
           </div>
@@ -57,6 +57,21 @@
           <button class="segment-btn segment-high" data-risk="High">High</button>
           <button class="segment-btn segment-medium" data-risk="Medium">Medium</button>
           <button class="segment-btn segment-low" data-risk="Low">Low / Safe</button>
+        </div>
+
+        <!-- 5-Day Heatwave Forecast Dropdown (populated by officer.js) -->
+        <div class="layer-dropdown-container">
+          <button class="btn btn-outline" id="forecast-menu-btn" title="5-Day Heatwave Forecast">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+              <line x1="16" y1="2" x2="16" y2="6"/>
+              <line x1="8" y1="2" x2="8" y2="6"/>
+              <line x1="3" y1="10" x2="21" y2="10"/>
+            </svg>
+            <span id="forecast-menu-label">Forecast</span>
+            <span class="dropdown-arrow">▾</span>
+          </button>
+          <div class="layer-dropdown-menu" id="forecast-menu" style="display: none; width: 240px;"></div>
         </div>
       </div>
 
@@ -155,6 +170,17 @@
           <span id="offline-cache-badge" class="offline-badge">Ready</span>
         </button>
 
+        <!-- Switch to Citizen Portal -->
+        <a href="/public" class="btn btn-outline" style="text-decoration: none;" title="Switch to Citizen Heat Safety Portal">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+          </svg>
+          <span>Citizen Portal</span>
+        </a>
+
         <!-- Export Dataset -->
         <button id="export-btn" class="btn btn-primary" title="Export full GeoJSON dataset">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -179,7 +205,7 @@
           </svg>
           <span class="ov-title">Settlement Overview</span>
         </div>
-        <button class="icon-btn" id="btn-overview-close" title="Close Overview">✕</button>
+        <button class="icon-btn" id="btn-overview-close" title="Close Overview"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       </div>
 
       <div class="ov-body" id="ov-body">
@@ -306,7 +332,7 @@
 
         <!-- Floating Zoom / Reset View Control -->
         <div class="map-quick-controls">
-          <button class="map-btn" id="btn-reset-view" title="Reset View to Kibera">
+          <button class="map-btn" id="btn-reset-view" title="Reset View to Madurai">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
               <path d="M3 3v5h5"/>
@@ -326,7 +352,7 @@
         <!-- Drawer Header -->
         <div class="drawer-top">
           <span class="drawer-heading">Sector Intelligence</span>
-          <button class="icon-btn close-sidebar-btn" id="sidebar-close" title="Close Panel (Esc)">✕</button>
+          <button class="icon-btn close-sidebar-btn" id="sidebar-close" title="Close Panel (Esc)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
         </div>
 
         <!-- Drawer Content Body -->
@@ -358,6 +384,11 @@
                 </div>
                 <div class="sector-kpi-divider"></div>
                 <div class="sector-kpi-item">
+                  <span class="kpi-label" title="Real-Time Ambient Air Temperature">Air Temp</span>
+                  <span class="kpi-val" id="detail-air-temp">--°C</span>
+                </div>
+                <div class="sector-kpi-divider"></div>
+                <div class="sector-kpi-item">
                   <span class="kpi-label" title="Radiometric Satellite Land Surface Temperature (Landsat LST)">Surface (LST)</span>
                   <span class="kpi-val temp-kpi-val" id="detail-surface-temp">--°C</span>
                 </div>
@@ -384,7 +415,8 @@
                 Healthy tree canopy and balanced surface temperatures keep this area comfortable.
               </p>
               <div class="safe-reassurance-note">
-                ✓ No active municipal heat interventions are required.
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="vertical-align: -2px; margin-right: 4px;"><polyline points="20 6 9 17 4 12"/></svg>
+                No active municipal heat interventions are required.
               </div>
             </div>
 
@@ -442,7 +474,7 @@
             </svg>
             <span class="zone-modal-title">Zone Intervention Report</span>
           </div>
-          <button class="icon-btn" id="btn-zone-close" title="Clear Zone">✕</button>
+          <button class="icon-btn" id="btn-zone-close" title="Clear Zone"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
         </div>
 
         <!-- Zone KPI Row -->
@@ -473,7 +505,7 @@
           <div class="zone-dominant-intv" id="zm-dominant-intv">--</div>
         </div>
 
-        <!-- Kibera Settlement Baseline Temperature -->
+        <!-- Madurai Settlement Baseline Temperature -->
         <div class="zone-modal-section">
           <div class="zone-modal-section-label">Settlement Temperature Baseline</div>
           <div class="zone-baseline-row">
@@ -514,18 +546,18 @@
             </svg>
             <span class="zone-modal-title">Offline Map Cache Manager</span>
           </div>
-          <button class="icon-btn" id="btn-offline-modal-close" title="Close">✕</button>
+          <button class="icon-btn" id="btn-offline-modal-close" title="Close"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
         </div>
 
         <div class="offline-modal-body">
           <p class="offline-modal-desc">
-            Pre-download high-resolution satellite imagery and reference labels for <strong>Madurai Urban Area (5km × 5km)</strong> directly into your browser's local cache. Once downloaded, the map will load instantly with <strong>zero internet latency</strong> and remain 100% accessible offline in the field.
+            Pre-download high-resolution satellite imagery and reference labels for <strong>Madurai City + Buffer Zone</strong> directly into your browser's local cache. Once downloaded, the map will load instantly with <strong>zero internet latency</strong> and remain 100% accessible offline in the field.
           </p>
 
           <div class="offline-specs-grid">
             <div class="offline-spec-item">
               <span class="offline-spec-label">Target Area</span>
-              <span class="offline-spec-val">Madurai Study Area (5km × 5km)</span>
+              <span class="offline-spec-val">Madurai + Buffer (14km × 10km)</span>
             </div>
             <div class="offline-spec-item">
               <span class="offline-spec-label">Zoom Levels</span>
@@ -594,8 +626,42 @@
   <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
   <!-- Turf.js — point-in-polygon for zone intersection (Feature 2) -->
   <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+  <!-- SMS Emergency Dispatch Modal -->
+  <div class="zone-modal-overlay" id="sms-modal" style="display:none;" role="dialog" aria-modal="true" aria-label="SMS Emergency Dispatch">
+    <div class="zone-modal-card">
+      <div class="zone-modal-header">
+        <div class="zone-modal-title-group">
+          <span class="zone-modal-title">SMS Emergency Dispatch</span>
+        </div>
+        <button class="icon-btn" id="btn-sms-modal-close" title="Close"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="zone-modal-section">
+        <div class="zone-modal-section-label">Target Sector</div>
+        <div id="sms-block-id" style="font-weight: 600; font-size: 14px;">—</div>
+      </div>
+      <div class="zone-modal-section">
+        <div class="zone-modal-section-label">Recipient Group</div>
+        <select id="sms-recipient-group" style="width: 100%; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px;">
+          <option value="vulnerable_households">Vulnerable Households</option>
+          <option value="community_health_volunteers">Community Health Volunteers</option>
+          <option value="all_residents">All Sector Residents</option>
+        </select>
+      </div>
+      <div class="zone-modal-section">
+        <div class="zone-modal-section-label">Advisory Message</div>
+        <textarea id="sms-message" rows="4" style="width: 100%; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px; box-sizing: border-box;"></textarea>
+      </div>
+      <div class="zone-modal-footer">
+        <span id="sms-dispatch-result" style="font-size: 12px; color: #475569;"></span>
+        <button class="btn btn-primary" id="btn-sms-dispatch">Dispatch Alert</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Application JS -->
-  <script src="/static/app.js?v=offline_v4"></script>
+  <script src="/static/app.js?v=offline_v5"></script>
+  <!-- Officer Command Center extensions -->
+  <script src="/static/officer.js?v=offline_v5"></script>
 </body>
 </html>
 
