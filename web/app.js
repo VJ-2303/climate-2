@@ -347,7 +347,8 @@ function onEachPrimaryFeature(feature, layer) {
       const tempVal = props.surface_temp_celsius !== undefined
         ? props.surface_temp_celsius.toFixed(1)
         : (20.24 + ((props.ai_heat_exposure || 50) / 100) * 18.37).toFixed(1);
-      return `<strong>${blockId}</strong> &bull; LST: <span style="color:#f59e0b;font-weight:700;">${tempVal}°C</span> &bull; HVI: ${props.hvi_score} (${props.risk_class})`;
+      const airPrefix = window.currentAirTemp ? `Air: <span style="color:#38bdf8;font-weight:700;">${window.currentAirTemp}°C</span> &bull; ` : "";
+      return `<strong>${blockId}</strong> &bull; ${airPrefix}LST: <span style="color:#f59e0b;font-weight:700;">${tempVal}°C</span> &bull; HVI: ${props.hvi_score} (${props.risk_class})`;
     } else {
       const attrMap = layerAttributeCache[currentActiveLayerName];
       const propName = currentActiveLayerName.replace("_blocks", "");
@@ -568,6 +569,15 @@ function renderBlockIntelligence(data) {
   setText("detail-hvi-score", data.hvi_score);
   setText("detail-population", `~${data.population || 0}`);
 
+  // Air Temperature KPI
+  const airVal = data.ambient_temp_celsius !== undefined
+    ? data.ambient_temp_celsius
+    : (data.realtime_weather ? data.realtime_weather.temperature_celsius : window.currentAirTemp);
+  const airEl = document.getElementById("detail-air-temp");
+  if (airEl) {
+    airEl.textContent = airVal !== null && airVal !== undefined ? `${Number(airVal).toFixed(1)}°C` : "--°C";
+  }
+
   // Surface Temperature KPI
   const tempNum = data.surface_temp_celsius !== undefined ? data.surface_temp_celsius : 49.5;
   const tempEl = document.getElementById("detail-surface-temp");
@@ -696,6 +706,8 @@ function generateFallbackIntelligence(props) {
     population: pop,
     surface_temp_celsius: surface_temp_c,
     surface_temp_display: `${surface_temp_c.toFixed(1)}°C`,
+    ambient_temp_celsius: Number((28.0 + (temp_anomaly * 0.35)).toFixed(1)),
+    ambient_temp_display: `~${(28.0 + (temp_anomaly * 0.35)).toFixed(1)}°C`,
     temp_anomaly_celsius: temp_anomaly,
     temp_anomaly_display: `${temp_anomaly > 0 ? "+" : ""}${temp_anomaly.toFixed(1)}°C`,
     peak_roof_temp_celsius: peak_roof,

@@ -185,33 +185,58 @@
     .citizen-alert-banner.risk-medium { background: #fef9c3; color: #854d0e; border: 1px solid #fef08a; }
     .citizen-alert-banner.risk-low { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
 
-    /* Quick Temp Stats */
+    /* Three Glanceable Temperature Stats & Explainer */
     .citizen-temp-row {
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
     }
     .citizen-temp-box {
       background: #f8fafc;
       border: 1px solid var(--border-subtle);
       border-radius: var(--radius-xs);
-      padding: 10px 12px;
+      padding: 8px 4px;
       text-align: center;
     }
     .citizen-temp-num {
       font-family: var(--font-mono);
-      font-size: 1.30rem;
+      font-size: 1.15rem;
       font-weight: 800;
       color: var(--text-main);
       line-height: 1.1;
     }
     .citizen-temp-sub {
-      font-size: 0.68rem;
-      font-weight: 600;
+      font-size: 0.62rem;
+      font-weight: 700;
       color: var(--text-subtle);
       text-transform: uppercase;
-      letter-spacing: 0.04em;
+      letter-spacing: 0.02em;
       margin-top: 4px;
+    }
+    .temp-explainer-card {
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      border-radius: var(--radius-xs);
+      padding: 9px 11px;
+      margin-top: 8px;
+      display: flex;
+      gap: 9px;
+      align-items: flex-start;
+      font-size: 0.72rem;
+      color: #1e3a8a;
+      line-height: 1.35;
+    }
+    .temp-explainer-icon {
+      font-size: 1rem;
+      line-height: 1;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .temp-explainer-body strong {
+      display: block;
+      color: #1d4ed8;
+      font-weight: 700;
+      margin-bottom: 2px;
     }
 
     /* Danger Hours Pill */
@@ -467,7 +492,7 @@
             <span class="brand-title">ThermalGuard</span>
             <div class="brand-sub-row">
               <span class="brand-location">Citizen Safety Portal · Madurai</span>
-              <span class="brand-temp-pill" id="topbar-avg-temp">Avg: 49.2°C</span>
+              <span class="brand-temp-pill" id="topbar-avg-temp">Live Air: --°C</span>
             </div>
           </div>
         </div>
@@ -637,15 +662,28 @@
                 <span id="detail-hvi-score" style="font-family: var(--font-mono); font-size: 0.88rem;">HVI 89/100</span>
               </div>
 
-              <!-- Two Glanceable Temperature Numbers -->
+              <!-- Three Glanceable Temperature Numbers -->
               <div class="citizen-temp-row">
                 <div class="citizen-temp-box">
-                  <div class="citizen-temp-num" id="detail-surface-temp">50.7°C</div>
-                  <div class="citizen-temp-sub">Surface Temp</div>
+                  <div class="citizen-temp-num" id="detail-air-temp" style="color: #0284c7;">--°C</div>
+                  <div class="citizen-temp-sub">🌤️ Outdoor Air</div>
                 </div>
                 <div class="citizen-temp-box">
-                  <div class="citizen-temp-num" id="detail-temp-anomaly" style="color: #b91c1c;">+1.5°C</div>
-                  <div class="citizen-temp-sub">vs. City Average</div>
+                  <div class="citizen-temp-num" id="detail-surface-temp" style="color: #dc2626;">--°C</div>
+                  <div class="citizen-temp-sub">♨️ Roof & Ground</div>
+                </div>
+                <div class="citizen-temp-box">
+                  <div class="citizen-temp-num" id="detail-feels-temp" style="color: #d97706;">--°C</div>
+                  <div class="citizen-temp-sub">💧 Feels Like</div>
+                </div>
+              </div>
+
+              <!-- Citizen Temperature Explainer Note -->
+              <div class="temp-explainer-card" id="detail-temp-explainer">
+                <span class="temp-explainer-icon">ℹ️</span>
+                <div class="temp-explainer-body">
+                  <strong>Why does Roof & Ground reach ~50°C?</strong>
+                  <span>Intense sunlight bakes unshaded metal tin roofs and asphalt roads. The actual outdoor air you breathe is <strong id="explainer-air-val">--°C</strong>.</span>
                 </div>
               </div>
             </div>
@@ -770,6 +808,6 @@
   <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <!-- Public Citizen Portal Logic -->
-  <script src="/static/public.js?v=public_v3"></script>
+  <script src="/static/public.js?v=public_v4"></script>
 </body>
 </html>

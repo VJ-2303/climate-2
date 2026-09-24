@@ -62,6 +62,9 @@
       // Update topbar with real-time live ambient temperature
       if (data.current) {
         const curr = data.current;
+        if (curr.temperature_celsius !== undefined) {
+          window.currentAirTemp = curr.temperature_celsius.toFixed(1);
+        }
         const topbarTemp = document.getElementById("topbar-avg-temp");
         if (topbarTemp && curr.temperature_celsius !== undefined) {
           const meanLST = (window.maduraiMeanSurfaceTemp || 49.5).toFixed(1);

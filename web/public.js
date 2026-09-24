@@ -69,6 +69,8 @@
   let currentFilter = "All";
   let currentThreshold = 0;
   let isDrawerOpen = false;
+  let liveAirTemp = null;
+  let liveFeelsTemp = null;
 
   // ─── Initialization ───
   document.addEventListener("DOMContentLoaded", init);
@@ -264,10 +266,29 @@
         }
       }
 
-      if (tempCount > 0) {
+      // Fetch live real-time ambient weather for citizen topbar
+      try {
+        const fRes = await fetch("/api/forecast/days");
+        if (fRes.ok) {
+          const fData = await fRes.json();
+          if (fData.current && fData.current.temperature_celsius != null) {
+            liveAirTemp = Number(fData.current.temperature_celsius).toFixed(1);
+            liveFeelsTemp = Number(fData.current.wbgt_celsius || fData.current.apparent_temperature_celsius).toFixed(1);
+            const avgPill = document.getElementById("topbar-avg-temp");
+            if (avgPill) {
+              avgPill.textContent = `Live Air: ${liveAirTemp}°C`;
+              avgPill.title = `Madurai Real-time Weather: Air ${liveAirTemp}°C, Feels ${liveFeelsTemp}°C (Humidity: ${fData.current.relative_humidity_pct}%)`;
+            }
+          }
+        }
+      } catch (fErr) {
+        console.warn("Could not fetch live forecast:", fErr);
+      }
+
+      if (tempCount > 0 && !liveAirTemp) {
         const avgTemp = (tempSum / tempCount).toFixed(1);
         const avgPill = document.getElementById("topbar-avg-temp");
-        if (avgPill) avgPill.textContent = `Avg: ${avgTemp}°C`;
+        if (avgPill) avgPill.textContent = `Roof Avg: ${avgTemp}°C`;
       }
 
       renderChoropleth();
@@ -292,7 +313,10 @@
       onEachFeature: function (feature, layer) {
         const p = feature.properties;
         layer.bindTooltip(
-          `<strong>Sector ${p.block_id}</strong><br/>${p.risk_class} Risk · HVI ${p.hvi_score}<br/>Temp: ${p.surface_temp_celsius}°C`,
+          () => {
+            const airStr = liveAirTemp ? `${liveAirTemp}°C` : "28.0°C";
+            return `<strong>Sector ${p.block_id}</strong><br/>${p.risk_class} Risk · HVI ${p.hvi_score}<br/>🌤️ Outdoor Air: ${airStr} &bull; ♨️ Roof Heat: ${p.surface_temp_celsius}°C`;
+          },
           { className: "custom-map-tooltip", sticky: true, opacity: 0.95 }
         );
 
@@ -585,13 +609,33 @@
       elemHvi.textContent = `HVI ${hvi}/100`;
     }
 
-    // 3. Two Glanceable Temp Numbers
+    // 3. Three Glanceable Temp Numbers & Plain-Language Explainer
+    const elemAirTemp = document.getElementById("detail-air-temp");
     const elemSurfTemp = document.getElementById("detail-surface-temp");
-    const elemAnomaly = document.getElementById("detail-temp-anomaly");
+    const elemFeelsTemp = document.getElementById("detail-feels-temp");
+    const explainerAirVal = document.getElementById("explainer-air-val");
+
+    const airVal = data.realtime_weather?.temperature_celsius ?? data.ambient_temp_celsius ?? (liveAirTemp ? Number(liveAirTemp) : null);
+    const airText = airVal != null ? `${Number(airVal).toFixed(1)}°C` : "--°C";
+
+    const feelsVal = data.realtime_weather?.wbgt_celsius ?? data.forecast_trajectory?.[0]?.local_wbgt ?? (liveFeelsTemp ? Number(liveFeelsTemp) : null);
+    const feelsText = feelsVal != null ? `${Number(feelsVal).toFixed(1)}°C` : "--°C";
+
+    if (elemAirTemp) {
+      elemAirTemp.textContent = airText;
+    }
     if (elemSurfTemp) {
       elemSurfTemp.textContent = surfTemp;
-      elemSurfTemp.style.color = RISK_COLORS[rc] || "#0f172a";
+      elemSurfTemp.style.color = RISK_COLORS[rc] || "#dc2626";
     }
+    if (elemFeelsTemp) {
+      elemFeelsTemp.textContent = feelsText;
+    }
+    if (explainerAirVal) {
+      explainerAirVal.textContent = airText;
+    }
+
+    const elemAnomaly = document.getElementById("detail-temp-anomaly");
     if (elemAnomaly) {
       elemAnomaly.textContent = anomaly;
       elemAnomaly.style.color = anomalyVal > 0 ? "#b91c1c" : "#047857";
