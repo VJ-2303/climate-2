@@ -129,17 +129,21 @@ def init_db():
         )
     """)
 
-    # Extract facilities from GeoJSON if empty
-    cur.execute("SELECT COUNT(*) FROM sensitive_facilities")
-    count = cur.fetchone()[0]
-    if count == 0 and GEOJSON_PATH.is_file():
+    # Extract unique facilities from GeoJSON (deduplicating OSM LineString/MultiPolygon duplicates)
+    cur.execute("DELETE FROM sensitive_facilities")
+    if GEOJSON_PATH.is_file():
         with open(GEOJSON_PATH, "r", encoding="utf-8") as f:
             data = json.load(f)
 
         facilities = []
-        zone_counters = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0}
+        raw_candidates = []
 
-        for idx, feat in enumerate(data.get("features", [])):
+        for feat in data.get("features", []):
+            # Only process MultiPolygon (building area surface), ignore LineString (outline rings)
+            # which are exact 1:1 duplicates in OSM export
+            if feat.get("geometry", {}).get("type") != "MultiPolygon":
+                continue
+
             p = feat.get("properties", {})
             amenity = p.get("amenity")
             building = p.get("building")
@@ -159,23 +163,59 @@ def init_db():
             arr = np.array(coords)
             lon = float(arr[:, 0].mean())
             lat = float(arr[:, 1].mean())
-            zid = assign_zone(lat, lon)
+
+            raw_name = (p.get("name") or p.get("operator") or "").strip()
+            street = (p.get("addr:street") or p.get("street") or "").strip()
+            hno = (p.get("addr:housenumber") or p.get("housenumber") or "").strip()
+
+            # Deduplicate by spatial proximity and campus name
+            is_dup = False
+            for prev in raw_candidates:
+                if prev["cat"] == cat:
+                    d_lat = (lat - prev["lat"]) * 111000
+                    d_lon = (lon - prev["lon"]) * 109000
+                    dist = np.sqrt(d_lat**2 + d_lon**2)
+                    # If same named institution within 200m -> duplicate block/record
+                    if raw_name and prev["raw_name"] and raw_name.lower() == prev["raw_name"].lower() and dist < 200.0:
+                        is_dup = True
+                        break
+                    # If same category within 15m -> duplicate footprint
+                    if dist < 15.0:
+                        is_dup = True
+                        break
+
+            if is_dup:
+                continue
+
+            raw_candidates.append({
+                "raw_name": raw_name,
+                "street": street,
+                "hno": hno,
+                "cat": cat,
+                "lat": lat,
+                "lon": lon,
+            })
+
+        zone_counters = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0}
+        for item in raw_candidates:
+            zid = assign_zone(item["lat"], item["lon"])
             zone_counters[zid] += 1
 
-            raw_name = p.get("name")
-            street = p.get("addr:street") or p.get("street") or ""
-            op = p.get("operator") or ""
+            cat = item["cat"]
+            raw_name = item["raw_name"]
+            street = item["street"]
+            hno = item["hno"]
 
             if raw_name:
                 name = raw_name
-            elif op:
-                name = f"{op} ({cat})"
+            elif hno and street:
+                name = f"#{hno}, {street} {cat}"
             elif street:
-                name = f"{street} {cat}"
+                name = f"{street} {cat} #{zone_counters[zid]}"
             else:
                 name = f"Zone {zid} Municipal {cat} #{zone_counters[zid]}"
 
-            addr = street or f"Zone {zid} Sector, Madurai"
+            addr = f"#{hno}, {street}" if (hno and street) else (street or f"Zone {zid} Sector, Madurai")
             fac_id = f"FAC-Z{zid}-{zone_counters[zid]:03d}"
 
             # Check known demo contacts
@@ -183,7 +223,7 @@ def init_db():
             status = "verified" if phone else "unverified"
 
             facilities.append((
-                fac_id, zid, name, cat, contact_person, phone, "", addr, lat, lon, status, None
+                fac_id, zid, name, cat, contact_person, phone, "", addr, item["lat"], item["lon"], status, None
             ))
 
         cur.executemany("""
@@ -191,7 +231,7 @@ def init_db():
                 id, zone_id, name, category, contact_person, phone, email, address, latitude, longitude, status, last_alert_time
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, facilities)
-        print(f"Successfully seeded {len(facilities)} sensitive facilities into {DB_PATH}")
+        print(f"Successfully seeded {len(facilities)} unique sensitive facilities into {DB_PATH}")
 
     conn.commit()
     conn.close()

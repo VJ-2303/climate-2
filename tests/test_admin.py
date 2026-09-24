@@ -121,3 +121,28 @@ def test_admin_alerts_audit_log():
     assert len(logs) > 0
     assert "alert_id" in logs[0]
     assert "message_ta" in logs[0]
+
+def test_no_duplicate_facilities():
+    from collections import Counter
+    all_facilities = []
+    for zid in range(1, 6):
+        res = client.get(f"/api/admin/zones/{zid}/facilities")
+        assert res.status_code == 200
+        all_facilities.extend(res.json()["facilities"])
+
+    # Ensure no facility ID is duplicated
+    ids = [f["id"] for f in all_facilities]
+    assert len(ids) == len(set(ids))
+
+    # Ensure known hospitals appear exactly once across the city
+    hospital_names = [f["name"] for f in all_facilities if f["category"] == "Hospital / Clinic"]
+    counts = Counter(hospital_names)
+    assert counts["Grace Kennet Foundation Hospital"] == 1
+    assert counts["Hannah Joseph Hospital"] == 1
+    assert counts["Aditya Speciality Hospital"] == 1
+    assert counts["Janet Hospitals"] == 1
+    assert counts["Avss Hospitals, Advanced Trauma Center"] == 1
+
+    # Ensure no duplicate names across the entire directory
+    duplicates = [name for name, count in counts.items() if count > 1]
+    assert duplicates == [], f"Found duplicate hospitals: {duplicates}"
