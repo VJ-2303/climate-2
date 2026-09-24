@@ -5,6 +5,7 @@ FastAPI backend serving GeoJSON layers and hyperlocal microclimate intelligence 
 
 import json
 import logging
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -196,18 +197,22 @@ def public_view() -> FileResponse:
 
 @app.post("/api/alerts/dispatch")
 async def dispatch_sms_alert(payload: Dict[str, Any]) -> JSONResponse:
-    """Simulates targeted SMS emergency advisory dispatch to residents in a specific sector with SQLite audit log."""
+    """Dispatches targeted SMS emergency advisory to residents/field teams via Twilio with SQLite audit log."""
     import uuid
     from datetime import datetime
     from api.audit import record_dispatch
+    from api.sms import send_twilio_sms
 
     block_id = payload.get("block_id", "KIB-0000")
     recipient_group = payload.get("recipient_group", "vulnerable_residents")
     message = payload.get("message", "High heat advisory. Maintain hydration.")
+    phone_number = payload.get("phone_number") or payload.get("phone") or os.getenv("TWILIO_DEFAULT_RECIPIENT") or "+919443120101"
 
     block_props = blocks_db.get(block_id, {})
     pop = int(block_props.get("estimated_population", 250))
     recipients_count = max(15, pop)
+
+    twilio_res = send_twilio_sms(phone_number, message)
 
     audit_entry = {
         "status": "dispatched",
@@ -217,10 +222,14 @@ async def dispatch_sms_alert(payload: Dict[str, Any]) -> JSONResponse:
         "recipient_group": recipient_group,
         "recipients_count": recipients_count,
         "message": message,
-        "channels": ["SMS (TNSDMA Common Alerting Protocol / BSNL)", "WhatsApp Emergency Broadcast", "Ward Health Volunteers / UPHC Outreach", "108 Emergency Ambulance Staging"]
+        "channels": ["Twilio SMS (Carrier Gateway)", "TNSDMA CAP Broadcast", "Ward Health Volunteers / UPHC Outreach"],
+        "twilio_sid": twilio_res.get("sid"),
+        "twilio_status": twilio_res.get("status"),
+        "twilio_mode": twilio_res.get("mode"),
+        "recipient_phone": twilio_res.get("to"),
     }
     record_dispatch(audit_entry)
-    logger.info(f"Dispatched SMS emergency advisory: {audit_entry['audit_id']} to {recipients_count} recipients in {block_id}")
+    logger.info(f"Dispatched SMS emergency advisory via Twilio ({twilio_res.get('sid')}): {audit_entry['audit_id']} to {recipients_count} recipients in {block_id}")
     return JSONResponse(content=audit_entry)
 
 

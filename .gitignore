@@ -23,3 +23,4 @@ models/
 data/output/
 .planning/
 *.db
+.env

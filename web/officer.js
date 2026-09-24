@@ -393,7 +393,8 @@
   async function dispatchSms() {
     const resultEl = document.getElementById("sms-dispatch-result");
     if (!smsTargetBlockId) return;
-    resultEl.textContent = "Dispatching…";
+    const phoneInput = document.getElementById("sms-phone-number");
+    const phoneNumber = phoneInput ? phoneInput.value.trim() : "";
     try {
       const res = await fetch("/api/alerts/dispatch", {
         method: "POST",
@@ -402,12 +403,14 @@
           block_id: smsTargetBlockId,
           recipient_group: document.getElementById("sms-recipient-group").value,
           message: document.getElementById("sms-message").value,
+          phone_number: phoneNumber,
         }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const audit = await res.json();
+      const twilioInfo = audit.twilio_sid ? ` &bull; Twilio: ${audit.twilio_sid}` : "";
       resultEl.innerHTML =
-        `<span style="color: #16a34a; font-weight: 700;">[Dispatched]</span> ${audit.audit_id} &mdash; ${audit.recipients_count} recipients via ${audit.channels.join(", ")}`;
+        `<span style="color: #16a34a; font-weight: 700;">[Dispatched]</span> ${audit.audit_id}${twilioInfo} &mdash; ${audit.recipients_count} recipients via ${audit.channels[0]}`;
     } catch (err) {
       resultEl.textContent = `Dispatch failed: ${err.message}`;
     }

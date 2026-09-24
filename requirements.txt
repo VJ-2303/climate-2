@@ -13,3 +13,5 @@ torch-geometric>=2.4.0
 fastapi>=0.100.0
 uvicorn>=0.22.0
 pydantic>=2.0.0
+twilio>=9.0.0
+python-dotenv>=1.0.0

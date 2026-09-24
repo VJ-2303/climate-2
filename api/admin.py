@@ -304,6 +304,11 @@ def dispatch_institutional_alert(
     conn.commit()
     conn.close()
 
+    # Dispatch actual Twilio SMS to all verified target phone numbers
+    from api.sms import send_bulk_twilio_sms
+    sms_targets = [{"id": t["id"], "name": t["name"], "phone": t["phone"]} for t in targets]
+    twilio_results = send_bulk_twilio_sms(sms_targets, advisory["en"])
+
     return {
         "status": "dispatched",
         "alert_id": alert_id,
@@ -316,7 +321,8 @@ def dispatch_institutional_alert(
         "timestamp": now_iso,
         "message_en": advisory["en"],
         "message_ta": advisory["ta"],
-        "channels": ["SMS (TNSDMA CAP)", "WhatsApp Emergency Broadcast", "Zonal Corporation Dispatch"],
+        "channels": ["Twilio SMS (Carrier Gateway)", "TNSDMA CAP Broadcast", "Zonal Corporation Dispatch"],
+        "twilio_dispatches": twilio_results,
     }
 
 def get_alerts_audit_log(zone_id: Optional[int] = None, limit: int = 50) -> List[Dict[str, Any]]:
