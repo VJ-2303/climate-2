@@ -316,8 +316,8 @@ def get_block_intelligence(block_id: str) -> JSONResponse:
         shap_factors=shap_factors,
     )
 
-    # Attach explainable AI (SHAP) feature attributions
-    payload["shap_factors"] = shap_factors
+    # Attach explainable AI (SHAP) feature attributions (top 3 per SIH26083 plan 2.3)
+    payload["shap_factors"] = shap_factors[:3]
     payload["shap_base_temp"] = shap_info.get("base_value", 29.4)
 
     return JSONResponse(

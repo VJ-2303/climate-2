@@ -570,7 +570,7 @@ def evaluate_5day_health_trajectory(props: Dict[str, Any], forecast: Dict[str, A
         # Microclimate downscaling of WBGT: Sector anomaly scales WBGT by ~0.4
         local_wbgt = round(base_wbgt + (anomaly * 0.4), 1)
 
-        if local_wbgt >= 32.2:
+        if local_wbgt > 32.0:
             tier = "Critical"
             risk_label = "Hospitalization Surge Hazard"
         elif local_wbgt >= 30.0:
@@ -582,6 +582,12 @@ def evaluate_5day_health_trajectory(props: Dict[str, Any], forecast: Dict[str, A
         else:
             tier = "Low"
             risk_label = "Temperate Physiological Baseline"
+
+        # Social sensitivity modulation (SIH26083 plan 3.1): high population density +
+        # metal roof concentration escalate the tier by one level (HVI weights 0.70/0.30).
+        social = 0.70 * pop_norm + 0.30 * bldg_norm
+        if social >= 70.0 and tier != "Critical":
+            tier = {"Low": "Moderate", "Moderate": "High", "High": "Critical"}[tier]
 
         base_score = min(100.0, max(0.0, (local_wbgt - 24.0) * 10.0))
         risk_score = int(round(min(100.0, max(0.0, base_score * 0.75 + (pop_norm * 0.15) + (bldg_norm * 0.10)))))

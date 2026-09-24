@@ -152,6 +152,20 @@ def main():
     gdf_out["top_drivers"] = top_drivers_list
     gdf_out["intervention"] = interventions_list
 
+    # SIH26083 plan 2.3: attach top-3 SHAP feature contributions to exported block metadata
+    shap_path = "data/processed/block_shap_explanations.json"
+    if os.path.exists(shap_path):
+        with open(shap_path, "r", encoding="utf-8") as sf:
+            shap_data = json.load(sf)
+        shap_top_list = []
+        for bid in gdf["block_id"].values:
+            entry = shap_data.get(str(bid), {})
+            shap_top_list.append(entry.get("factors", [])[:3])
+        gdf_out["shap_top_factors"] = shap_top_list
+        print(f"Attached top-3 SHAP factors to {len(shap_top_list)} blocks.")
+    else:
+        gdf_out["shap_top_factors"] = [[] for _ in range(len(gdf))]
+
     # Physical Temperature Properties from Satellite LST & AI Model
     st_raw = gdf["mean_landsat_st_celsius"].values if "mean_landsat_st_celsius" in gdf.columns else (20.24 + (ai_heat_exposure / 100.0) * 18.37)
     gdf_out["surface_temp_celsius"] = [round(float(x), 1) for x in st_raw]
@@ -183,6 +197,7 @@ def main():
         "distance_to_water",
         "top_drivers",
         "intervention",
+        "shap_top_factors",
         "geometry"
     ]
     gdf_final = gdf_out[exact_cols]

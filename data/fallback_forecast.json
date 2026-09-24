@@ -5,7 +5,7 @@
   "timezone": "Africa/Nairobi",
   "generated_at": "2026-09-24T06:00:00Z",
   "source": "Open-Meteo ECMWF Ensemble (Offline Cached Baseline)",
-  "summary": "Severe 5-day heatwave warning. Peak physiological stress on Day 3 with max WBGT reaching 32.8°C.",
+  "summary": "Severe 5-day heatwave warning. Peak air temperature 34.5°C at 65% humidity on Day 3, max WBGT reaching 37.4°C.",
   "daily": [
     {
       "day": 1,
@@ -15,7 +15,7 @@
       "humidity_mean": 62.0,
       "wind_speed_max": 14.2,
       "solar_radiation_sum": 24.5,
-      "wbgt_max": 30.2,
+      "wbgt_max": 31.02,
       "risk_tier": "High",
       "advisory": "Elevated thermal load. Increase water intake and reduce outdoor manual labor between 12 PM - 3 PM."
     },
@@ -27,19 +27,19 @@
       "humidity_mean": 64.5,
       "wind_speed_max": 11.8,
       "solar_radiation_sum": 26.2,
-      "wbgt_max": 31.7,
-      "risk_tier": "High",
+      "wbgt_max": 33.35,
+      "risk_tier": "Critical",
       "advisory": "Dangerous humid heat accumulation. Shaded resting cycles required for vulnerable demographics."
     },
     {
       "day": 3,
       "date": "2026-09-26",
-      "temp_max": 33.6,
+      "temp_max": 34.5,
       "temp_min": 19.4,
-      "humidity_mean": 67.0,
+      "humidity_mean": 65.0,
       "wind_speed_max": 9.4,
       "solar_radiation_sum": 27.8,
-      "wbgt_max": 33.2,
+      "wbgt_max": 37.42,
       "risk_tier": "Critical",
       "advisory": "Severe heat emergency: High risk of heatstroke in metal-roof dwellings. Hydration points activated."
     },
@@ -51,8 +51,8 @@
       "humidity_mean": 61.0,
       "wind_speed_max": 13.0,
       "solar_radiation_sum": 25.0,
-      "wbgt_max": 31.5,
-      "risk_tier": "High",
+      "wbgt_max": 33.56,
+      "risk_tier": "Critical",
       "advisory": "Continued severe thermal strain. Night-time cooling impaired due to high thermal mass."
     },
     {
@@ -63,7 +63,7 @@
       "humidity_mean": 58.0,
       "wind_speed_max": 16.5,
       "solar_radiation_sum": 22.1,
-      "wbgt_max": 28.4,
+      "wbgt_max": 28.94,
       "risk_tier": "Moderate",
       "advisory": "Thermal relief expected with increased cloud cover and convective ventilation."
     }

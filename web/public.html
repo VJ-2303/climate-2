@@ -229,6 +229,43 @@
       line-height: 1.5;
     }
 
+    /* Find My Risk + Cool Spots */
+    .find-risk-box {
+      background: #1e293b;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      padding: 18px;
+      margin-bottom: 28px;
+    }
+    .find-risk-btn {
+      background: linear-gradient(135deg, #ef4444, #f97316);
+      color: #fff;
+      border: none;
+      padding: 12px 20px;
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: 14px;
+      cursor: pointer;
+      width: 100%;
+    }
+    .find-risk-btn:hover { opacity: 0.9; }
+    .my-risk-card {
+      margin-top: 14px;
+      padding: 14px;
+      border-radius: 10px;
+      background: rgba(15, 23, 42, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      font-size: 13px;
+      line-height: 1.7;
+    }
+    .cool-spot-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 6px 0;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .cool-spot-row span:last-child { font-weight: 700; color: #4ade80; }
+
     /* SMS Subscribe Card */
     .sms-box {
       background: linear-gradient(135deg, rgba(56, 189, 248, 0.1), rgba(15, 23, 42, 0.6));
@@ -349,6 +386,19 @@
       </div>
     </div>
 
+    <!-- Find My Risk + Nearest Cool Spots -->
+    <div class="section-title">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/>
+        <circle cx="12" cy="10" r="3"/>
+      </svg>
+      Find My Risk & Nearest Cool Spots
+    </div>
+    <div class="find-risk-box">
+      <button class="find-risk-btn" id="btn-find-risk">📍 Find My Risk (use my location)</button>
+      <div id="my-risk-result"></div>
+    </div>
+
     <!-- Free SMS Broadcast Subscription -->
     <div class="sms-box">
       <div>
@@ -403,6 +453,79 @@
         console.warn("Public portal forecast fetch error:", err);
       }
     }
+    let blocksGeo = null;
+    async function loadBlocksGeo() {
+      if (!blocksGeo) {
+        const r = await fetch("/data/vulnerability_blocks.geojson");
+        blocksGeo = await r.json();
+      }
+      return blocksGeo;
+    }
+
+    function centroidOf(feat) {
+      const c = feat.geometry.coordinates[0][0];
+      return [c[0], c[1]];
+    }
+
+    function distMeters([lat1, lon1], [lat2, lon2]) {
+      const R = 6371000;
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+      return 2 * R * Math.asin(Math.sqrt(a));
+    }
+
+    async function findMyRisk(lat, lon) {
+      const resultEl = document.getElementById("my-risk-result");
+      const geo = await loadBlocksGeo();
+      const me = [lat, lon];
+
+      let nearest = null, nearestD = Infinity;
+      let bestWater = null, bestGreen = null;
+      for (const f of geo.features) {
+        const c = centroidOf(f);
+        const d = distMeters(me, c);
+        if (d < nearestD) { nearestD = d; nearest = f; }
+        if (d < 600) {
+          const p = f.properties;
+          if (!bestWater || p.distance_to_water < bestWater.properties.distance_to_water) bestWater = f;
+          if (!bestGreen || p.distance_to_green < bestGreen.properties.distance_to_green) bestGreen = f;
+        }
+      }
+      if (!nearest) { resultEl.innerHTML = "<div class='my-risk-card'>You are outside the Kibera coverage area.</div>"; return; }
+
+      const p = nearest.properties;
+      const waterSpot = bestWater ? Math.round(distMeters(me, centroidOf(bestWater))) : null;
+      const greenSpot = bestGreen ? Math.round(distMeters(me, centroidOf(bestGreen))) : null;
+
+      resultEl.innerHTML = `
+        <div class="my-risk-card">
+          <div><strong>Sector ${p.block_id}</strong> — ${Math.round(nearestD)} m from you</div>
+          <div>Risk class: <strong>${p.risk_class}</strong> (HVI ${p.hvi_score}/100) · Surface temp ${p.surface_temp_celsius}°C</div>
+          <div style="margin-top: 8px; font-weight: 700; color: #38bdf8;">Nearest Cool Spots</div>
+          <div class="cool-spot-row"><span>💧 Nearest Water Point</span><span>${waterSpot !== null ? `~${waterSpot} m away` : "search wider area"}</span></div>
+          <div class="cool-spot-row"><span>🌳 Nearest Green / Shade</span><span>${greenSpot !== null ? `~${greenSpot} m away` : "search wider area"}</span></div>
+        </div>`;
+    }
+
+    document.getElementById("btn-find-risk").addEventListener("click", () => {
+      const resultEl = document.getElementById("my-risk-result");
+      if (!navigator.geolocation) {
+        resultEl.innerHTML = "<div class='my-risk-card'>Geolocation not supported by this browser.</div>";
+        return;
+      }
+      resultEl.innerHTML = "<div class='my-risk-card'>Locating you…</div>";
+      navigator.geolocation.getCurrentPosition(
+        (pos) => findMyRisk(pos.coords.latitude, pos.coords.longitude).catch((e) => {
+          resultEl.innerHTML = `<div class='my-risk-card'>Could not load sector data: ${e.message}</div>`;
+        }),
+        (err) => {
+          resultEl.innerHTML = `<div class='my-risk-card'>Location access denied (${err.code}). Enable location permission and try again.</div>`;
+        },
+        { timeout: 10000 }
+      );
+    });
+
     document.addEventListener("DOMContentLoaded", loadPublicData);
   </script>
 </body>

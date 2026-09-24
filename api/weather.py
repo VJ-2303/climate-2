@@ -36,8 +36,8 @@ def calculate_wbgt(temp_c: float, humidity_pct: float) -> float:
     return round(wbgt, 2)
 
 def classify_wbgt_risk(wbgt: float) -> str:
-    """Classifies physiological heat risk from WBGT."""
-    if wbgt >= 32.2:
+    """Classifies physiological heat risk from WBGT. Critical: WBGT > 32C (SIH26083 plan spec)."""
+    if wbgt > 32.0:
         return "Critical"
     elif wbgt >= 30.0:
         return "High"
@@ -74,56 +74,81 @@ def _load_fallback(fallback_path: str = FALLBACK_FILE) -> Dict[str, Any]:
         ]
     }
 
-def fetch_open_meteo_forecast(lat: float = DEFAULT_LAT, lon: float = DEFAULT_LON) -> Dict[str, Any]:
-    """Fetches real-time 5-day weather forecast from Open-Meteo API."""
-    url = (
+def build_open_meteo_url(lat: float, lon: float) -> str:
+    """Builds the Open-Meteo request URL with daily + hourly metrics."""
+    return (
         f"https://api.open-meteo.com/v1/forecast?"
         f"latitude={lat}&longitude={lon}&"
         f"daily=temperature_2m_max,temperature_2m_min,relative_humidity_2m_mean,wind_speed_10m_max,shortwave_radiation_sum&"
+        f"hourly=temperature_2m,relative_humidity_2m&"
         f"timezone=Africa%2FNairobi&forecast_days=5"
     )
+
+def process_open_meteo(raw_data: Dict[str, Any], lat: float, lon: float) -> Dict[str, Any]:
+    """Transforms raw Open-Meteo daily + hourly data into the 5-day WBGT forecast structure."""
+    daily_raw = raw_data.get("daily", {})
+    times = daily_raw.get("time", [])
+    t_max = daily_raw.get("temperature_2m_max", [])
+    t_min = daily_raw.get("temperature_2m_min", [])
+    rh_mean = daily_raw.get("relative_humidity_2m_mean", [])
+    wind = daily_raw.get("wind_speed_10m_max", [])
+    solar = daily_raw.get("shortwave_radiation_sum", [])
+
+    # Hourly T/RH pairs: peak WBGT per day computed from actual hourly conditions
+    hourly_raw = raw_data.get("hourly", {})
+    h_times = hourly_raw.get("time", [])
+    h_temp = hourly_raw.get("temperature_2m", [])
+    h_rh = hourly_raw.get("relative_humidity_2m", [])
+    hourly_peak_wbgt: Dict[str, float] = {}
+    for i in range(len(h_times)):
+        if i >= len(h_temp) or i >= len(h_rh):
+            continue
+        if h_temp[i] is None or h_rh[i] is None:
+            continue
+        day_key = h_times[i][:10]
+        wbgt_h = calculate_wbgt(float(h_temp[i]), float(h_rh[i]))
+        if day_key not in hourly_peak_wbgt or wbgt_h > hourly_peak_wbgt[day_key]:
+            hourly_peak_wbgt[day_key] = wbgt_h
+
+    processed_days = []
+    for i in range(min(5, len(times))):
+        tm = float(t_max[i]) if i < len(t_max) and t_max[i] is not None else 30.0
+        tmn = float(t_min[i]) if i < len(t_min) and t_min[i] is not None else 18.0
+        rh = float(rh_mean[i]) if i < len(rh_mean) and rh_mean[i] is not None else 60.0
+        wbgt = hourly_peak_wbgt.get(times[i], calculate_wbgt(tm, rh))
+        tier = classify_wbgt_risk(wbgt)
+
+        processed_days.append({
+            "day": i + 1,
+            "date": times[i],
+            "temp_max": tm,
+            "temp_min": tmn,
+            "humidity_mean": rh,
+            "wind_speed_max": float(wind[i]) if i < len(wind) and wind[i] is not None else 12.0,
+            "solar_radiation_sum": float(solar[i]) if i < len(solar) and solar[i] is not None else 20.0,
+            "wbgt_max": wbgt,
+            "risk_tier": tier,
+            "advisory": f"{tier} risk: Projected WBGT of {wbgt:.1f}°C."
+        })
+
+    max_overall_wbgt = max(d["wbgt_max"] for d in processed_days) if processed_days else 30.0
+    return {
+        "location": "Kibera, Nairobi",
+        "latitude": lat,
+        "longitude": lon,
+        "source": "Open-Meteo Live API",
+        "summary": f"5-day forecast active. Peak settlement WBGT reaching {max_overall_wbgt:.1f}°C.",
+        "daily": processed_days
+    }
+
+def fetch_open_meteo_forecast(lat: float = DEFAULT_LAT, lon: float = DEFAULT_LON) -> Dict[str, Any]:
+    """Fetches real-time 5-day weather forecast (daily + hourly metrics) from Open-Meteo API."""
+    url = build_open_meteo_url(lat, lon)
     req = urllib.request.Request(url, headers={"User-Agent": "ThermalGuard/1.0"})
     with urllib.request.urlopen(req, timeout=5) as response:
         if response.status == 200:
             raw_data = json.loads(response.read().decode("utf-8"))
-            daily_raw = raw_data.get("daily", {})
-            times = daily_raw.get("time", [])
-            t_max = daily_raw.get("temperature_2m_max", [])
-            t_min = daily_raw.get("temperature_2m_min", [])
-            rh_mean = daily_raw.get("relative_humidity_2m_mean", [])
-            wind = daily_raw.get("wind_speed_10m_max", [])
-            solar = daily_raw.get("shortwave_radiation_sum", [])
-
-            processed_days = []
-            for i in range(min(5, len(times))):
-                tm = float(t_max[i]) if i < len(t_max) and t_max[i] is not None else 30.0
-                tmn = float(t_min[i]) if i < len(t_min) and t_min[i] is not None else 18.0
-                rh = float(rh_mean[i]) if i < len(rh_mean) and rh_mean[i] is not None else 60.0
-                wbgt = calculate_wbgt(tm, rh)
-                tier = classify_wbgt_risk(wbgt)
-
-                processed_days.append({
-                    "day": i + 1,
-                    "date": times[i],
-                    "temp_max": tm,
-                    "temp_min": tmn,
-                    "humidity_mean": rh,
-                    "wind_speed_max": float(wind[i]) if i < len(wind) and wind[i] is not None else 12.0,
-                    "solar_radiation_sum": float(solar[i]) if i < len(solar) and solar[i] is not None else 20.0,
-                    "wbgt_max": wbgt,
-                    "risk_tier": tier,
-                    "advisory": f"{tier} risk: Projected WBGT of {wbgt:.1f}°C."
-                })
-
-            max_overall_wbgt = max(d["wbgt_max"] for d in processed_days) if processed_days else 30.0
-            return {
-                "location": "Kibera, Nairobi",
-                "latitude": lat,
-                "longitude": lon,
-                "source": "Open-Meteo Live API",
-                "summary": f"5-day forecast active. Peak settlement WBGT reaching {max_overall_wbgt:.1f}°C.",
-                "daily": processed_days
-            }
+            return process_open_meteo(raw_data, lat, lon)
         raise RuntimeError(f"Open-Meteo responded with status {response.status}")
 
 def get_5day_forecast(lat: float = DEFAULT_LAT, lon: float = DEFAULT_LON, force_fallback: bool = False, fallback_path: str = FALLBACK_FILE) -> Dict[str, Any]:
