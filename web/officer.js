@@ -34,6 +34,23 @@
     };
   }
 
+  window.getActiveForecastInfo = function (blockId, props) {
+    if (activeForecastDay && forecastAttrMap) {
+      const score = forecastAttrMap[blockId] !== undefined ? forecastAttrMap[blockId] : 0;
+      const dayData = forecastDays.find((d) => d.day === activeForecastDay) || {};
+      const baseWbgt = dayData.wbgt_max || 30.0;
+      const anomaly = (props && props.temp_anomaly_celsius !== undefined) ? Number(props.temp_anomaly_celsius) : 0.0;
+      const localWbgt = (baseWbgt + anomaly * 0.4).toFixed(1);
+      const airMax = dayData.temp_max !== undefined ? `${Number(dayData.temp_max).toFixed(1)}°C Air Max &bull; ` : "";
+      let tier = "Low";
+      if (score > 85) tier = "Critical";
+      else if (score > 70) tier = "High";
+      else if (score > 45) tier = "Medium";
+      return `<strong>${blockId}</strong> &bull; Day ${activeForecastDay} &bull; ${airMax}Local WBGT: <span style="color:#f59e0b;font-weight:700;">${localWbgt}°C</span> &bull; Risk: ${score} (${tier})`;
+    }
+    return null;
+  };
+
   async function initOfficer() {
     patchForecastColors();
     try {
@@ -41,6 +58,17 @@
       if (!res.ok) return;
       const data = await res.json();
       forecastDays = data.days || [];
+
+      // Update topbar with real-time live ambient temperature
+      if (data.current) {
+        const curr = data.current;
+        const topbarTemp = document.getElementById("topbar-avg-temp");
+        if (topbarTemp && curr.temperature_celsius !== undefined) {
+          const meanLST = (window.maduraiMeanSurfaceTemp || 49.5).toFixed(1);
+          topbarTemp.title = `Live Real-time Ambient Air Temperature: ${curr.temperature_celsius.toFixed(1)}°C (Feels ${curr.apparent_temperature_celsius.toFixed(1)}°C, Humidity ${curr.relative_humidity_pct}%) | Radiometric Landsat LST Mean: ${meanLST}°C`;
+          topbarTemp.innerHTML = `Live: <strong>${curr.temperature_celsius.toFixed(1)}°C</strong> <span style="opacity:0.8;font-size:11px;">(Feels ${curr.apparent_temperature_celsius.toFixed(1)}°C)</span> &bull; LST Avg: ${meanLST}°C`;
+        }
+      }
 
       const menu = document.getElementById("forecast-menu");
       const btn = document.getElementById("forecast-menu-btn");
@@ -62,15 +90,16 @@
       };
 
       addHeader("Map View");
-      addItem("HVI (Current)", "Static vulnerability index", activeForecastDay === null, () => {
+      addItem("HVI (Current)", "Static vulnerability index (Landsat LST)", activeForecastDay === null, () => {
         resetForecastView();
         closeForecastMenu();
       });
-      addHeader("5-Day WBGT Forecast");
+      addHeader("5-Day Heatwave & WBGT Forecast");
       forecastDays.forEach((d) => {
+        const airText = d.temp_max !== undefined ? `${Number(d.temp_max).toFixed(1)}°C Air · ` : "";
         addItem(
           `Day ${d.day} — ${d.date}`,
-          `${Number(d.wbgt_max).toFixed(1)}°C WBGT · ${d.risk_tier}`,
+          `${airText}${Number(d.wbgt_max).toFixed(1)}°C WBGT (${d.risk_tier})`,
           activeForecastDay === d.day,
           () => {
             selectForecastDay(d.day);
@@ -114,8 +143,10 @@
           return { stroke: false, fillOpacity: 0.65, fillColor: scoreColor(score) };
         });
       }
+      const dayData = forecastDays.find((d) => d.day === day) || {};
+      const airInfo = dayData.temp_max !== undefined ? ` (${dayData.temp_max}°C Air Max)` : "";
       const nameEl = document.getElementById("active-layer-name");
-      if (nameEl) nameEl.textContent = `Day ${day} WBGT Risk Forecast`;
+      if (nameEl) nameEl.textContent = `Day ${day} WBGT Risk Forecast${airInfo}`;
       setForecastLabel(`Day ${day} Forecast`);
     } catch (err) {
       console.warn("Forecast day load failed:", err);
@@ -171,6 +202,28 @@
     wrap.id = "officer-extras";
     wrap.style.cssText = "margin-top: 16px; border-top: 1px solid #e2e8f0; padding-top: 12px;";
 
+    // Real-time Station Weather Card
+    if (data.realtime_weather) {
+      const rw = data.realtime_weather;
+      const weatherSec = document.createElement("div");
+      weatherSec.style.cssText = "background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; margin-bottom: 12px;";
+      weatherSec.innerHTML = `
+        <div style="font-size: 11px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">
+          🌡️ Real-Time Station Weather (Madurai)
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: baseline;">
+          <span style="font-size: 16px; font-weight: 800; color: #0f172a;">${Number(rw.temperature_celsius).toFixed(1)}°C Air</span>
+          <span style="font-size: 12px; color: #64748b;">Feels ${Number(rw.apparent_temperature_celsius).toFixed(1)}°C</span>
+        </div>
+        <div style="display: flex; gap: 10px; margin-top: 6px; font-size: 11px; color: #475569;">
+          <span>💧 ${Number(rw.relative_humidity_pct).toFixed(0)}% RH</span>
+          <span>💨 ${Number(rw.wind_speed_kmh).toFixed(1)} km/h</span>
+          <span>🔥 WBGT ${Number(rw.wbgt_celsius).toFixed(1)}°C (${rw.risk_tier})</span>
+        </div>
+      `;
+      wrap.appendChild(weatherSec);
+    }
+
     // SHAP feature attribution waterfall
     const shapFactors = data.shap_factors || [];
     if (shapFactors.length > 0) {
@@ -223,7 +276,8 @@
         c.setAttribute("r", "4");
         c.setAttribute("fill", TIER_COLORS[p.t.health_risk_tier] || "#94a3b8");
         const title = document.createElementNS("http://www.w3.org/2000/svg", "title");
-        title.textContent = `Day ${p.t.day}: ${p.t.health_risk_tier} — WBGT ${p.t.local_wbgt}°C (score ${p.t.risk_score})`;
+        const airStr = p.t.temp_max !== undefined ? `${Number(p.t.temp_max).toFixed(1)}°C Air, ` : "";
+        title.textContent = `Day ${p.t.day}: ${p.t.health_risk_tier} — ${airStr}WBGT ${p.t.local_wbgt}°C (score ${p.t.risk_score})`;
         c.appendChild(title);
         svg.appendChild(c);
       });
@@ -231,7 +285,7 @@
       const legend = document.createElement("div");
       legend.style.cssText = "display: flex; gap: 8px; margin-top: 4px;";
       legend.innerHTML = traj
-        .map((t) => `<span style="font-size: 10px; color: #475569;">D${t.day} ${t.health_risk_tier}</span>`)
+        .map((t) => `<span style="font-size: 10px; color: #475569;">D${t.day}${t.temp_max !== undefined ? ` (${Math.round(t.temp_max)}°)` : ""}: ${t.health_risk_tier}</span>`)
         .join("");
       sec.appendChild(legend);
       wrap.appendChild(sec);

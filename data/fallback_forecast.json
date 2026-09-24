@@ -6,6 +6,15 @@
   "generated_at": "2026-09-24T06:00:00Z",
   "source": "Open-Meteo ECMWF Ensemble (Offline Cached Baseline)",
   "summary": "Severe 5-day heatwave warning. Peak air temperature 34.5°C at 65% humidity on Day 3, max WBGT reaching 37.4°C.",
+  "current": {
+    "time": "2026-09-24T12:00:00Z",
+    "temperature_celsius": 29.8,
+    "relative_humidity_pct": 62.0,
+    "apparent_temperature_celsius": 32.4,
+    "wind_speed_kmh": 14.2,
+    "wbgt_celsius": 31.02,
+    "risk_tier": "High"
+  },
   "daily": [
     {
       "day": 1,

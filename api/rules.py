@@ -206,7 +206,7 @@ def evaluate_heat_health_advisory(props: Dict[str, Any]) -> Dict[str, str]:
         }
 
 
-def evaluate_microclimate_diagnosis(props: Dict[str, Any], block_id: str = "") -> Dict[str, Any]:
+def evaluate_microclimate_diagnosis(props: Dict[str, Any], block_id: str = "", current_air_temp: Optional[float] = None) -> Dict[str, Any]:
     """
     Performs multi-dimensional physical microclimate diagnosis:
     1. Detailed Information About This Specific Area (Land-cover and spatial setting).
@@ -237,7 +237,10 @@ def evaluate_microclimate_diagnosis(props: Dict[str, Any], block_id: str = "") -
 
     # Peak metal roof solar radiant temperature under direct sun
     peak_roof_temp = round(min(70.0, max(surface_temp, surface_temp + (ndbi / 100.0) * 16.0)), 1)
-    ambient_air_temp = round(28.0 + (surface_temp - 32.0) * 0.35, 1)
+    if current_air_temp is not None:
+        ambient_air_temp = round(current_air_temp + (temp_anomaly * 0.35), 1)
+    else:
+        ambient_air_temp = round(28.0 + (surface_temp - 32.0) * 0.35, 1)
 
     # 1. Physical Land-Cover Classification
     land_type, land_desc = classify_land_cover(props)
@@ -448,11 +451,22 @@ def build_block_intelligence(
     risk_class = props.get("risk_class", "Medium")
     pop = props.get("estimated_population", 0)
 
+    # 5-Day Health Risk Trajectory & Real-Time Weather (ThermalGuard SIH26083)
+    if forecast is None:
+        try:
+            from api.weather import get_5day_forecast
+            forecast = get_5day_forecast()
+        except Exception:
+            forecast = {"daily": []}
+
+    curr_weather = forecast.get("current") if forecast else None
+    current_air_temp = curr_weather.get("temperature_celsius") if curr_weather else None
+
     # 1. Percentile Rank
     percentile = calculate_percentile(hvi_score, all_scores)
 
     # 2. Comprehensive Diagnosis
-    diag = evaluate_microclimate_diagnosis(props, block_id)
+    diag = evaluate_microclimate_diagnosis(props, block_id, current_air_temp=current_air_temp)
 
     # 3. Spatial Neighbor Analysis
     spatial_context = evaluate_neighborhood_context(
@@ -536,14 +550,6 @@ def build_block_intelligence(
         },
     }
 
-    # 5-Day Health Risk Trajectory & Automated Advisory (ThermalGuard SIH26083)
-    if forecast is None:
-        try:
-            from api.weather import get_5day_forecast
-            forecast = get_5day_forecast()
-        except Exception:
-            forecast = {"daily": []}
-
     trajectory = evaluate_5day_health_trajectory(props, forecast)
     current_day_wbgt = trajectory[0]["local_wbgt"] if trajectory else diag["surface_temp_celsius"]
     current_risk_tier = trajectory[0]["health_risk_tier"] if trajectory else risk_class
@@ -556,6 +562,8 @@ def build_block_intelligence(
 
     payload["forecast_trajectory"] = trajectory
     payload["automated_advisory"] = advisory
+    if curr_weather:
+        payload["realtime_weather"] = curr_weather
     return payload
 
 
@@ -598,6 +606,9 @@ def evaluate_5day_health_trajectory(props: Dict[str, Any], forecast: Dict[str, A
         trajectory.append({
             "day": day_num,
             "date": day_info.get("date", f"Day {day_num}"),
+            "temp_max": day_info.get("temp_max"),
+            "temp_min": day_info.get("temp_min"),
+            "humidity_mean": day_info.get("humidity_mean"),
             "base_wbgt": base_wbgt,
             "local_wbgt": local_wbgt,
             "health_risk_tier": tier,

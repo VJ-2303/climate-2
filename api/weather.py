@@ -82,7 +82,22 @@ def _load_fallback(fallback_path: str = FALLBACK_FILE) -> Dict[str, Any]:
     normalized_path = os.path.abspath(fallback_path)
     if os.path.isfile(normalized_path):
         with open(normalized_path, "r", encoding="utf-8") as f:
-            return json.load(f)
+            data = json.load(f)
+            if "current" not in data:
+                d0 = data.get("daily", [{}])[0]
+                t0 = float(d0.get("temp_max", 29.8))
+                rh0 = float(d0.get("humidity_mean", 62.0))
+                wbgt0 = calculate_wbgt(t0, rh0)
+                data["current"] = {
+                    "time": d0.get("date", "2026-09-24T12:00:00Z"),
+                    "temperature_celsius": t0,
+                    "relative_humidity_pct": rh0,
+                    "apparent_temperature_celsius": round(t0 + 2.6, 1),
+                    "wind_speed_kmh": float(d0.get("wind_speed_max", 14.2)),
+                    "wbgt_celsius": wbgt0,
+                    "risk_tier": classify_wbgt_risk(wbgt0),
+                }
+            return data
     # Ultimate hardcoded fallback if file missing
     return {
         "location": "Madurai, Tamil Nadu",
@@ -90,6 +105,15 @@ def _load_fallback(fallback_path: str = FALLBACK_FILE) -> Dict[str, Any]:
         "longitude": DEFAULT_LON,
         "source": "Emergency Fallback Cache",
         "summary": "5-day heat wave forecast (Offline Baseline)",
+        "current": {
+            "time": "2026-09-24T12:00:00Z",
+            "temperature_celsius": 29.5,
+            "relative_humidity_pct": 60.0,
+            "apparent_temperature_celsius": 32.0,
+            "wind_speed_kmh": 12.0,
+            "wbgt_celsius": calculate_wbgt(29.5, 60.0),
+            "risk_tier": classify_wbgt_risk(calculate_wbgt(29.5, 60.0)),
+        },
         "daily": [
             {
                 "day": i + 1,
@@ -106,12 +130,13 @@ def _load_fallback(fallback_path: str = FALLBACK_FILE) -> Dict[str, Any]:
     }
 
 def build_open_meteo_url(lat: float, lon: float) -> str:
-    """Builds the Open-Meteo request URL (daily metrics, 3-model blend)."""
+    """Builds the Open-Meteo request URL (daily metrics + current real-time weather, 3-model blend)."""
     return (
         f"https://api.open-meteo.com/v1/forecast?"
         f"latitude={lat}&longitude={lon}&"
         f"models=ecmwf_ifs025,icon_seamless,gfs025&"
         f"daily=temperature_2m_max,temperature_2m_min,relative_humidity_2m_mean,wind_speed_10m_max,shortwave_radiation_sum&"
+        f"current=temperature_2m,relative_humidity_2m,apparent_temperature,wind_speed_10m&"
         f"timezone=Asia%2FKolkata&forecast_days=5"
     )
 
@@ -157,7 +182,7 @@ def _blend_daily_models(daily_raw: Dict[str, Any]) -> Dict[str, Any]:
     return blended
 
 def process_open_meteo(raw_data: Dict[str, Any], lat: float, lon: float) -> Dict[str, Any]:
-    """Transforms raw Open-Meteo daily data into the 5-day WBGT forecast structure.
+    """Transforms raw Open-Meteo daily data into the 5-day WBGT forecast and real-time current weather structure.
 
     Multi-model responses are element-wise averaged before WBGT computation.
     WBGT is computed from each day's max temperature + mean humidity (daily-max method).
@@ -193,20 +218,52 @@ def process_open_meteo(raw_data: Dict[str, Any], lat: float, lon: float) -> Dict
 
     max_overall_wbgt = max(d["wbgt_max"] for d in processed_days) if processed_days else 30.0
     is_blend = _is_multi_model(raw_data.get("daily", {}))
+
+    # Parse real-time current conditions
+    curr_raw = raw_data.get("current", {})
+    if curr_raw and "temperature_2m" in curr_raw:
+        curr_t = float(curr_raw.get("temperature_2m", 28.0))
+        curr_rh = float(curr_raw.get("relative_humidity_2m", 60.0))
+        curr_wbgt = calculate_wbgt(curr_t, curr_rh)
+        current_weather = {
+            "time": curr_raw.get("time", ""),
+            "temperature_celsius": curr_t,
+            "relative_humidity_pct": curr_rh,
+            "apparent_temperature_celsius": float(curr_raw.get("apparent_temperature", curr_t)),
+            "wind_speed_kmh": float(curr_raw.get("wind_speed_10m", 0.0)),
+            "wbgt_celsius": curr_wbgt,
+            "risk_tier": classify_wbgt_risk(curr_wbgt),
+        }
+    else:
+        d0 = processed_days[0] if processed_days else {}
+        d0_t = float(d0.get("temp_max", 30.0))
+        d0_rh = float(d0.get("humidity_mean", 60.0))
+        curr_wbgt = calculate_wbgt(d0_t, d0_rh)
+        current_weather = {
+            "time": d0.get("date", ""),
+            "temperature_celsius": d0_t,
+            "relative_humidity_pct": d0_rh,
+            "apparent_temperature_celsius": d0_t,
+            "wind_speed_kmh": float(d0.get("wind_speed_max", 10.0)),
+            "wbgt_celsius": curr_wbgt,
+            "risk_tier": classify_wbgt_risk(curr_wbgt),
+        }
+
     return {
         "location": "Madurai, Tamil Nadu",
         "latitude": lat,
         "longitude": lon,
         "source": "Open-Meteo Multi-Model Blend (ECMWF + ICON + GFS)" if is_blend else "Open-Meteo Live API",
         "summary": f"5-day forecast active. Peak settlement WBGT reaching {max_overall_wbgt:.1f}°C.",
+        "current": current_weather,
         "daily": processed_days
     }
 
 def fetch_open_meteo_forecast(lat: float = DEFAULT_LAT, lon: float = DEFAULT_LON) -> Dict[str, Any]:
-    """Fetches real-time 5-day weather forecast (daily metrics) from Open-Meteo API."""
+    """Fetches real-time 5-day weather forecast (daily metrics + current weather) from Open-Meteo API."""
     url = build_open_meteo_url(lat, lon)
     req = urllib.request.Request(url, headers={"User-Agent": "ThermalGuard/1.0"})
-    with urllib.request.urlopen(req, timeout=5) as response:
+    with urllib.request.urlopen(req, timeout=10) as response:
         if response.status == 200:
             raw_data = json.loads(response.read().decode("utf-8"))
             return process_open_meteo(raw_data, lat, lon)

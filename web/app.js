@@ -339,11 +339,15 @@ function onEachPrimaryFeature(feature, layer) {
 
   layer.bindTooltip(() => {
     const blockId = props.block_id;
+    if (typeof window.getActiveForecastInfo === "function") {
+      const fcInfo = window.getActiveForecastInfo(blockId, props);
+      if (fcInfo) return fcInfo;
+    }
     if (currentActiveLayerName === "hvi") {
       const tempVal = props.surface_temp_celsius !== undefined
         ? props.surface_temp_celsius.toFixed(1)
         : (20.24 + ((props.ai_heat_exposure || 50) / 100) * 18.37).toFixed(1);
-      return `<strong>${blockId}</strong> &bull; <span style="color:#f59e0b;font-weight:700;">${tempVal}°C</span> &bull; HVI: ${props.hvi_score} (${props.risk_class})`;
+      return `<strong>${blockId}</strong> &bull; LST: <span style="color:#f59e0b;font-weight:700;">${tempVal}°C</span> &bull; HVI: ${props.hvi_score} (${props.risk_class})`;
     } else {
       const attrMap = layerAttributeCache[currentActiveLayerName];
       const propName = currentActiveLayerName.replace("_blocks", "");
@@ -1109,6 +1113,7 @@ function computeSettlementStats(features) {
   const meanHVI = total > 0 ? Math.round(hviSum / total) : 0;
   if (tempCount > 0) {
     maduraiMeanSurfaceTemp = tempSum / tempCount;
+    window.maduraiMeanSurfaceTemp = maduraiMeanSurfaceTemp;
   }
 
   const top5 = allBlocks
@@ -1145,8 +1150,8 @@ function renderOverviewDashboard(stats) {
   // KPI values
   const setEl = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
   setEl("ov-mean-hvi", meanHVI);
-  setEl("ov-mean-temp", `${(settlementMeanTemp || 49.5).toFixed(1)}°C`);
-  setEl("topbar-avg-temp", `Avg: ${(settlementMeanTemp || 49.5).toFixed(1)}°C`);
+  setEl("ov-mean-temp", `${(settlementMeanTemp || 49.5).toFixed(1)}°C (LST)`);
+  setEl("topbar-avg-temp", `LST Avg: ${(settlementMeanTemp || 49.5).toFixed(1)}°C`);
   setEl("ov-atrisk-pop", atRiskPop.toLocaleString());
   setEl("ov-critical-count", (counts.Critical || 0).toLocaleString());
   setEl("ov-total-blocks", total.toLocaleString());
