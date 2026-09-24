@@ -33,6 +33,10 @@ ea   = (RH/100) × 6.105 × exp(17.27·Ta / (237.7 + Ta))        # Magnus vapor 
 Per forecast day: `Ta = temperature_2m_max`, `RH = relative_humidity_2m_mean` (Open-Meteo
 daily). One WBGT per day from the day's max temperature — no hourly scan.
 
+**Multi-model blend:** single fetch with `models=ecmwf_ifs025,icon_seamless,gfs025`;
+per-model suffixed fields are element-wise averaged before WBGT computation
+(`_blend_daily_models`). Cuts forecast error vs single model.
+
 Available but not in the pipeline: full ACGIH outdoor WBGT `0.57·Tg + 0.32·ea + 0.11·Ta`
 with globe temp from the Liljegren 2002 energy balance (`calculate_full_wbgt`,
 `estimate_globe_temperature` in `api/weather.py`).

@@ -55,6 +55,34 @@ def test_wbgt_from_daily_max_temperature():
     assert d2["risk_tier"] == "Critical"
 
 
+def test_process_open_meteo_blends_multi_model():
+    # Real Open-Meteo multi-model shape: flat dict, shared time, per-model suffixed fields
+    raw = {"daily": {
+        "time": ["2026-09-24"],
+        "temperature_2m_max_ecmwf_ifs025": [32.0],
+        "temperature_2m_max_icon_seamless": [28.0],
+        "temperature_2m_max_gfs025": [30.0],
+        "temperature_2m_min_ecmwf_ifs025": [18.0],
+        "temperature_2m_min_icon_seamless": [19.0],
+        "temperature_2m_min_gfs025": [18.0],
+        "relative_humidity_2m_mean_ecmwf_ifs025": [60.0],
+        "relative_humidity_2m_mean_icon_seamless": [60.0],
+        "relative_humidity_2m_mean_gfs025": [60.0],
+        "wind_speed_10m_max_ecmwf_ifs025": [12.0],
+        "wind_speed_10m_max_icon_seamless": [10.0],
+        "wind_speed_10m_max_gfs025": [11.0],
+        "shortwave_radiation_sum_ecmwf_ifs025": [20.0],
+        "shortwave_radiation_sum_icon_seamless": [22.0],
+        "shortwave_radiation_sum_gfs025": [21.0],
+    }}
+    result = process_open_meteo(raw, -1.317, 36.789)
+    d1 = result["daily"][0]
+    # Blend = element-wise mean: Tmax (32+28+30)/3 = 30.0, RH 60.0
+    assert d1["temp_max"] == 30.0
+    assert d1["wbgt_max"] == calculate_wbgt(30.0, 60.0)
+    assert "blend" in result["source"].lower()
+
+
 def test_wbgt_ignores_hourly_data_if_present():
     raw = {
         "daily": {

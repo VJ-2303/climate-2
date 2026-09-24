@@ -106,20 +106,63 @@ def _load_fallback(fallback_path: str = FALLBACK_FILE) -> Dict[str, Any]:
     }
 
 def build_open_meteo_url(lat: float, lon: float) -> str:
-    """Builds the Open-Meteo request URL (daily metrics only)."""
+    """Builds the Open-Meteo request URL (daily metrics, 3-model blend)."""
     return (
         f"https://api.open-meteo.com/v1/forecast?"
         f"latitude={lat}&longitude={lon}&"
+        f"models=ecmwf_ifs025,icon_seamless,gfs025&"
         f"daily=temperature_2m_max,temperature_2m_min,relative_humidity_2m_mean,wind_speed_10m_max,shortwave_radiation_sum&"
         f"timezone=Africa%2FNairobi&forecast_days=5"
     )
 
+BLEND_FIELDS = (
+    "temperature_2m_max", "temperature_2m_min", "relative_humidity_2m_mean",
+    "wind_speed_10m_max", "shortwave_radiation_sum",
+)
+MODEL_NAMES = ("ecmwf_ifs025", "icon_seamless", "gfs025")
+
+def _is_multi_model(daily_raw: Dict[str, Any]) -> bool:
+    """Multi-model responses carry per-model suffixed fields (e.g. temperature_2m_max_gfs025)."""
+    return any(k.endswith("_" + m) for k in daily_raw for m in MODEL_NAMES)
+
+def _blend_daily_models(daily_raw: Dict[str, Any]) -> Dict[str, Any]:
+    """Averages per-model suffixed fields into plain field names (element-wise mean).
+
+    Single-model responses (plain field names) pass through unchanged.
+    """
+    if not _is_multi_model(daily_raw):
+        return daily_raw
+    times = daily_raw.get("time", [])
+    groups: Dict[str, list] = {}
+    plain: Dict[str, Any] = {}
+    for key, val in daily_raw.items():
+        if key == "time":
+            continue
+        base = key
+        for m in MODEL_NAMES:
+            if key.endswith("_" + m):
+                base = key[: -(len(m) + 1)]
+                break
+        if base in BLEND_FIELDS:
+            groups.setdefault(base, []).append(val)
+        else:
+            plain[key] = val
+    blended: Dict[str, Any] = {"time": times}
+    for field, lists in groups.items():
+        blended[field] = []
+        for i in range(len(times)):
+            vals = [lst[i] for lst in lists if i < len(lst) and lst[i] is not None]
+            blended[field].append(round(sum(vals) / len(vals), 2) if vals else None)
+    blended.update(plain)
+    return blended
+
 def process_open_meteo(raw_data: Dict[str, Any], lat: float, lon: float) -> Dict[str, Any]:
     """Transforms raw Open-Meteo daily data into the 5-day WBGT forecast structure.
 
+    Multi-model responses are element-wise averaged before WBGT computation.
     WBGT is computed from each day's max temperature + mean humidity (daily-max method).
     """
-    daily_raw = raw_data.get("daily", {})
+    daily_raw = _blend_daily_models(raw_data.get("daily", {}))
     times = daily_raw.get("time", [])
     t_max = daily_raw.get("temperature_2m_max", [])
     t_min = daily_raw.get("temperature_2m_min", [])
@@ -149,11 +192,12 @@ def process_open_meteo(raw_data: Dict[str, Any], lat: float, lon: float) -> Dict
         })
 
     max_overall_wbgt = max(d["wbgt_max"] for d in processed_days) if processed_days else 30.0
+    is_blend = _is_multi_model(raw_data.get("daily", {}))
     return {
         "location": "Kibera, Nairobi",
         "latitude": lat,
         "longitude": lon,
-        "source": "Open-Meteo Live API",
+        "source": "Open-Meteo Multi-Model Blend (ECMWF + ICON + GFS)" if is_blend else "Open-Meteo Live API",
         "summary": f"5-day forecast active. Peak settlement WBGT reaching {max_overall_wbgt:.1f}°C.",
         "daily": processed_days
     }
