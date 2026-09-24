@@ -185,6 +185,15 @@ def officer_view() -> FileResponse:
     return FileResponse(officer_path, media_type="text/html")
 
 
+@app.get("/public")
+def public_view() -> FileResponse:
+    """Serves the citizen-facing public heat safety portal."""
+    public_path = WEB_DIR / "public.html"
+    if not public_path.is_file():
+        raise HTTPException(status_code=404, detail="Public portal HTML not found")
+    return FileResponse(public_path, media_type="text/html")
+
+
 @app.post("/api/alerts/dispatch")
 async def dispatch_sms_alert(payload: Dict[str, Any]) -> JSONResponse:
     """Simulates targeted SMS emergency advisory dispatch to residents in a specific sector."""
