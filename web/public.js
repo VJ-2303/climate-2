@@ -572,6 +572,24 @@
         elemWaterName.textContent = distW < 200 ? "Vaigai Riverfront / Water Tap" : "Municipal Clean Water Refill Tap";
       }
     }
+
+    // 6. Dynamic Microclimate Physical Diagnosis & Advisory (rules.py)
+    const explainerDesc = document.getElementById("explainer-desc");
+    if (explainerDesc && data.thermal_summary) {
+      explainerDesc.textContent = data.thermal_summary;
+    }
+
+    if (data.automated_advisory) {
+      const actEl = document.getElementById("action-item-hydrate");
+      if (actEl) {
+        const actionText = currentLang === "TA"
+          ? (data.automated_advisory.citizen_action_ta || data.automated_advisory.citizen_action)
+          : data.automated_advisory.citizen_action;
+        if (actionText) {
+          actEl.innerHTML = `<strong>${currentLang === "TA" ? "நேரடி ஆலோசனை:" : "Sector Guidance:"}</strong> ${actionText}`;
+        }
+      }
+    }
   }
 
   // ─── Render Hourly Diurnal Spline Chart & 9-Tile Scrubber ───

@@ -348,6 +348,43 @@
       wrap.appendChild(sec);
     }
 
+    // Intervention Material Sizing & Botanical Guidance (rules.py)
+    if (data.sizing || data.species_guidance) {
+      const sizingSec = document.createElement("div");
+      sizingSec.style.cssText = "margin-top: 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px;";
+      
+      let sizingHtml = `<div style="font-size: 11px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">Intervention Sizing & Botany</div>`;
+      
+      if (data.sizing && (data.sizing.cool_roof_paint_liters > 0 || data.sizing.trees_to_target_canopy > 0)) {
+        sizingHtml += `
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px; font-size: 11px;">
+            <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 6px; padding: 6px;">
+              <span style="color: #64748b; display: block; font-size: 10px;">Cool Roof Paint</span>
+              <strong style="color: #0f172a; font-size: 12px;">${data.sizing.cool_roof_paint_liters} L</strong>
+              <span style="color: #94a3b8; font-size: 9px; display: block;">(~${data.sizing.estimated_roof_sqm} m² roof)</span>
+            </div>
+            <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 6px; padding: 6px;">
+              <span style="color: #64748b; display: block; font-size: 10px;">Target Shade Trees</span>
+              <strong style="color: #0f172a; font-size: 12px;">${data.sizing.trees_to_target_canopy}</strong>
+              <span style="color: #94a3b8; font-size: 9px; display: block;">(for 25% canopy)</span>
+            </div>
+          </div>
+        `;
+      }
+
+      if (data.species_guidance) {
+        sizingHtml += `
+          <div style="font-size: 11px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 6px; padding: 6px;">
+            <span style="color: #166534; font-weight: 600; display: block; font-size: 10.5px;">${data.species_guidance.primary_species}</span>
+            <span style="color: #64748b; font-size: 10px; line-height: 1.3; display: block; margin-top: 2px;">${data.species_guidance.botanical_rationale}</span>
+          </div>
+        `;
+      }
+
+      sizingSec.innerHTML = sizingHtml;
+      wrap.appendChild(sizingSec);
+    }
+
     // SMS dispatch trigger
     const btnRow = document.createElement("div");
     btnRow.style.cssText = "margin-top: 12px;";
