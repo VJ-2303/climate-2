@@ -4,7 +4,7 @@ Authoritative specification. Agent contract (constants, gates, prohibitions): **
 
 **ThermalGuard** maps 50m × 50m heat vulnerability across Madurai, Tamil Nadu (36,913 blocks),
 issues 5-day full-WBGT heatwave early warnings, explains every score with SHAP, and drives a
-deterministic health-risk engine. Officer-only web UI (FastAPI + Leaflet).
+deterministic health-risk engine. Dual-view web deployment: Municipal Officer Command Center (`/` and `/officer`) + Citizen Heat Safety Portal (`/public`).
 
 ---
 
@@ -16,9 +16,9 @@ Landsat/OSM/WorldPop rasters (20m, EPSG:32643)
   → Module 2: GATv2 graph attention (8-neighbor blocks) → contextual heat
   → HVI composite (exposure + social sensitivity + cooling deficit)
   → SHAP TreeExplainer → per-block top-3 drivers
-  → Open-Meteo 5-day forecast → FULL WBGT → hyperlocal per-block downscaling
-  → Health Risk Engine (deterministic tiers, advisories, SMS dispatch)
-  → FastAPI + Leaflet officer UI
+  → Open-Meteo 12-day timeline & 5-day forecast → FULL WBGT → hyperlocal per-block downscaling
+  → Health Risk Engine (deterministic tiers, advisories, botanical sizing, Twilio SMS dispatch)
+  → Dual FastAPI Web UI: Officer Command Center + Citizen Heat Safety Portal
 ```
 
 ## 2. Physics
@@ -89,7 +89,10 @@ tier       = tier(local_wbgt)
 if Social_Sensitivity ≥ 70 and tier ≠ Critical: bump tier up one level
 ```
 
-Advisory = worst day over 5: tier → action text (officer_action + citizen_action).
+Advisories & Intervention Sizing (`api/rules.py`):
+- Deterministic English + Tamil (தமிழ்) citizen & officer advisories for the 5-day horizon.
+- Physical microclimate diagnosis based on built vs. natural land cover.
+- Material sizing: High-albedo elastomeric paint liters ($A_{\text{roof}} \times 0.35\text{ L/m}^2$) and botanical shade tree counts (1 tree per $50\text{ m}^2$ unshaded space) with native Madurai species (*Azadirachta indica*, *Pongamia pinnata*, *Mimusops elengi*).
 
 ## 3. Pipeline — 8 Stages
 
@@ -109,19 +112,28 @@ Gate values and artifact map: AGENTS.md.
 
 ## 4. API
 
-| Endpoint | Returns |
-|---|---|
-| `GET /` , `GET /officer` | Officer UI (`web/officer.html`) |
-| `GET /public` | Citizen Heat Safety Portal (`web/public.html`) |
-| `GET /data/vulnerability_blocks.geojson` | Main HVI GeoJSON (EPSG:4326) |
-| `GET /data/layers/{name}.geojson` | One of 7 layer files |
-| `GET /api/layers/{name}/attributes` | `{block_id: score}` lightweight map |
-| `GET /api/layers/forecast_day_{-7..5}/attributes` | Per-block 12-day timeline risk scores (past 7 days replay + 5-day forecast) |
-| `GET /api/blocks/{block_id}` | Full block intelligence: HVI, SHAP top-3, 5-day health trajectory, bilingual advisory |
-| `GET /api/forecast/days` | 12-day timeline & 5-day WBGT summary, real-time current weather, and composite alert |
-| `GET /api/forecast/summary` | Forecast summary + peak day + composite alert |
-| `POST /api/alerts/dispatch` | Targeted SMS emergency dispatch → SQLite persistence `{audit_id, recipients_count, channels}` |
-| `GET /api/alerts/audit` | Recent emergency dispatch audit trail from SQLite (`data/audit_log.db`) |
+| Endpoint | Method | Returns |
+|---|---|---|
+| `/` , `/officer` | `GET` | Officer UI (`web/officer.html`) |
+| `/public` | `GET` | Citizen Heat Safety Portal (`web/public.html`) |
+| `/data/vulnerability_blocks.geojson` | `GET` | Main HVI GeoJSON (EPSG:4326) |
+| `/data/layers/{name}.geojson` | `GET` | One of 7 layer files |
+| `/api/layers/{name}/attributes` | `GET` | `{block_id: score}` lightweight map |
+| `/api/layers/forecast_day_{-7..5}/attributes` | `GET` | Per-block 12-day timeline risk scores (-7 past replay to +5 forecast) |
+| `/api/blocks/{block_id}` | `GET` | Full block intelligence: HVI, SHAP top-3, 5-day trajectory, bilingual advisory |
+| `/api/forecast/days` | `GET` | 12-day timeline & 5-day WBGT summary, current weather, and composite alert |
+| `/api/forecast/summary` | `GET` | Forecast summary + peak day + composite alert |
+| `/api/alerts/dispatch` | `POST` | Sector-targeted emergency SMS dispatch → SQLite persistence |
+| `/api/alerts/audit` | `GET` | Sector emergency dispatch audit trail from SQLite (`data/audit_log.db`) |
+| `/api/admin/auth` | `POST` | PIN auth for Zonal Officers (1001–5005) and Master DDMA (9999) |
+| `/api/admin/zones` | `GET` | List all 5 administrative zones with officer profiles & facility counts |
+| `/api/admin/zones/{zone_id}` | `GET` | Specific zone details, boundary stats, and facilities summary |
+| `/api/admin/zones/{zone_id}/officer` | `PUT` | Update assigned zonal officer name, phone, and department |
+| `/api/admin/zones/{zone_id}/facilities`| `GET` | Facilities directory for zone (Schools, Hospitals, Clinics, Colleges) |
+| `/api/admin/facilities/{id}/contact` | `PUT` | Update contact person, phone number, and verification status |
+| `/api/admin/alerts/dispatch` | `POST` | Single or bulk emergency SMS dispatch via Twilio API with audit log |
+| `/api/admin/alerts/audit` | `GET` | Filterable SQLite audit records for facility dispatches |
+| `/api/admin/autonomous/check` | `POST` | Autonomous heatwave threshold evaluation & auto-dispatch trigger |
 
 Weather source: Open-Meteo live (1h cache) → offline fallback `data/fallback_forecast.json`
 (heatwave scenario, peak 34.5°C/65%, WBGT 37.4°C) on network failure.
@@ -135,9 +147,9 @@ Weather source: Open-Meteo live (1h cache) → offline fallback `data/fallback_f
 - **Real-time Weather & Composite Alert Badge** in topbar (IMD + NDMA tier)
 - **SHAP waterfall** in block sidebar: top-3 drivers with ±°C contributions
 - **5-day trajectory sparkline** + tier badges per day
-- **SMS dispatch modal**: block → recipient group → simulated dispatch with audit trail
-- **Audit Log Modal**: persistent SQLite dispatch audit trail viewer
-- Zone Planner (polygon → population + risk aggregation), search, offline tile cache
+- **Administrative Facilities Command Drawer**: PIN-authenticated directory managing 30 schools, hospitals, and colleges across 5 zones; filter by Category/Status; live contact verification; one-click emergency SMS broadcast.
+- **SMS dispatch modal & persistent SQLite audit trail**: sector alerts and institutional dispatches tracked in `data/audit_log.db`.
+- Zone Planner (polygon → population + risk aggregation), search, offline tile cache.
 
 ### 5.2 Citizen Heat Safety Portal (`/public`)
 - Mobile-first, citizen-friendly interface

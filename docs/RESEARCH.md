@@ -179,27 +179,26 @@ A **human-centric, AI-augmented heat-risk platform** that augments IMD forecasts
 3. **Dynamic Vulnerability Scoring:** compute a baseline vulnerability score per administrative unit from **demographic factors** (e.g. % elderly, outdoor workers) and **environmental factors** (e.g. green space coverage). Combine with forecast HTSI to produce a tiered **Advisory Level** (e.g. **Moderate, High, Dangerous**).
 
 ### 7.3 Application Layer (role-based web platform)
-- **Backend:** Python/Django with a clean RESTful API.
-- **Frontend:** React SPA with a central **Leaflet.js / Mapbox GL JS** map visualizing HTSI and Advisory Levels for the chosen region.
+- **Backend:** High-performance Python / FastAPI with asynchronous RESTful endpoints, in-memory spatial layer indexing, and GZip compression.
+- **Frontend:** Responsive, zero-dependency HTML5 Canvas + Leaflet.js engine delivering 60 FPS polygon rendering across 36,913 sectors without SPA framework overhead.
 - **Two primary views:**
-  1. **Public View:** simple, accessible forecast for the user's location, with clear, actionable advice from the XAI module; also a channel for receiving targeted alerts.
-  2. **Officer View:** command-and-control dashboard with real-time situational awareness, tools to manage response operations, and an **audit trail** of actions taken during an event.
+  1. **Citizen Heat Safety Portal (`/public`):** Mobile-first, bilingual English and Tamil (தமிழ்) interface with GPS geolocation, landmark lookup, danger hours, and actionable hydration/cooling guidance.
+  2. **Officer Command Center (`/` and `/officer`):** Institutional command-and-control dashboard with a 12-day retrospective & predictive timeline, SHAP waterfall diagnostics, Sensitive Facilities Directory (Schools, Hospitals, Colleges), PIN authentication, one-click emergency broadcast, and persistent SQLite audit trail.
 
 ---
 
-## 8. MVP vs Advanced Version (Development Roadmap)
+## 8. MVP vs Advanced Version (Development Roadmap & Current Status)
 
-| Component | **MVP (Hackathon goal)** | **Advanced (post-hackathon)** | Priority & justification |
+| Component | **Original MVP Target** | **Advanced Roadmap** | **Current ThermalGuard Implementation Status** |
 |---|---|---|---|
-| **Data integration** | IMD Tmax/Tmin + static humidity dataset | Real-time humidity; add LST satellite data for UHI detection | **High.** Foundational; core to solving the "humid heat" gap |
-| **HTSI calculation** | Basic weighted-average HTSI | Validated index like WBGT; incorporate wind effects | **High.** Directly addresses the most critical flaw in current IMD warnings |
-| **Risk engine** | Manual trigger for a sample advisory; no ML model | Train XGBoost for event probability; integrate SHAP for XAI | **Medium.** XAI adds significant value but is complex; start with manual triggers |
-| **Vulnerability score** | Static baseline score per district | Dynamic scoring using real-time proxies (e.g. mobility data) | **Medium.** Static is enough for MVP; dynamic is a key future enhancement |
-| **Frontend dashboard** | Basic map showing 1-3 day forecast; tabs for time horizons | Role-based views (Public/Officer); interactive map with legend, tooltips, filtering | **High.** Essential to demonstrate usability and impact |
-| **Alerting module** | Manual trigger to send a sample SMS via Twilio | Automated, multi-modal (SMS, WhatsApp, voice) based on Advisory Level | **Low.** Manual trigger proves the concept; automation comes later |
-| **Deployment** | Hosted on Vercel or Render | Docker containers; AWS/GCP for scalability | **High.** A live, publicly accessible demo is non-negotiable |
-
-**Why this works:** a well-defined MVP lets the team focus on the core innovations, the **HTSI calculation and the role-based interface**, and deliver a polished, functional, high-impact demo instead of chasing every feature.
+| **Data integration** | IMD Tmax/Tmin + static humidity | Real-time humidity + Landsat LST | **Fully Implemented**: 20m aligned rasters (Landsat 8/9 LST, Sentinel-2 NDVI/NDBI/NDWI, OSM, WorldPop) + live Open-Meteo multi-model ensemble (ECMWF, ICON, GFS) |
+| **HTSI calculation** | Basic weighted-average HTSI | Validated WBGT with wind/solar | **Fully Implemented**: Calibrated WBGT daily-max method using daytime minimum humidity ($RH_{\min}$) at peak $T_{\max}$ + Liljegren 2002 full-solar formulation in test suite |
+| **Risk engine** | Manual trigger for sample advisory | XGBoost + TreeSHAP XAI | **Fully Implemented**: Module 1 XGBoost ($\text{Val } R^2 = 0.66$) + TreeSHAP attributions per block + Module 2 PyG GATv2 spatial graph diffusion |
+| **Vulnerability score** | Static baseline score per district | 50m block-level HVI composite | **Fully Implemented**: 36,913 blocks (50m $\times$ 50m) with composite HVI (0.45 AI Heat + 0.35 Social Sensitivity + 0.20 Cooling Deficit) |
+| **Frontend dashboard** | Basic map with 1-3 day tabs | Role-based Officer & Public views | **Fully Implemented**: Dual-view deployment (`/officer` + `/public`), 12-day timeline (-7 to +5 days), Leaflet Canvas rendering, offline PWA cache |
+| **Institutional Command** | Generic alert dispatch | Facility directory (Schools/Hospitals) | **Fully Implemented**: Dedicated Sensitive Facilities Directory managing 30 schools, hospitals, and colleges with PIN auth, contact provisioning & one-click category broadcast |
+| **Alerting module** | Manual trigger for sample SMS | Automated / Multi-modal Twilio alerts | **Fully Implemented**: Live Twilio SMS/WhatsApp dispatch integration with simulated sandbox fallback + persistent SQLite audit log (`data/audit_log.db`) |
+| **Verification & Quality** | Basic smoke checks | Rigorous test suite | **Fully Implemented**: 63 automated tests verifying weather physics, XGBoost/GAT, SHAP, rules, and dispatch integrity |
 
 ---
 

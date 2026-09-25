@@ -77,6 +77,12 @@ Dense informal settlements face disproportionate heat stress due to contiguous c
    http://127.0.0.1:8000
    ```
 
+### Running Tests
+```bash
+python -m pytest tests/ -q
+# All 63 unit and integration tests passing
+```
+
 For full pipeline execution from raw rasters through all 8 stages, see [AGENTS.md](AGENTS.md).
 
 ---
@@ -91,12 +97,15 @@ For full pipeline execution from raw rasters through all 8 stages, see [AGENTS.m
 │
 ├── api/                           # FastAPI Backend
 │   ├── main.py                    # REST endpoints, static mounts, GZip & attribute cache
-│   ├── rules.py                   # Rule-based microclimate intelligence, trajectory & bilingual advisory engine
+│   ├── admin.py                   # PIN auth, zonal hierarchy & sensitive facilities directory
+│   ├── rules.py                   # Deterministic microclimate intelligence, trajectory & bilingual advisory
 │   ├── weather.py                 # Multi-model WBGT calculation, 12-day timeline & IMD composite heatwave alerts
+│   ├── sms.py                     # Twilio SMS / WhatsApp dispatch integration & fallback handler
 │   └── audit.py                   # Persistent SQLite emergency dispatch audit trail
 │
 ├── web/                           # Client-side Web Applications
 │   ├── officer.html / officer.js  # Officer Command Center with 12-day historical scrubber & dispatch audit viewer
+│   ├── admin.js                   # Administrative command drawer, PIN login, facility directory & bulk alerts
 │   ├── public.html / public.js    # Mobile-first Citizen Heat Safety Portal with bilingual Tamil/English guidance
 │   ├── app.js                     # Leaflet Canvas engine, layer toggles, zone drawing, PWA cache
 │   └── style.css                  # Institutional dashboard styling & risk color variables
@@ -112,6 +121,19 @@ For full pipeline execution from raw rasters through all 8 stages, see [AGENTS.m
 │   ├── 06_infer_module2.py        # Contextual neighborhood heat inference
 │   └── 07_score_export.py         # HVI composite scoring, drivers & GeoJSON export
 │
+├── tests/                         # Automated Test Suite (63 Tests)
+│   ├── test_admin.py              # Zonal hierarchy, PIN auth & facility endpoints
+│   ├── test_audit.py              # SQLite audit persistence & querying
+│   ├── test_forecast_api.py       # Weather endpoint responses & caching
+│   ├── test_full_wbgt.py          # Liljegren outdoor solar WBGT formulas
+│   ├── test_gap_fixes.py          # Attribute mapping & spatial bounds
+│   ├── test_health_risk.py        # WBGT health risk tier classification
+│   ├── test_rules_complete.py     # Deterministic intelligence, SHAP & Tamil translation
+│   ├── test_shap.py               # TreeSHAP consistency & cache loading
+│   ├── test_sms.py                # Twilio SMS client & payload verification
+│   ├── test_ui_and_alerts.py      # Layer attribute endpoints & status codes
+│   └── test_weather.py            # ECMWF/ICON/GFS multi-model blending
+│
 ├── data/                          # Spatial Data Assets
 │   ├── processed/                 # Aligned 20m rasters & intermediate GeoJSONs
 │   ├── output/                    # Exported GeoJSON layers for web serving
@@ -121,7 +143,9 @@ For full pipeline execution from raw rasters through all 8 stages, see [AGENTS.m
 └── docs/                          # In-depth Documentation
     ├── DATASETS.md                # 5 core satellite and urban data sources reference
     ├── DATA_DOWNLOAD.md           # Download procedures and band extraction guide
-    └── RESEARCH.md                # Physiological heat stress and microclimate downscaling framework
+    ├── RESEARCH.md                # Physiological heat stress and microclimate downscaling framework
+    ├── LST_GUIDE.md               # Land surface temperature physics, sensors & processing
+    └── UI-SPEC.md                 # Citizen portal visual tokens & component specification
 ```
 
 ---
@@ -135,8 +159,10 @@ For full pipeline execution from raw rasters through all 8 stages, see [AGENTS.m
 | [docs/DATASETS.md](docs/DATASETS.md) | Satellite (Landsat/Sentinel) & GIS data provenance, sensors, and bands |
 | [docs/DATA_DOWNLOAD.md](docs/DATA_DOWNLOAD.md) | Official download portals, search queries, and band conversion steps |
 | [docs/RESEARCH.md](docs/RESEARCH.md) | Heat stress epidemiology, WBGT Liljegren formulation, and urban mitigation science |
+| [docs/LST_GUIDE.md](docs/LST_GUIDE.md) | Land surface temperature physics, spaceborne TIRS sensors & downscaling |
+| [docs/UI-SPEC.md](docs/UI-SPEC.md) | Citizen portal design specification, tokens, and bilingual Tamil components |
 | [AGENTS.md](AGENTS.md) | Implementation protocol and execution rulebook for automated agents |
-| [memory.md](memory.md) | Append-only execution history and gate validation metrics |
+| [memory.md](memory.md) | Append-only execution history, calibration records, and gate metrics |
 
 ---
 
@@ -147,9 +173,11 @@ For full pipeline execution from raw rasters through all 8 stages, see [AGENTS.m
 - **Dual Composite Heatwave Alert**: Synthesizes official IMD plains heatwave thresholds ($T_{\max} \ge 40^\circ\text{C}$, departure $\ge +4.5^\circ\text{C}$) with NDMA physiological WBGT danger tiers ($30^\circ\text{C}, 34^\circ\text{C}, 38^\circ\text{C}$).
 - **Physiological WBGT Calibration**: Uses concurrent daytime minimum humidity ($RH_{\min} \approx 28\text{--}35\%$) at peak $T_{\max}$ to prevent synthetic nocturnal humidity inflation.
 - **Citizen Heat Safety Portal (`/public`)**: Mobile-first, bilingual English and Tamil (தமிழ்) advisory portal with location lookup, danger hours, and hydration stations.
-- **Explainable Root Causes**: Identifies dominant drivers using TreeSHAP attributions.
+- **Sensitive Facilities Command Directory**: PIN-authenticated administrative drawer managing 30 schools, hospitals, clinics, and colleges across Madurai with live contact editing and one-click emergency SMS broadcast via Twilio.
+- **Explainable Root Causes (TreeSHAP)**: Identifies dominant drivers using TreeSHAP attributions with quantitative contributions.
 - **Targeted Interventions**: Recommends customized remediation (elastomeric cool-roof paint liters, native Tamil Nadu shade tree counts, hydration nodes).
-- **Persistent Dispatch Audit Trail**: SQLite-backed emergency broadcast logger tracking targeted SMS/WhatsApp advisories.
+- **Persistent Dispatch Audit Trail**: SQLite-backed emergency broadcast logger (`data/audit_log.db`) tracking targeted SMS/WhatsApp advisories.
 - **Sub-Layer Suite**: Instant switching across 8 thematic layers with sub-16ms transitions.
 - **Zone Planner Tool**: Draw custom polygon boundaries directly on the map to compute aggregate population, mean temperature, and risk distribution.
 - **Offline Tile Caching**: Built-in CacheStorage integration allows downloading and viewing base tiles with zero network latency.
+- **Rigorous Test Suite**: 63 automated tests verifying weather physics, XGBoost/GAT pipelines, SHAP explainability, deterministic rules, and dispatch integrity.

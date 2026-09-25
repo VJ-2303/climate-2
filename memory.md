@@ -29,4 +29,10 @@
 - Dual Composite Alert System: Harmonized IMD air temperature heatwave criteria (Tmax >= 40°C or departure >= +4.5°C) with NDMA WBGT thresholds (30/34/38°C).
 - Dual-Portal Deployment: Officer Command Center (`/` and `/officer`) + Citizen Heat Safety Portal (`/public`) with bilingual English and Tamil (தமிழ்) advisories.
 - Persistent Dispatch Audit Trail: SQLite-backed emergency broadcast logger (`data/audit_log.db`) tracking targeted SMS/WhatsApp advisories.
-- Test Coverage: 37 automated tests passing across weather, API, risk tiers, SHAP, and audit persistence.
+- Test Coverage: 63 automated tests passing across weather, API, admin, SMS dispatch, full-WBGT, rules engine, SHAP, and audit persistence.
+
+## Sensitive Facilities Command & UI Alignment — 2026-09-25
+- Administrative Command Directory (`api/admin.py`, `web/admin.js`): PIN-authenticated zonal authority (Zones 1-5 + Master DDMA) managing 30 sensitive facilities (Schools, Hospitals, Clinics, Colleges) with phone verification and emergency contact provisioning.
+- One-Click Category Emergency Broadcast: Dispatches targeted SMS alerts to verified schools, hospitals, or colleges with live Twilio API integration and automated fallback simulation.
+- UI Institutional Restraint: Aligned left-side Admin Command Panel (`#admin-directory-panel`) with right-side inspector drawer (`.inspector-drawer`), adopting dark slate hero KPI cards, clean broadcast chips, segmented category tabs, and neutral status pills.
+- Rules & SHAP Engine Verification: Full end-to-end integration verified in `tests/test_rules_complete.py` across microclimate diagnostics, top-3 SHAP attributions, 5-day health trajectories, Tamil/English advisories, and botanical intervention sizing.

@@ -90,15 +90,18 @@ building_density, population_density, geometry`
 
 - `main.py` — FastAPI, startup loads GeoJSONs into `blocks_db` + SHAP cache; GZip on.
   Routes: SPEC.md §4. Command Center (`/` and `/officer` → `web/officer.html`), Citizen Heat Safety Portal (`/public` → `web/public.html`), 12-day timeline scrubber (`/api/layers/forecast_day_{day}/attributes` for days -7 to 5), persistent SQLite dispatch audit (`/api/alerts/audit`).
+- `admin.py` — Zonal hierarchy (Zones 1-5 + Master DDMA), PIN authentication, sensitive facilities directory (Schools, Hospitals, Clinics, Colleges), and category emergency dispatch endpoints.
 - `weather.py` — WBGT daily-max method calibrated with daytime minimum humidity (`relative_humidity_2m_min` at peak Tmax), 12-day continuous timeline (Past 7 Days + 5-Day Forecast) with 3-model blend (ECMWF + ICON + GFS), Dual Composite IMD + NDMA heatwave alerts, 1h cache, fallback file on failure.
 - `rules.py` — deterministic block intelligence: physical diagnosis, SHAP top-3,
-  5-day health trajectory (unified risk cutoffs 45/70/85), bilingual English + Tamil (தமிழ்) advisories, intervention sizing. No ML at serve time.
+  5-day health trajectory (unified risk cutoffs 45/70/85), bilingual English + Tamil (தமிழ்) advisories, intervention sizing (paint liters, botanical tree species). No ML at serve time.
+- `sms.py` — Twilio SMS/WhatsApp dispatch integration with simulated fallback logging for sandbox/trial environments.
 - `audit.py` — SQLite audit persistence (`data/audit_log.db`) recording targeted SMS/WhatsApp dispatches.
 
 ## Frontend — `web/`
 
 - `officer.html` + `officer.js` — Officer Command Center (extends `app.js` map engine via globals).
   12-day historical & forecast timeline dropdown, real-time weather & composite alert badge, SHAP waterfall, SMS dispatch modal, and SQLite audit trail viewer modal.
+- `admin.js` — Administrative Command drawer, PIN authentication, zonal facility management, phone contact editing, and one-click bulk emergency SMS dispatch.
 - `public.html` + `public.js` — Mobile-first Citizen Heat Safety Portal with geolocation, landmark search, danger hours, hydration kiosks, and bilingual English/Tamil instructions.
 Layer colors: `Low #1a9850 | Medium #ffffbf | High #f46d43 | Critical #d73027`.
 
