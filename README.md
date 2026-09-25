@@ -11,7 +11,9 @@
 
 ## 1. Overview
 
-Dense informal settlements face disproportionate heat stress due to contiguous corrugated metal roofs, lack of vegetation, high structural density, and limited water access. Standard meteorological stations and low-resolution satellite feeds (100m–1km) miss the microclimate canyons within settlements.
+Dense informal settlements face disproportionate heat stress due to dense built-up structures, lack of vegetation, high impervious surface coverage, and limited water access. Standard meteorological stations and low-resolution satellite feeds (100m–1km) miss the microclimate canyons within settlements.
+
+> **Methodology Note on NDBI:** The Normalized Difference Built-up Index (NDBI) is utilized as a spectral indicator of built-up and impervious surface characteristics. It is not used as a direct roof-material classifier.
 
 **HeatViz** bridges this resolution gap:
 - Downscales satellite thermal data to **50m $\times$ 50m sectors** (36,913 sectors across Madurai, Tamil Nadu).

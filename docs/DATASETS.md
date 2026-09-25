@@ -22,7 +22,7 @@ This guide explains the **5 core data sources** used to build the HeatViz system
 * **What was downloaded**: High-resolution (10m–20m) optical imagery across spectral bands: B02 (Blue), B03 (Green), B04 (Red), B08 (NIR), B11/B12 (SWIR), and Scene Classification Layer (SCL).
 * **Why we used it**:
   - **Vegetation / Greenery (NDVI)**: Calculated from Red & NIR bands to measure tree canopy and shade.
-  - **Built-Up Areas & Impervious Surfaces (NDBI)**: Calculated from SWIR & NIR bands to detect heat-trapping corrugated metal, concrete, and asphalt.
+  - **Built-Up Areas & Impervious Surfaces (NDBI)**: Calculated from SWIR & NIR bands to characterize urban built-up and impervious surface density. *(Note: NDBI is used as a spectral indicator of built-up/impervious surface characteristics; it is not used as a direct roof-material classifier).*
   - **Moisture & Water (NDWI)**: Calculated from Green & NIR bands to track surface moisture and riparian cooling corridors.
 
 ---

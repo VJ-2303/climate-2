@@ -57,7 +57,11 @@ def test_send_twilio_sms_live_failure_handling(mock_client_class, monkeypatch):
     assert "Authenticate" in res["error"]
 
 @patch("api.sms.Client")
-def test_endpoint_single_facility_dispatches_twilio(mock_client_class):
+def test_endpoint_single_facility_dispatches_twilio(mock_client_class, monkeypatch):
+    monkeypatch.setenv("TWILIO_ACCOUNT_SID", "ACmockaccount123456789012345678")
+    monkeypatch.setenv("TWILIO_AUTH_TOKEN", "mockauthtoken123456789012345678")
+    monkeypatch.setenv("TWILIO_PHONE_NUMBER", "+15005550006")
+
     mock_client = MagicMock()
     mock_msg = MagicMock()
     mock_msg.sid = "SM_MOCK_SINGLE_12345"
@@ -86,7 +90,11 @@ def test_endpoint_single_facility_dispatches_twilio(mock_client_class):
     assert mock_client.messages.create.called
 
 @patch("api.sms.Client")
-def test_endpoint_bulk_category_dispatches_twilio(mock_client_class):
+def test_endpoint_bulk_category_dispatches_twilio(mock_client_class, monkeypatch):
+    monkeypatch.setenv("TWILIO_ACCOUNT_SID", "ACmockaccount123456789012345678")
+    monkeypatch.setenv("TWILIO_AUTH_TOKEN", "mockauthtoken123456789012345678")
+    monkeypatch.setenv("TWILIO_PHONE_NUMBER", "+15005550006")
+
     mock_client = MagicMock()
     mock_msg = MagicMock()
     mock_msg.sid = "SM_MOCK_BULK_67890"
@@ -110,7 +118,11 @@ def test_endpoint_bulk_category_dispatches_twilio(mock_client_class):
     assert mock_client.messages.create.call_count >= 1
 
 @patch("api.sms.Client")
-def test_endpoint_sector_alert_dispatches_twilio(mock_client_class):
+def test_endpoint_sector_alert_dispatches_twilio(mock_client_class, monkeypatch):
+    monkeypatch.setenv("TWILIO_ACCOUNT_SID", "ACmockaccount123456789012345678")
+    monkeypatch.setenv("TWILIO_AUTH_TOKEN", "mockauthtoken123456789012345678")
+    monkeypatch.setenv("TWILIO_PHONE_NUMBER", "+15005550006")
+
     mock_client = MagicMock()
     mock_msg = MagicMock()
     mock_msg.sid = "SM_MOCK_SECTOR_11223"

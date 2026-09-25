@@ -31,7 +31,7 @@ def test_evaluate_5day_health_trajectory():
 
 def test_generate_automated_health_advisory():
     shap_factors = [
-        {"name": "Corrugated Metal Roofs & Built Cover (NDBI)", "contribution_celsius": "+1.8°C"}
+        {"name": "Built-up / Impervious Surface (NDBI)", "contribution_celsius": "+1.8°C"}
     ]
     advisory = generate_automated_health_advisory(
         block_id="KIB-0001",
@@ -42,7 +42,7 @@ def test_generate_automated_health_advisory():
     assert "headline" in advisory
     assert "citizen_action" in advisory
     assert "officer_directive" in advisory
-    assert "Corrugated Metal Roofs" in advisory["officer_directive"]
+    assert "Built-up / Impervious Surface" in advisory["officer_directive"]
 
 def test_day_layer_attributes_endpoint():
     for day in range(1, 6):

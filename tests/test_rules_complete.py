@@ -27,9 +27,9 @@ def test_classify_land_cover_archetypes():
     archetype, desc = classify_land_cover({"estimated_population": 80, "building_density": 60})
     assert archetype == "High-Density Commercial & Residential Cluster"
 
-    # 2. Dense metal roofed settlement
+    # 2. Dense built-up settlement
     archetype, desc = classify_land_cover({"building_density": 55, "ndbi": 70, "estimated_population": 20})
-    assert archetype == "Dense Metal-Roofed Settlement"
+    assert archetype == "Dense Built-up Area"
 
     # 3. Riparian wetland
     archetype, desc = classify_land_cover({"distance_to_water": 40, "ndvi": 60, "building_density": 10})
@@ -123,7 +123,7 @@ def test_evaluate_microclimate_diagnosis_and_factors():
 
 def test_bilingual_advisory_with_shap_injection():
     shap_factors = [
-        {"name": "Tin Roofs (NDBI)", "contribution_celsius": "+2.4°C"}
+        {"name": "Built-up / Impervious Surface (NDBI)", "contribution_celsius": "+2.4°C"}
     ]
     advisory = generate_automated_health_advisory(
         block_id="KIB-TEST",
@@ -133,10 +133,10 @@ def test_bilingual_advisory_with_shap_injection():
     )
     # Check English
     assert "CRITICAL HEAT EMERGENCY" in advisory["headline"]
-    assert "Tin Roofs (NDBI) (+2.4°C)" in advisory["officer_directive"]
+    assert "Built-up / Impervious Surface (NDBI) (+2.4°C)" in advisory["officer_directive"]
     # Check Tamil
     assert "அதிதீவிர வெப்ப அவசரநிலை" in advisory["headline_ta"]
-    assert "முக்கிய காரணி: Tin Roofs (NDBI) (+2.4°C)" in advisory["officer_directive_ta"]
+    assert "முக்கிய காரணி: Built-up / Impervious Surface (NDBI) (+2.4°C)" in advisory["officer_directive_ta"]
 
 def test_api_block_endpoint_integrates_rules_and_shap():
     res = client.get("/api/blocks/KIB-0001")

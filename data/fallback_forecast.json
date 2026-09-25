@@ -50,7 +50,7 @@
       "solar_radiation_sum": 27.8,
       "wbgt_max": 37.42,
       "risk_tier": "Critical",
-      "advisory": "Severe heat emergency: High risk of heatstroke in metal-roof dwellings. Hydration points activated."
+      "advisory": "Severe heat emergency: High risk of heatstroke in unshaded built-up dwellings. Hydration points activated."
     },
     {
       "day": 4,

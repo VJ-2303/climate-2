@@ -26,7 +26,7 @@ const LAYER_TITLES = {
   hvi: "Heat Vulnerability Index (HVI)",
   ai_heat_exposure_blocks: "Surface Heat Exposure",
   ndvi_blocks: "Tree Canopy & Greenery (NDVI)",
-  ndbi_blocks: "Tin Roofs & Impervious (NDBI)",
+  ndbi_blocks: "Built-up / Impervious Surface (NDBI)",
   building_density_blocks: "Building Footprint Density",
   population_density_blocks: "Population Density",
   cooling_deficit_blocks: "Cooling Access Deficit",
@@ -727,19 +727,19 @@ function generateFallbackIntelligence(props) {
     headline: is_safe ? `Naturally Temperate (${surface_temp_c.toFixed(1)}°C)` : `Elevated Thermal Load (${surface_temp_c.toFixed(1)}°C)`,
     summary: is_safe
       ? `This sector maintains healthy tree canopy and an observed surface temperature of ${surface_temp_c.toFixed(1)}°C (${temp_anomaly > 0 ? "+" : ""}${temp_anomaly.toFixed(1)}°C relative to settlement baseline) for its ~${pop} residents.`
-      : `This sector experiences elevated surface skin temperature of ${surface_temp_c.toFixed(1)}°C (${temp_anomaly > 0 ? "+" : ""}${temp_anomaly.toFixed(1)}°C above settlement baseline) with peak metal roof temperatures reaching ~${peak_roof.toFixed(1)}°C.`,
+      : `This sector experiences elevated surface skin temperature of ${surface_temp_c.toFixed(1)}°C (${temp_anomaly > 0 ? "+" : ""}${temp_anomaly.toFixed(1)}°C above settlement baseline) with peak built-up surface temperatures reaching ~${peak_roof.toFixed(1)}°C.`,
     key_causes: [
-      `Galvanized metal roof solar absorption reaching up to ~${peak_roof.toFixed(1)}°C`,
+      `High built-up surface solar absorption reaching up to ~${peak_roof.toFixed(1)}°C`,
       `Pedestrian walkway insolation with surface temperature of ${surface_temp_c.toFixed(1)}°C`,
     ],
     key_actions: [
-      "Apply reflective white cool-roof paint to corrugated roofs",
+      "Apply reflective white cool-roof paint to exposed rooftops",
       "Deploy shaded community rest and water kiosks",
     ],
     factors: [
       { name: "Land Surface Temperature", score: heat, status: `${surface_temp_c.toFixed(1)}°C (${temp_anomaly > 0 ? "+" : ""}${temp_anomaly.toFixed(1)}°C)`, color: surface_temp_c >= 52 ? "critical" : (surface_temp_c <= 47 ? "optimal" : "moderate") },
       { name: "Tree Canopy & Greenery", score: props.ndvi || 40, status: "Moderate", color: "moderate" },
-      { name: "Tin Roofs & Impervious Mass", score: props.ndbi || 60, status: "Elevated", color: "elevated" },
+      { name: "Built-up / Impervious Surface", score: props.ndbi || 60, status: "Elevated", color: "elevated" },
     ],
   };
 }

@@ -279,7 +279,7 @@
         layer.bindTooltip(
           () => {
             const airStr = `${liveAirTemp.toFixed(1)}°C`;
-            return `<strong>Sector ${p.block_id}</strong><br/>${p.risk_class} Risk &bull; Air: ${airStr} &bull; Roof: ${p.surface_temp_celsius}&deg;C`;
+            return `<strong>Sector ${p.block_id}</strong><br/>${p.risk_class} Risk &bull; Air: ${airStr} &bull; Surface: ${p.surface_temp_celsius}&deg;C`;
           },
           { className: "custom-map-tooltip", sticky: true, opacity: 0.95 }
         );
@@ -812,7 +812,7 @@
         labelPillDanger: "Danger Window",
         labelPillShelter: "Cool Shelter",
         explainerTitle: "Why does Roof & Ground heat reach ~50°C?",
-        explainerDesc: "Sunlight intensely superheats unshaded tin roofs and asphalt roads. The actual outdoor air you breathe in the shade is ",
+        explainerDesc: "Sunlight intensely superheats unshaded rooftops and asphalt roads. The actual outdoor air you breathe in the shade is ",
         forecastTitle: "Hourly Heat Forecast & Danger Window",
         chartLegendLeft: "Diurnal Heat Stress Curve (°C)",
         chartLegendRight: "Shaded Danger Band: 11:00 AM – 3:30 PM",
@@ -826,8 +826,8 @@
         mapLocate: "My Location",
         healthActions: "Health & Protection Actions",
         hydrate: "<strong>Hydrate actively:</strong> Drink ORS or water every 45–60 minutes, even if you do not feel thirsty.",
-        shade: "<strong>Use shaded corridors:</strong> Avoid direct asphalt streets and tin-roof walkways during midday sun (11 AM – 3:30 PM).",
-        ventilate: "<strong>Flush interior heat:</strong> Open opposing windows for cross-breeze to remove radiated tin roof heat.",
+        shade: "<strong>Use shaded corridors:</strong> Avoid direct asphalt streets and dense built-up walkways during midday sun (11 AM – 3:30 PM).",
+        ventilate: "<strong>Flush interior heat:</strong> Open opposing windows for cross-breeze to remove radiated indoor heat.",
         vulnerable: "<strong>Protect vulnerable residents:</strong> Keep elders, infants, and pregnant family members in cool, ventilated rooms.",
         coolSpots: "Nearest Cool Spots & Water Points",
       },
@@ -836,18 +836,18 @@
         searchPlaceholder: "பகுதி அல்லது இடத்தை தேடுங்கள்...",
         locateLabel: "என் இடம்",
         labelPillAir: "வெளிப்புற நிழல் காற்று",
-        labelPillRoof: "தகர கூரை & தரை வெப்பம்",
+        labelPillRoof: "கூரை & தரை வெப்பம்",
         labelPillHumidity: "ஈரப்பதம்",
         labelPillWind: "காற்றின் வேகம்",
         labelPillDanger: "உச்சி வெயில் ஆபத்து நேரம்",
         labelPillShelter: "குளிர் நிழல் மையம்",
         explainerTitle: "கூரை மற்றும் தரை ஏன் ~50°C ஐ எட்டுகிறது?",
-        explainerDesc: "நேரடி சூரிய கதிர்வீச்சு தகர கூரைகள் மற்றும் தார் சாலைகளை மிகக் கடுமையாக சூடாக்குகிறது. நீங்கள் சுவாசிக்கும் நிழல் காற்று குளிர்ந்தது: ",
+        explainerDesc: "நேரடி சூரிய கதிர்வீச்சு வெட்டவெளி கூரைகள் மற்றும் தார் சாலைகளை மிகக் கடுமையாக சூடாக்குகிறது. நீங்கள் சுவாசிக்கும் நிழல் காற்று குளிர்ந்தது: ",
         forecastTitle: "மணிநேர வெப்ப முன்னறிவிப்பு மற்றும் ஆபத்து நேரம்",
         chartLegendLeft: "தினசரி வெப்ப அழுத்த வளைவு (°C)",
         chartLegendRight: "தீவிர வெயில் காலம்: காலை 11:00 – மாலை 3:30",
         mapTitle: "மதுரை 50மீ நுண்ணிய வெப்ப வரைபடம்",
-        mapSub: "கூரை வெப்பம், நிழல் குறைபாடு மற்றும் பாதுகாப்பு விவரங்களைக் காண எந்த பகுதியையும் தொடவும்.",
+        mapSub: "மேற்பரப்பு வெப்பம், நிழல் குறைபாடு மற்றும் பாதுகாப்பு விவரங்களைக் காண எந்த பகுதியையும் தொடவும்.",
         timelineTitle: "சூரிய வெப்ப நேரவரிசை",
         legendSafe: "பாதுகாப்பானது (≤45)",
         legendMod: "மிதமானது (46-70)",
@@ -857,7 +857,7 @@
         healthActions: "உடல் நலப் பாதுகாப்பு ஆலோசனைகள்",
         hydrate: "<strong>அடிக்கடி தண்ணீர் குடியுங்கள்:</strong> தாகம் இல்லாவிட்டாலும் ஒவ்வொரு 45 நிமிடத்திற்கும் நீர் அல்லது ORS அருந்தவும்.",
         shade: "<strong>நிழலான பாதைகளை பயன்படுத்துங்கள்:</strong> நண்பகல் வெயிலில் (11 மு.ப - 3:30 பி.ப) தார் சாலைகளில் செல்வதை தவிர்க்கவும்.",
-        ventilate: "<strong>வீட்டில் காற்றோட்டம் வையுங்கள்:</strong> தகர கூரையின் வெப்பத்தை வெளியேற்ற எதிரெதிர் ஜன்னல்களை திறந்து வைக்கவும்.",
+        ventilate: "<strong>வீட்டில் காற்றோட்டம் வையுங்கள்:</strong> வீட்டின் வெப்பத்தை வெளியேற்ற எதிரெதிர் ஜன்னல்களை திறந்து வைக்கவும்.",
         vulnerable: "<strong>முதியவர்கள் மற்றும் குழந்தைகள்:</strong> குழந்தைகளையும் முதியவர்களையும் காற்றோட்டமான அறைகளில் வைத்திருக்கவும்.",
         coolSpots: "அருகிலுள்ள நிழல் மற்றும் குடிநீர் மையங்கள்",
       },

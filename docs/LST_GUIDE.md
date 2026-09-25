@@ -15,12 +15,12 @@ This technical reference explains the physics of **Land Surface Temperature (LST
 | **What it measures** | Radiometric temperature of solid physical surfaces | Thermodynamic temperature of circulating air |
 | **Measurement height** | Surface interface (0 m) | Standard meteorological height (1.5 m – 2.0 m in the shade) |
 | **Observation sensor** | Spaceborne Thermal Infrared Sensor (NASA/USGS Landsat 8/9 TIRS Band 10) | Ventilated, shaded weather station sensors (Open-Meteo / IMD) |
-| **Spatial variation** | **Hyperlocal & heterogeneous**: Can vary by 15°C–25°C between a shaded park and a tin-roof house 50 meters away | **Macro & smooth**: Relatively uniform across several square kilometers |
+| **Spatial variation** | **Hyperlocal & heterogeneous**: Can vary by 15°C–25°C between a shaded park and an unshaded built-up structure 50 meters away | **Macro & smooth**: Relatively uniform across several square kilometers |
 | **Typical Madurai midday values (dry season)** | **45.0°C – 64.2°C** (average ~49.5°C) | **34.0°C – 38.0°C** |
 | **Primary role in HeatViz** | Identifies **where physical heat traps exist** to direct cool-roof painting and tree planting | Drives **real-time health advisories**, hydration alerts, and worker safety warnings |
 
 > **Real-World Analogy:**  
-> On a sunny 36°C afternoon in Madurai, the ambient air circulating through the streets is 36°C. However, the dark asphalt road or the unpainted metal hood of a car absorbs solar radiation and heats up to **55°C – 65°C**. Landsat LST measures the hot asphalt and metal roofs, not the shaded air.
+> On a sunny 36°C afternoon in Madurai, the ambient air circulating through the streets is 36°C. However, the dark asphalt road or the unpainted metal hood of a car absorbs solar radiation and heats up to **55°C – 65°C**. Landsat LST measures hot asphalt and impervious rooftop surfaces, not the shaded air.
 
 ---
 
@@ -82,10 +82,11 @@ This elevated thermal skin profile is driven by four physical mechanisms:
 Madurai sits in southern Tamil Nadu's semi-arid tropical belt. During the late-morning satellite overpass (10:30–11:30 AM), the solar zenith angle is small, delivering **800 to 1,000 W/m² of direct shortwave radiation** to unshaded surfaces.
 
 ### 2. High Built-Up & Impervious Surface Density (NDBI)
-Many informal settlements and commercial areas in Madurai feature unpainted corrugated galvanized iron (GI / "tin") roofs and asbestos roofing sheets:
-- Galvanized iron has low thermal mass and high solar absorptivity ($0.65 - 0.85$).
-- Under midday sun, unpainted sheet metal roofs regularly reach **55°C to 72°C**.
+Many informal settlements and commercial areas in Madurai feature dense built-up surfaces, unshaded roofs, and paved roads:
+- Built-up and impervious surfaces absorb significant solar radiation with low vegetative cover.
+- Under midday sun, unshaded roof and paved surfaces regularly reach **55°C to 70°C**.
 - Dense asphalt road corridors absorb up to 95% of solar rays, heating the pavement to **55°C – 62°C**.
+*(Note: NDBI is used as a spectral indicator of built-up/impervious surface characteristics; it is not a direct roof-material classifier).*
 
 ### 3. Lack of Evaporative Cooling & Vegetative Shade (NDVI Deficit)
 Vegetation cools surfaces through **transpiration** (evaporating water absorbs latent heat) and **shading** (intercepting photons before they reach the ground). In sectors where tree canopy coverage is near zero ($\text{NDVI} < 0.20$), 100% of solar irradiance is converted into sensible heat.
@@ -101,7 +102,7 @@ $$j^* = \epsilon \cdot \sigma \cdot T^4$$
 *(where $\sigma = 5.67 \times 10^{-8}\text{ W}/(\text{m}^2\cdot\text{K}^4)$)*
 
 - A cool shaded tile roof at **35°C** (308 K) emits **$\sim 490\text{ W/m}^2$** of thermal radiation.
-- A hot tin roof at **57°C** (330 K) emits **$\sim 670\text{ W/m}^2$** of longwave radiation downward into the room below.
+- A superheated uninsulated roof at **57°C** (330 K) emits **$\sim 670\text{ W/m}^2$** of longwave radiation downward into the room below.
 - This creates an intense radiative oven effect, elevating indoor temperatures by 3°C–5°C above the outside air and triggering heat exhaustion and nocturnal insomnia.
 
 ---
@@ -149,7 +150,7 @@ HeatViz integrates LST across an 8-stage pipeline:
 
 ### Stage 4, 5 & 6: Spatial Graph Heat Diffusion (`04` to `06`)
 - Constructs an 8-neighbor spatial adjacency graph across all 36,913 sectors.
-- Evaluates a **HeatGAT (Graph Attention Network)** to capture lateral thermal advection (e.g., wind transporting hot air from a 58°C tin-roof cluster into an adjacent residential street).
+- Evaluates a **HeatGAT (Graph Attention Network)** to capture lateral thermal advection (e.g., wind transporting hot air from a 58°C built-up cluster into an adjacent residential street).
 - Computes `contextual_ai_heat` normalized across the settlement.
 
 ### Stage 7: Scoring & Export (`07_score_export.py`)
@@ -187,7 +188,7 @@ When inspecting any 50m block:
   $$T_{\text{ambient}} = T_{\text{station}} + (\Delta T \times 0.35)$$
 - **Surface (LST)**: Radiometric satellite skin temperature ($50.1^\circ\text{C}$).
 - **Anomaly**: Relative thermal load relative to Madurai's mean ($+0.6^\circ\text{C}$).
-- **Peak Roof Temp**: Estimated midday metal roof surface temperature ($~58.2^\circ\text{C}$).
+- **Peak Roof Temp**: Estimated midday built-up roof surface temperature ($~58.2^\circ\text{C}$).
 
 ### 4. Prescriptive Action (Guided by LST)
 Because LST identifies *where* heat is absorbed, HeatViz automatically sizes interventions based on each block's thermal load:

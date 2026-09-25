@@ -20,10 +20,10 @@ def calculate_percentile(score: int, all_scores: List[int]) -> int:
 def classify_land_cover(props: Dict[str, Any]) -> Tuple[str, str]:
     """
     Classifies the actual physical ground terrain and land-cover archetype of the 50m parcel:
-    - Dense Metal-Roofed Settlement (high building footprint / NDBI)
+    - Dense Built-up Area (high building footprint / NDBI)
     - High-Density Commercial & Residential Cluster (elevated population + built density)
     - Riparian Wetland & Alluvial Green Corridor (close to valley water with vegetation)
-    - Riparian Informal Edge Settlement (close to water with tin dwellings)
+    - Riparian Settlement Edge (close to water with built dwellings)
     - High-Canopy Agroforestry & Green Buffer (mature tree canopy)
     - Vegetated Canopy Buffer & Open Space (moderate greenery, low density)
     - Exposed Open Ground & Pathways (bare earth, low canopy, low structures)
@@ -38,12 +38,12 @@ def classify_land_cover(props: Dict[str, Any]) -> Tuple[str, str]:
     if pop >= 60 and bld >= 40:
         return (
             "High-Density Commercial & Residential Cluster",
-            f"High-occupancy residential and informal market node with dense tin roofs ({bld}% footprint) housing ~{pop} residents.",
+            f"High-occupancy residential and commercial node with high built-up surface intensity ({bld}% footprint) housing ~{pop} residents.",
         )
     elif bld >= 50 or ndbi >= 65:
         return (
-            "Dense Metal-Roofed Settlement",
-            f"High-density informal settlement with contiguous corrugated iron roofs ({bld}% building footprint) housing ~{pop} residents.",
+            "Dense Built-up Area",
+            f"High-density urban settlement with extensive built-up and impervious surfaces ({bld}% building footprint) housing ~{pop} residents.",
         )
     elif dist_water <= 80 and ndvi >= 45:
         return (
@@ -52,7 +52,7 @@ def classify_land_cover(props: Dict[str, Any]) -> Tuple[str, str]:
         )
     elif dist_water <= 60 and bld >= 35:
         return (
-            "Riparian Informal Edge Settlement",
+            "Riparian Settlement Edge",
             f"Low-lying riparian settlement edge approximately {int(dist_water)}m from valley drainage channel with {bld}% building cover.",
         )
     elif ndvi >= 70 and bld <= 20:
@@ -122,7 +122,7 @@ def evaluate_neighborhood_context(
     elif green_nbs >= 2:
         return "Cooling Asset Proximity: Bordered by a cooler vegetated zone (~50m away). Connecting street shade will draw cool breezes into this block."
     elif avg_nb_hvi >= 60:
-        return "Embedded in an elevated thermal corridor with compounding heat retention from adjacent tin roofs."
+        return "Embedded in an elevated thermal corridor with compounding heat retention from adjacent dense built-up surfaces."
     else:
         return "Microclimate is primarily driven by localized rooftop absorption and internal walkway geometry."
 
@@ -201,7 +201,7 @@ def evaluate_heat_health_advisory(props: Dict[str, Any]) -> Dict[str, str]:
     else:
         return {
             "peak_stress_window": "12:00 PM – 3:00 PM (Midday Solar Window)",
-            "health_alert": "Elevated radiant heat from tin roofs during midday sun; caution for strenuous outdoor manual work.",
+            "health_alert": "Elevated radiant heat from built-up surfaces during midday sun; caution for strenuous outdoor manual work.",
             "hydration_guideline": "Maintain regular drinking water intake during peak afternoon hours.",
         }
 
@@ -235,7 +235,7 @@ def evaluate_microclimate_diagnosis(props: Dict[str, Any], block_id: str = "", c
         surface_temp = round(32.7 + (heat / 100.0) * (64.2 - 32.7), 1)
         temp_anomaly = round(surface_temp - 49.5, 1)
 
-    # Peak metal roof solar radiant temperature under direct sun
+    # Peak built-up / roof surface radiant temperature under direct sun
     peak_roof_temp = round(min(70.0, max(surface_temp, surface_temp + (ndbi / 100.0) * 16.0)), 1)
     if current_air_temp is not None:
         ambient_air_temp = round(current_air_temp + (temp_anomaly * 0.35), 1)
@@ -254,12 +254,12 @@ def evaluate_microclimate_diagnosis(props: Dict[str, Any], block_id: str = "", c
         thermal_summary = f"This sector maintains a safe, comfortable microclimate with an observed surface temperature of {surface_temp:.1f}°C ({temp_anomaly:+.1f}°C relative to settlement baseline). Tree canopy shading ({ndvi}/100) and permeable soils actively prevent heat accumulation for its ~{pop} residents."
     else:
         thermal_status = f"Elevated Thermal Load ({surface_temp:.1f}°C)"
-        thermal_summary = f"This sector experiences an elevated surface skin temperature of {surface_temp:.1f}°C ({temp_anomaly:+.1f}°C above settlement baseline). Under peak midday solar radiation, unpainted corrugated iron roofs reach up to ~{peak_roof_temp:.1f}°C, re-radiating intense thermal energy into narrow alleys and living spaces for ~{pop} residents."
+        thermal_summary = f"This sector experiences an elevated surface skin temperature of {surface_temp:.1f}°C ({temp_anomaly:+.1f}°C above settlement baseline). Under peak midday solar radiation, high-intensity built-up and impervious surfaces reach up to ~{peak_roof_temp:.1f}°C, re-radiating intense thermal energy into narrow corridors and living spaces for ~{pop} residents."
 
         # Detect precise physical mechanisms
         if bld >= 40 or ndbi >= 55:
             heat_causes.append(
-                f"Galvanized Metal Roof Heating: Corrugated iron roofs ({bld}% footprint) reach ~{peak_roof_temp:.1f}°C under peak solar radiation, re-radiating heat into living spaces."
+                f"Built-up / Impervious Surface Heating: Dense built structures and paved surfaces ({bld}% footprint) reach up to ~{peak_roof_temp:.1f}°C under peak solar radiation, re-radiating heat into living spaces."
             )
         if ndvi <= 35:
             heat_causes.append(
@@ -267,7 +267,7 @@ def evaluate_microclimate_diagnosis(props: Dict[str, Any], block_id: str = "", c
             )
         elif ndvi >= 45 and bld < 40:
             heat_causes.append(
-                f"Lateral Thermal Advection: Despite having local tree cover ({ndvi}/100), this block absorbs radiant thermal energy from adjacent dense tin-roof clusters."
+                f"Lateral Thermal Advection: Despite having local tree cover ({ndvi}/100), this block absorbs radiant thermal energy from adjacent dense built-up clusters."
             )
         if bld >= 60:
             heat_causes.append(
@@ -292,7 +292,7 @@ def evaluate_microclimate_diagnosis(props: Dict[str, Any], block_id: str = "", c
             roof_sqm = int(round(2500 * (bld / 100)))
             paint_l = int(round(roof_sqm * 0.11))
             controls.append(
-                f"Cool Roof Retrofit: Apply solar-reflective white elastomeric coating to ~{roof_sqm} m² of metal roofs (~{paint_l}L paint needed) to reflect 80%+ of incoming radiant heat and reduce surface temperatures from ~{peak_roof_temp:.1f}°C down by 10–15°C (reducing indoor air temperatures by 3–5°C)."
+                f"Cool Roof Retrofit: Apply solar-reflective white elastomeric coating to ~{roof_sqm} m² of high-heat roof surfaces (~{paint_l}L paint needed) to reflect 80%+ of incoming radiant heat and reduce surface temperatures from ~{peak_roof_temp:.1f}°C down by 10–15°C (reducing indoor air temperatures by 3–5°C)."
             )
         if ndvi < 50:
             deficit_sqm = max(0, 625 - int(round(2500 * (ndvi / 100) * 0.4)))
@@ -408,12 +408,12 @@ def format_humanized_factors(props: Dict[str, Any], surface_temp: float = 49.5, 
         },
         {
             "id": "built_surfaces",
-            "name": "Tin Roofs & Impervious Mass",
+            "name": "Built-up / Impervious Surface (NDBI)",
             "score": ndbi,
             "value_display": f"{ndbi}/100",
             "status": built_status,
             "color": built_color,
-            "desc": "Concentration of high-heat-capacity metal roofing, concrete, and asphalt surfaces.",
+            "desc": "Concentration of high-heat-capacity built structures, concrete, and asphalt surfaces.",
         },
         {
             "id": "cooling_access",
@@ -595,7 +595,7 @@ def evaluate_5day_health_trajectory(props: Dict[str, Any], forecast: Dict[str, A
             risk_label = "Temperate Physiological Baseline"
 
         # Social sensitivity modulation: high population density +
-        # metal roof concentration escalate the tier by one level (HVI weights 0.70/0.30).
+        # built-up surface concentration escalate the tier by one level (HVI weights 0.70/0.30).
         social = 0.70 * pop_norm + 0.30 * bldg_norm
         if social >= 70.0 and tier != "Critical":
             tier = {"Low": "Moderate", "Moderate": "High", "High": "Critical"}[tier]
@@ -654,11 +654,11 @@ def generate_automated_health_advisory(
         headline_ta = f"தீவிர வெப்ப எச்சரிக்கை: பகுதி {block_id} WBGT {local_wbgt:.1f}°C"
         citizen_action = (
             "High risk of heat exhaustion and cramps. Schedule heavy work before 10 AM. "
-            "Keep indoor corrugated metal dwellings ventilated by opening opposing doors/windows."
+            "Keep indoor high-heat dwellings ventilated by opening opposing doors/windows."
         )
         citizen_action_ta = (
             "வெப்ப சோர்வு மற்றும் தசைப்பிடிப்பு அபாயம். கனரக வேலைகளை காலை 10 மணிக்குள் முடிக்கவும். "
-            "தகரக் கூரை வீடுகளில் காற்றோட்டத்தை அதிகரிக்க ஜன்னல்களை திறந்து வைக்கவும்."
+            "அதிக வெப்பமடையும் வீடுகளில் காற்றோட்டத்தை அதிகரிக்க ஜன்னல்களை திறந்து வைக்கவும்."
         )
         officer_directive = (
             f"Alert local clinic teams for surge in dehydration cases. Primary driver is {primary_driver} ({driver_contrib}). "

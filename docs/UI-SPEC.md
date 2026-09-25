@@ -110,7 +110,7 @@ Inspired directly by **OpenWeather's One Call meteorological dashboard**, this d
     5. **Danger Window:** Peak sun hours (`11 AM – 3:30 PM`) with Clock SVG.
     6. **Nearest Cool Shelter:** Proximity to shade (`180m Park`) with Tree SVG.
 * **Plain-Language Explainer Note:**
-  * Callout box with SVG info icon explaining the difference between baked metal tin roofs (~50°C) and outdoor shaded air (~36°C).
+  * Callout box with SVG info icon explaining the difference between baked rooftops/impervious surfaces (~50°C) and outdoor shaded air (~36°C).
 
 ### 4.3 Hourly Heat Curve & Forecast Card (Right Column)
 * **Width:** ~60% of desktop container width (stacked on mobile).
@@ -154,7 +154,7 @@ Inspired directly by **OpenWeather's One Call meteorological dashboard**, this d
 When the user taps the **`[தமிழ்]`** button in the top navigation, all safety advisories and labels switch instantly into clean, natural Tamil:
 * **Active Location:** *தேர்ந்தெடுக்கப்பட்ட பகுதி*
 * **Outdoor Air:** *வெளிப்புற நிழல் காற்று*
-* **Roof Heat:** *தகர கூரை வெப்பம்*
+* **Roof Heat:** *கூரை வெப்பம்*
 * **Feels Like:** *உடல் உணரும் வெப்பம்*
 * **Peak Sun Danger Hours:** *உச்சி வெயில் ஆபத்து நேரம் (11:00 மு.ப - 3:30 பி.ப)*
 * **Health Actions:** *உடல் நலப் பாதுகாப்பு ஆலோசனைகள்*

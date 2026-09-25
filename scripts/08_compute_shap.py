@@ -26,7 +26,7 @@ FEATURE_COLS = [
 FEATURE_LABELS = {
     "mean_ndvi": "Tree Canopy & Vegetation (NDVI)",
     "mean_ndwi": "Surface Moisture & Water (NDWI)",
-    "mean_ndbi": "Corrugated Metal Roofs & Built Cover (NDBI)",
+    "mean_ndbi": "Built-up / Impervious Surface (NDBI)",
     "mean_building_density": "Building Footprint Density",
     "mean_road_density": "Unshaded Path/Road Density",
     "mean_distance_to_green": "Distance to Vegetated Buffers",
