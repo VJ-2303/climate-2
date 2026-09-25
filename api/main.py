@@ -362,10 +362,10 @@ def get_forecast_summary() -> JSONResponse:
 
 
 @app.get("/api/forecast/days")
-def get_forecast_days() -> JSONResponse:
-    """Returns lightweight 5-day timeline and 12-day historical replay for map scrubber controls and real-time current weather."""
+def get_forecast_days(force: bool = False) -> JSONResponse:
+    """Returns lightweight 5-day timeline, rolling hourly forecast, and real-time current weather."""
     from api.weather import get_5day_forecast
-    data = get_5day_forecast()
+    data = get_5day_forecast(force_refresh=force)
     days = [
         {
             "day": d["day"],
@@ -381,13 +381,23 @@ def get_forecast_days() -> JSONResponse:
     timeline = data.get("timeline", days)
     return JSONResponse(
         content={
+            "status": "refreshed" if force else "cached",
             "days": days,
             "timeline": timeline,
             "current": data.get("current"),
             "composite_alert": data.get("composite_alert"),
+            "hourly": data.get("hourly", []),
+            "last_updated": data.get("last_updated"),
         },
-        headers={"Cache-Control": "public, max-age=1800"}
+        headers={"Cache-Control": "no-cache" if force else "public, max-age=300"}
     )
+
+
+@app.post("/api/forecast/refresh")
+@app.get("/api/forecast/refresh")
+def refresh_forecast() -> JSONResponse:
+    """Manually forces a fresh fetch from Open-Meteo and returns updated weather data."""
+    return get_forecast_days(force=True)
 
 
 # -------------------------------------------------------------------------

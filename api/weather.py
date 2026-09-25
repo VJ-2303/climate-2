@@ -12,7 +12,7 @@ from typing import Dict, Any, Optional
 
 DEFAULT_LAT = 9.921851
 DEFAULT_LON = 78.118200
-CACHE_TTL_SECONDS = 3600  # 1 hour
+CACHE_TTL_SECONDS = 600  # 10 minutes (real-time automated polling)
 FALLBACK_FILE = os.path.join(os.path.dirname(__file__), "..", "data", "fallback_forecast.json")
 
 _CACHE: Dict[str, Any] = {
@@ -131,22 +131,58 @@ def get_composite_heatwave_alert(temp_max: float, wbgt_max: float, departure: fl
         "wbgt_max": wbgt_max,
     }
 
-def _load_fallback(fallback_path: str = FALLBACK_FILE) -> Dict[str, Any]:
-    """Loads offline cached fallback forecast."""
-    normalized_path = os.path.abspath(fallback_path)
-    if os.path.isfile(normalized_path):
-        with open(normalized_path, "r", encoding="utf-8") as f:
+def _generate_fallback_hourly(daily: list) -> list:
+    """Generates 24-hour baseline hourly forecast if offline fallback is active or hourly data is omitted."""
+    d0 = daily[0] if daily else {}
+    t_max = float(d0.get("temp_max", 34.0))
+    t_min = float(d0.get("temp_min", 24.0))
+    rh_mean = float(d0.get("humidity_mean", 60.0))
+
+    from datetime import datetime, timezone, timedelta
+    ist_tz = timezone(timedelta(hours=5, minutes=30))
+    now = datetime.now(ist_tz)
+
+    hourly = []
+    for h in range(24):
+        dt = now + timedelta(hours=h)
+        hour_num = dt.hour
+        cycle = 0.5 * (1.0 + math.cos((hour_num - 14) * math.pi / 12))
+        temp = t_min + (t_max - t_min) * cycle
+        rh = max(30.0, min(85.0, rh_mean - (temp - (t_min + t_max) / 2) * 1.5))
+        wbgt = calculate_wbgt(temp, rh)
+        risk = classify_wbgt_risk(wbgt)
+        is_danger = wbgt >= 30.0 or (11 <= hour_num <= 15 and temp >= 33.0)
+
+        hourly.append({
+            "time": dt.strftime("%Y-%m-%dT%H:00"),
+            "hour_str": dt.strftime("%I %p").lstrip("0"),
+            "hour_num": hour_num,
+            "temperature_celsius": round(temp, 1),
+            "apparent_temperature_celsius": round(temp + (wbgt - temp) * 0.5, 1),
+            "relative_humidity_pct": round(rh, 1),
+            "wind_speed_ms": 3.2,
+            "wbgt_celsius": round(wbgt, 1),
+            "risk_tier": risk,
+            "weather_code": 0 if (6 <= hour_num <= 18) else 1,
+            "condition": "Clear Sky" if (6 <= hour_num <= 18) else "Mainly Clear",
+            "is_danger": is_danger
+        })
+    return hourly
+
+def _load_fallback(filepath: str = FALLBACK_FILE) -> Dict[str, Any]:
+    """Loads static baseline forecast from JSON for offline resilience."""
+    if os.path.exists(filepath):
+        with open(filepath, "r", encoding="utf-8") as f:
             data = json.load(f)
             if "current" not in data:
                 d0 = data.get("daily", [{}])[0]
                 t0 = float(d0.get("temp_max", 29.8))
-                rh0 = float(d0.get("humidity_mean", 62.0))
-                wbgt0 = calculate_wbgt(t0, rh0)
+                wbgt0 = float(d0.get("wbgt_max", calculate_wbgt(t0, 60.0)))
                 data["current"] = {
-                    "time": d0.get("date", "2026-09-24T12:00:00Z"),
+                    "time": d0.get("date", "2026-09-24"),
                     "temperature_celsius": t0,
-                    "relative_humidity_pct": rh0,
-                    "apparent_temperature_celsius": round(t0 + 2.6, 1),
+                    "relative_humidity_pct": float(d0.get("humidity_mean", 62.0)),
+                    "apparent_temperature_celsius": t0,
                     "wind_speed_kmh": float(d0.get("wind_speed_max", 14.2)),
                     "wbgt_celsius": wbgt0,
                     "risk_tier": classify_wbgt_risk(wbgt0),
@@ -158,6 +194,8 @@ def _load_fallback(fallback_path: str = FALLBACK_FILE) -> Dict[str, Any]:
                 data["composite_alert"] = get_composite_heatwave_alert(t0, wbgt0)
             if "timeline" not in data:
                 data["timeline"] = data.get("daily", [])
+            if "hourly" not in data:
+                data["hourly"] = _generate_fallback_hourly(data.get("daily", []))
             return data
     # Ultimate hardcoded fallback if file missing
     fallback_daily = [
@@ -191,15 +229,22 @@ def _load_fallback(fallback_path: str = FALLBACK_FILE) -> Dict[str, Any]:
         },
         "daily": fallback_daily,
         "timeline": fallback_daily,
+        "hourly": _generate_fallback_hourly(fallback_daily),
     }
 
-def build_open_meteo_url(lat: float, lon: float, past_days: int = 7, forecast_days: int = 5) -> str:
-    """Builds the Open-Meteo request URL (daily metrics + current real-time weather + past history, 3-model blend)."""
+def build_open_meteo_url(lat: float, lon: float, past_days: int = 7, forecast_days: int = 5, include_hourly: bool = False) -> str:
+    """Builds the Open-Meteo request URL (daily metrics + optional rolling hourly forecast + current weather, 3-model blend)."""
+    hourly_param = (
+        "&hourly=temperature_2m,relative_humidity_2m,apparent_temperature,wind_speed_10m,weather_code"
+        if include_hourly
+        else ""
+    )
     return (
         f"https://api.open-meteo.com/v1/forecast?"
         f"latitude={lat}&longitude={lon}&"
         f"models=ecmwf_ifs025,icon_seamless,gfs025&"
-        f"daily=temperature_2m_max,temperature_2m_min,relative_humidity_2m_min,relative_humidity_2m_mean,wind_speed_10m_max,shortwave_radiation_sum&"
+        f"daily=temperature_2m_max,temperature_2m_min,relative_humidity_2m_min,relative_humidity_2m_mean,wind_speed_10m_max,shortwave_radiation_sum"
+        f"{hourly_param}&"
         f"current=temperature_2m,relative_humidity_2m,apparent_temperature,wind_speed_10m&"
         f"timezone=Asia%2FKolkata&past_days={past_days}&forecast_days={forecast_days}"
     )
@@ -209,23 +254,27 @@ BLEND_FIELDS = (
     "relative_humidity_2m_min", "relative_humidity_2m_mean",
     "wind_speed_10m_max", "shortwave_radiation_sum",
 )
+HOURLY_BLEND_FIELDS = (
+    "temperature_2m", "relative_humidity_2m",
+    "apparent_temperature", "wind_speed_10m", "weather_code",
+)
 MODEL_NAMES = ("ecmwf_ifs025", "icon_seamless", "gfs025")
 
-def _is_multi_model(daily_raw: Dict[str, Any]) -> bool:
+def _is_multi_model(raw_dict: Dict[str, Any]) -> bool:
     """Multi-model responses carry per-model suffixed fields (e.g. temperature_2m_max_gfs025)."""
-    return any(k.endswith("_" + m) for k in daily_raw for m in MODEL_NAMES)
+    return any(k.endswith("_" + m) for k in raw_dict for m in MODEL_NAMES)
 
-def _blend_daily_models(daily_raw: Dict[str, Any]) -> Dict[str, Any]:
+def _blend_model_dict(raw_dict: Dict[str, Any], blend_fields: tuple) -> Dict[str, Any]:
     """Averages per-model suffixed fields into plain field names (element-wise mean).
 
     Single-model responses (plain field names) pass through unchanged.
     """
-    if not _is_multi_model(daily_raw):
-        return daily_raw
-    times = daily_raw.get("time", [])
+    if not _is_multi_model(raw_dict):
+        return raw_dict
+    times = raw_dict.get("time", [])
     groups: Dict[str, list] = {}
     plain: Dict[str, Any] = {}
-    for key, val in daily_raw.items():
+    for key, val in raw_dict.items():
         if key == "time":
             continue
         base = key
@@ -233,7 +282,7 @@ def _blend_daily_models(daily_raw: Dict[str, Any]) -> Dict[str, Any]:
             if key.endswith("_" + m):
                 base = key[: -(len(m) + 1)]
                 break
-        if base in BLEND_FIELDS:
+        if base in blend_fields:
             groups.setdefault(base, []).append(val)
         else:
             plain[key] = val
@@ -242,9 +291,36 @@ def _blend_daily_models(daily_raw: Dict[str, Any]) -> Dict[str, Any]:
         blended[field] = []
         for i in range(len(times)):
             vals = [lst[i] for lst in lists if i < len(lst) and lst[i] is not None]
-            blended[field].append(round(sum(vals) / len(vals), 2) if vals else None)
+            if not vals:
+                blended[field].append(None)
+            elif field == "weather_code":
+                blended[field].append(int(round(sum(vals) / len(vals))))
+            else:
+                blended[field].append(round(sum(vals) / len(vals), 2))
     blended.update(plain)
     return blended
+
+def _blend_daily_models(daily_raw: Dict[str, Any]) -> Dict[str, Any]:
+    return _blend_model_dict(daily_raw, BLEND_FIELDS)
+
+def _blend_hourly_models(hourly_raw: Dict[str, Any]) -> Dict[str, Any]:
+    return _blend_model_dict(hourly_raw, HOURLY_BLEND_FIELDS)
+
+def map_wmo_weather_code(code: int) -> str:
+    """Maps WMO weather code to standard descriptive condition string."""
+    if code == 0:
+        return "Clear Sky"
+    elif code in (1, 2):
+        return "Mainly Clear"
+    elif code == 3:
+        return "Overcast"
+    elif code in (45, 48):
+        return "Hazy"
+    elif code in (51, 53, 55, 61, 63, 65, 80, 81, 82):
+        return "Rain Showers"
+    elif code in (95, 96, 99):
+        return "Thunderstorm"
+    return "Partly Cloudy"
 
 def process_open_meteo(raw_data: Dict[str, Any], lat: float, lon: float) -> Dict[str, Any]:
     """Transforms raw Open-Meteo data into a 12-day timeline (7-day history + 5-day forecast) with WBGT and IMD alerts.
@@ -353,6 +429,68 @@ def process_open_meteo(raw_data: Dict[str, Any], lat: float, lon: float) -> Dict
             "risk_tier": classify_wbgt_risk(curr_wbgt),
         }
 
+    # ─── Hourly Processing (Rolling Next 24 Hours) ───
+    hourly_raw = _blend_hourly_models(raw_data.get("hourly", {}))
+    h_times = hourly_raw.get("time", [])
+    h_temps = hourly_raw.get("temperature_2m", [])
+    h_rh = hourly_raw.get("relative_humidity_2m", [])
+    h_app = hourly_raw.get("apparent_temperature", [])
+    h_wind = hourly_raw.get("wind_speed_10m", [])
+    h_code = hourly_raw.get("weather_code", [])
+
+    processed_hours = []
+    if h_times and len(h_times) > 0:
+        from datetime import datetime, timezone, timedelta
+        ist_tz = timezone(timedelta(hours=5, minutes=30))
+        now_ist = datetime.now(ist_tz)
+        now_prefix = now_ist.strftime("%Y-%m-%dT%H:00")
+
+        # Find starting index for current hour
+        start_idx = 0
+        for idx, t_str in enumerate(h_times):
+            if t_str >= now_prefix:
+                start_idx = idx
+                break
+
+        end_idx = min(len(h_times), start_idx + 24)
+        for i in range(start_idx, end_idx):
+            t_iso = h_times[i]
+            try:
+                dt = datetime.fromisoformat(t_iso)
+                hour_str = dt.strftime("%I %p").lstrip("0")
+                hour_num = dt.hour
+            except Exception:
+                hour_str = f"H+{i - start_idx}"
+                hour_num = i % 24
+
+            t_val = float(h_temps[i]) if i < len(h_temps) and h_temps[i] is not None else 32.0
+            rh_val = float(h_rh[i]) if i < len(h_rh) and h_rh[i] is not None else 60.0
+            app_val = float(h_app[i]) if i < len(h_app) and h_app[i] is not None else t_val
+            wind_val = float(h_wind[i]) if i < len(h_wind) and h_wind[i] is not None else 10.0
+            code_val = int(h_code[i]) if i < len(h_code) and h_code[i] is not None else 0
+
+            h_wbgt = calculate_wbgt(t_val, rh_val)
+            h_tier = classify_wbgt_risk(h_wbgt)
+            is_danger = (h_wbgt >= 30.0) or (11 <= hour_num <= 15 and t_val >= 33.0)
+
+            processed_hours.append({
+                "time": t_iso,
+                "hour_str": hour_str,
+                "hour_num": hour_num,
+                "temperature_celsius": round(t_val, 1),
+                "apparent_temperature_celsius": round(app_val, 1),
+                "relative_humidity_pct": round(rh_val, 1),
+                "wind_speed_ms": round(wind_val / 3.6, 1) if wind_val > 0 else 0.0,
+                "wbgt_celsius": round(h_wbgt, 1),
+                "risk_tier": h_tier,
+                "weather_code": code_val,
+                "condition": map_wmo_weather_code(code_val),
+                "is_danger": is_danger,
+            })
+    else:
+        processed_hours = _generate_fallback_hourly(processed_days)
+
+    now_epoch = time.time()
     return {
         "location": "Madurai, Tamil Nadu",
         "latitude": lat,
@@ -363,11 +501,13 @@ def process_open_meteo(raw_data: Dict[str, Any], lat: float, lon: float) -> Dict
         "current": current_weather,
         "daily": processed_days,
         "timeline": all_timeline,
+        "hourly": processed_hours,
+        "last_updated": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(now_epoch)),
     }
 
 def fetch_open_meteo_forecast(lat: float = DEFAULT_LAT, lon: float = DEFAULT_LON) -> Dict[str, Any]:
-    """Fetches real-time 5-day weather forecast (daily metrics + current weather) from Open-Meteo API."""
-    url = build_open_meteo_url(lat, lon)
+    """Fetches real-time 5-day weather forecast (daily metrics + rolling hourly forecast + current weather) from Open-Meteo API."""
+    url = build_open_meteo_url(lat, lon, include_hourly=True)
     req = urllib.request.Request(url, headers={"User-Agent": "ThermalGuard/1.0"})
     with urllib.request.urlopen(req, timeout=10) as response:
         if response.status == 200:
@@ -375,10 +515,10 @@ def fetch_open_meteo_forecast(lat: float = DEFAULT_LAT, lon: float = DEFAULT_LON
             return process_open_meteo(raw_data, lat, lon)
         raise RuntimeError(f"Open-Meteo responded with status {response.status}")
 
-def get_5day_forecast(lat: float = DEFAULT_LAT, lon: float = DEFAULT_LON, force_fallback: bool = False, fallback_path: str = FALLBACK_FILE) -> Dict[str, Any]:
+def get_5day_forecast(lat: float = DEFAULT_LAT, lon: float = DEFAULT_LON, force_fallback: bool = False, force_refresh: bool = False, fallback_path: str = FALLBACK_FILE) -> Dict[str, Any]:
     """
-    Returns 5-day heatwave forecast with WBGT indices.
-    Employs 1-hour in-memory cache and automatic fallback to offline baseline.
+    Returns 5-day heatwave forecast with WBGT indices and rolling hourly forecasts.
+    Employs 10-minute in-memory cache and automatic fallback to offline baseline.
     """
     global _CACHE
     now = time.time()
@@ -386,20 +526,21 @@ def get_5day_forecast(lat: float = DEFAULT_LAT, lon: float = DEFAULT_LON, force_
     if force_fallback:
         return _load_fallback(fallback_path)
 
-    # Check valid cache
-    if _CACHE["data"] is not None and (now - _CACHE["timestamp"] < CACHE_TTL_SECONDS):
+    # Check valid cache unless forced
+    if not force_refresh and _CACHE["data"] is not None and (now - _CACHE["timestamp"] < CACHE_TTL_SECONDS):
         return _CACHE["data"]
 
     # Try live fetch
     try:
         data = fetch_open_meteo_forecast(lat, lon)
+        data["last_updated"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(now))
         _CACHE["timestamp"] = now
         _CACHE["data"] = data
         return data
     except Exception as err:
-        # Fallback gracefully
         fallback_data = _load_fallback(fallback_path)
         fallback_data["notice"] = f"Using offline fallback: {str(err)}"
+        fallback_data["last_updated"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(now))
         _CACHE["timestamp"] = now
         _CACHE["data"] = fallback_data
         return fallback_data

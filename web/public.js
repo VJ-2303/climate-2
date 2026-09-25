@@ -59,6 +59,8 @@
   let liveFeelsTemp = 32.0;
   let liveHumidity = 64;
   let liveWindSpeed = 3.2;
+  let liveHourlyForecast = [];
+  let isWeatherRefreshing = false;
   let currentLang = "EN"; // "EN" or "TA"
 
   // ─── Initialization ───
@@ -70,7 +72,10 @@
     renderNeighborhoodChips();
     initLiveClock();
     initEventListeners();
+    fetchWeather(false);
     loadBlocks();
+    // 10-minute automated meteorological background sync
+    setInterval(() => fetchWeather(false), 10 * 60 * 1000);
   }
 
   // ─── Leaflet Map Setup ───
@@ -215,34 +220,56 @@
     }
   }
 
+  // ─── Live Meteorological Forecasting (10m Refresh + Manual Sync) ───
+  async function fetchWeather(force = false) {
+    if (isWeatherRefreshing) return;
+    isWeatherRefreshing = true;
+
+    const refreshBtn = document.getElementById("btn-weather-refresh");
+    if (refreshBtn) refreshBtn.classList.add("spinning");
+
+    try {
+      const url = force ? "/api/forecast/days?force=true" : "/api/forecast/days";
+      const fRes = await fetch(url);
+      if (fRes.ok) {
+        const fData = await fRes.json();
+        if (fData.current && fData.current.temperature_celsius != null) {
+          liveAirTemp = Number(fData.current.temperature_celsius);
+          liveFeelsTemp = Number(fData.current.wbgt_celsius || fData.current.apparent_temperature_celsius);
+          if (fData.current.relative_humidity_pct != null) {
+            liveHumidity = Math.round(fData.current.relative_humidity_pct);
+          }
+          if (fData.current.wind_speed_ms != null) {
+            liveWindSpeed = Number(fData.current.wind_speed_ms);
+          }
+          const avgPill = document.getElementById("topbar-avg-temp");
+          if (avgPill) {
+            avgPill.textContent = `Madurai Heat Safety · Live Air: ${liveAirTemp.toFixed(1)}°C · Feels ${liveFeelsTemp.toFixed(1)}°C`;
+          }
+        }
+        if (Array.isArray(fData.hourly) && fData.hourly.length > 0) {
+          liveHourlyForecast = fData.hourly;
+        }
+
+        if (currentBlockData && currentActiveLandmark) {
+          renderFeedCards(currentBlockData, currentActiveLandmark);
+          renderDiurnalChartAndScrubber(currentBlockData);
+        }
+      }
+    } catch (fErr) {
+      console.warn("Could not fetch live forecast:", fErr);
+    } finally {
+      isWeatherRefreshing = false;
+      if (refreshBtn) {
+        setTimeout(() => refreshBtn.classList.remove("spinning"), 400);
+      }
+    }
+  }
+
   // ─── Load Dataset & Initial View ───
   async function loadBlocks() {
     try {
-      // 1. Fetch live Open-Meteo weather
-      try {
-        const fRes = await fetch("/api/forecast/days");
-        if (fRes.ok) {
-          const fData = await fRes.json();
-          if (fData.current && fData.current.temperature_celsius != null) {
-            liveAirTemp = Number(fData.current.temperature_celsius);
-            liveFeelsTemp = Number(fData.current.wbgt_celsius || fData.current.apparent_temperature_celsius);
-            if (fData.current.relative_humidity_pct != null) {
-              liveHumidity = Math.round(fData.current.relative_humidity_pct);
-            }
-            if (fData.current.wind_speed_ms != null) {
-              liveWindSpeed = Number(fData.current.wind_speed_ms);
-            }
-            const avgPill = document.getElementById("topbar-avg-temp");
-            if (avgPill) {
-              avgPill.textContent = `Madurai Heat Safety · Live Air: ${liveAirTemp.toFixed(1)}°C · Feels ${liveFeelsTemp.toFixed(1)}°C`;
-            }
-          }
-        }
-      } catch (fErr) {
-        console.warn("Could not fetch live forecast:", fErr);
-      }
-
-      // 2. Fetch GeoJSON sectors
+      // 1. Fetch GeoJSON sectors
       const res = await fetch("/data/vulnerability_blocks.geojson");
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       geojsonData = await res.json();
@@ -595,30 +622,52 @@
   // ─── Render Hourly Diurnal Spline Chart & 9-Tile Scrubber ───
   function renderDiurnalChartAndScrubber(data) {
     const baseAir = data?.realtime_weather?.temperature_celsius ?? liveAirTemp;
-    
-    // Generate 9 hourly timeline points from 10 AM to 6 PM
-    const hours = [
-      { time: "10 a.m.", hourNum: 10, offset: -3.8, isDanger: false, risk: "Safe" },
-      { time: "11 a.m.", hourNum: 11, offset: -1.3, isDanger: true, risk: "Moderate" },
-      { time: "12 p.m.", hourNum: 12, offset: +0.4, isDanger: true, risk: "High" },
-      { time: "1 p.m.",  hourNum: 13, offset: +1.5, isDanger: true, risk: "Severe" },
-      { time: "2 p.m.",  hourNum: 14, offset: +1.8, isDanger: true, risk: "Severe" },
-      { time: "3 p.m.",  hourNum: 15, offset: +0.7, isDanger: true, risk: "High" },
-      { time: "4 p.m.",  hourNum: 16, offset: -1.8, isDanger: false, risk: "Moderate" },
-      { time: "5 p.m.",  hourNum: 17, offset: -4.0, isDanger: false, risk: "Safe" },
-      { time: "6 p.m.",  hourNum: 18, offset: -6.3, isDanger: false, risk: "Safe" },
-    ];
-
     const currentHour = new Date().getHours();
+    let hourlyData = [];
 
-    const hourlyData = hours.map((h) => {
-      const temp = Math.round((baseAir + h.offset) * 10) / 10;
-      return {
+    if (liveHourlyForecast && liveHourlyForecast.length >= 6) {
+      hourlyData = liveHourlyForecast.slice(0, 9).map((h, idx) => {
+        const hStr = h.hour_str ? h.hour_str.toLowerCase() : `${h.hour_num}:00`;
+        const isCur = idx === 0 || h.hour_num === currentHour;
+        let riskLabel = "Safe";
+        if (h.risk_tier === "Critical") riskLabel = "Severe";
+        else if (h.risk_tier === "High") riskLabel = "High";
+        else if (h.risk_tier === "Medium") riskLabel = "Moderate";
+        else riskLabel = "Safe";
+
+        return {
+          time: hStr,
+          hourNum: h.hour_num,
+          temp: Math.round(Number(h.temperature_celsius) * 10) / 10,
+          feels: Math.round(Number(h.apparent_temperature_celsius || h.temperature_celsius) * 10) / 10,
+          wbgt: Math.round(Number(h.wbgt_celsius || h.temperature_celsius) * 10) / 10,
+          isDanger: Boolean(h.is_danger),
+          risk: riskLabel,
+          risk_tier: h.risk_tier,
+          condition: h.condition || "Clear sky",
+          weather_code: h.weather_code || 0,
+          isCurrent: isCur,
+        };
+      });
+    } else {
+      // Fallback 9-point baseline if live forecast is loading
+      const hours = [
+        { time: "10 a.m.", hourNum: 10, offset: -3.8, isDanger: false, risk: "Safe" },
+        { time: "11 a.m.", hourNum: 11, offset: -1.3, isDanger: true, risk: "Moderate" },
+        { time: "12 p.m.", hourNum: 12, offset: +0.4, isDanger: true, risk: "High" },
+        { time: "1 p.m.",  hourNum: 13, offset: +1.5, isDanger: true, risk: "Severe" },
+        { time: "2 p.m.",  hourNum: 14, offset: +1.8, isDanger: true, risk: "Severe" },
+        { time: "3 p.m.",  hourNum: 15, offset: +0.7, isDanger: true, risk: "High" },
+        { time: "4 p.m.",  hourNum: 16, offset: -1.8, isDanger: false, risk: "Moderate" },
+        { time: "5 p.m.",  hourNum: 17, offset: -4.0, isDanger: false, risk: "Safe" },
+        { time: "6 p.m.",  hourNum: 18, offset: -6.3, isDanger: false, risk: "Safe" },
+      ];
+      hourlyData = hours.map((h) => ({
         ...h,
-        temp: temp,
+        temp: Math.round((baseAir + h.offset) * 10) / 10,
         isCurrent: currentHour === h.hourNum,
-      };
-    });
+      }));
+    }
 
     // 1. Render Diurnal SVG Chart
     renderSplineSvg(hourlyData);
@@ -646,7 +695,7 @@
       return { x, y, ...d };
     });
 
-    // Build SVG path with Catmull-Rom or cubic bezier spline
+    // Build SVG path with cubic bezier spline
     let pathD = `M ${coords[0].x} ${coords[0].y}`;
     for (let i = 0; i < coords.length - 1; i++) {
       const curr = coords[i];
@@ -658,9 +707,24 @@
     // Shaded area under path
     const areaD = `${pathD} L ${coords[coords.length - 1].x} ${height - 6} L ${coords[0].x} ${height - 6} Z`;
 
-    // Coordinates for Danger Band (from 11 AM [index 1] to 3:30 PM [between index 5 and 6])
-    const x11am = coords[1].x;
-    const x330pm = (coords[5].x + coords[6].x) / 2;
+    // Coordinates for Danger Band dynamically calculated from isDanger points
+    let dangerBandSvg = "";
+    const dangerIndices = coords.map((c, i) => c.isDanger ? i : -1).filter((i) => i >= 0);
+    if (dangerIndices.length > 0) {
+      const minIdx = Math.min(...dangerIndices);
+      const maxIdx = Math.max(...dangerIndices);
+      const stepX = (width - 2 * padX) / Math.max(1, coords.length - 1);
+      const leftX = Math.max(padX, coords[minIdx].x - stepX * 0.4);
+      const rightX = Math.min(width - padX, coords[maxIdx].x + stepX * 0.4);
+      const bandW = Math.max(16, rightX - leftX);
+
+      dangerBandSvg = `
+        <!-- Danger Window Shaded Band -->
+        <rect x="${leftX}" y="4" width="${bandW}" height="${height - 10}" fill="url(#dangerBandGradient)" rx="4"/>
+        <line x1="${leftX}" y1="4" x2="${leftX}" y2="${height - 6}" stroke="#fca5a5" stroke-width="1.2" stroke-dasharray="3 3"/>
+        <line x1="${rightX}" y1="4" x2="${rightX}" y2="${height - 6}" stroke="#fca5a5" stroke-width="1.2" stroke-dasharray="3 3"/>
+      `;
+    }
 
     const svg = `
       <svg viewBox="0 0 ${width} ${height}" class="ow-chart-svg" preserveAspectRatio="none" style="overflow: visible;">
@@ -675,10 +739,7 @@
           </linearGradient>
         </defs>
 
-        <!-- Danger Window Shaded Band -->
-        <rect x="${x11am}" y="4" width="${x330pm - x11am}" height="${height - 10}" fill="url(#dangerBandGradient)" rx="4"/>
-        <line x1="${x11am}" y1="4" x2="${x11am}" y2="${height - 6}" stroke="#fca5a5" stroke-width="1.2" stroke-dasharray="3 3"/>
-        <line x1="${x330pm}" y1="4" x2="${x330pm}" y2="${height - 6}" stroke="#fca5a5" stroke-width="1.2" stroke-dasharray="3 3"/>
+        ${dangerBandSvg}
 
         <!-- Baseline -->
         <line x1="${padX}" y1="${height - 6}" x2="${width - padX}" y2="${height - 6}" stroke="#f3e8d9" stroke-width="1.5"/>
@@ -717,7 +778,7 @@
         let weatherIcon = "";
         let riskColor = "#16a34a";
 
-        if (d.risk === "Severe") {
+        if (d.risk === "Severe" || d.risk_tier === "Critical") {
           riskColor = "#dc2626";
           weatherIcon = `
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -725,7 +786,7 @@
               <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>
             </svg>
           `;
-        } else if (d.risk === "High") {
+        } else if (d.risk === "High" || d.risk_tier === "High") {
           riskColor = "#ea580c";
           weatherIcon = `
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ea580c" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -733,7 +794,7 @@
               <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2"/>
             </svg>
           `;
-        } else if (d.risk === "Moderate") {
+        } else if (d.risk === "Moderate" || d.risk_tier === "Medium") {
           riskColor = "#d97706";
           weatherIcon = `
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -752,12 +813,15 @@
 
         const riskLabelsTa = {
           Severe: "தீவிரம்",
+          Critical: "தீவிரம்",
           High: "அதிகம்",
           Moderate: "மிதம்",
+          Medium: "மிதம்",
           Safe: "பாதுகாப்பு",
+          Low: "பாதுகாப்பு",
         };
 
-        const displayRisk = currentLang === "TA" ? riskLabelsTa[d.risk] : d.risk;
+        const displayRisk = currentLang === "TA" ? (riskLabelsTa[d.risk_tier] || riskLabelsTa[d.risk] || d.risk) : d.risk;
 
         return `
           <div class="ow-hourly-item ${d.isCurrent ? "active-now" : ""}">
@@ -805,6 +869,7 @@
         quickExplore: "Quick Areas:",
         searchPlaceholder: "Search neighborhood or landmark...",
         locateLabel: "Locate Me",
+        refreshBtn: "Sync",
         labelPillAir: "Outdoor Air",
         labelPillRoof: "Roof & Ground",
         labelPillHumidity: "Humidity",
@@ -835,6 +900,7 @@
         quickExplore: "விரைவு பகுதிகள்:",
         searchPlaceholder: "பகுதி அல்லது இடத்தை தேடுங்கள்...",
         locateLabel: "என் இடம்",
+        refreshBtn: "புதுப்பி",
         labelPillAir: "வெளிப்புற நிழல் காற்று",
         labelPillRoof: "தகர கூரை & தரை வெப்பம்",
         labelPillHumidity: "ஈரப்பதம்",
@@ -870,6 +936,7 @@
     if (searchInput) searchInput.placeholder = t.searchPlaceholder;
 
     setElemText("btn-locate-label", t.locateLabel);
+    setElemText("label-weather-refresh", t.refreshBtn);
     setElemHtml("label-pill-air", `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2"/></svg> ${t.labelPillAir}`);
     setElemHtml("label-pill-roof", `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M8 3v4M12 3v4M16 3v4M4 14a8 8 0 0 0 16 0M3 21h18"/></svg> ${t.labelPillRoof}`);
     setElemHtml("label-pill-humidity", `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg> ${t.labelPillHumidity}`);
@@ -932,6 +999,14 @@
     if (searchBtn && searchInput) {
       searchBtn.addEventListener("click", () => {
         executeSearch(searchInput.value);
+      });
+    }
+
+    // Weather refresh button
+    const btnRefresh = document.getElementById("btn-weather-refresh");
+    if (btnRefresh) {
+      btnRefresh.addEventListener("click", () => {
+        fetchWeather(true);
       });
     }
 

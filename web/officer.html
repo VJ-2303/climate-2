@@ -76,7 +76,7 @@
             <span id="forecast-menu-label">Forecast</span>
             <span class="dropdown-arrow">▾</span>
           </button>
-          <div class="layer-dropdown-menu" id="forecast-menu" style="display: none; width: 280px; left: 0; right: auto; max-height: 420px; overflow-y: auto;"></div>
+          <div class="layer-dropdown-menu" id="forecast-menu" style="display: none; width: 330px; left: 0; right: auto; max-height: 440px; overflow-y: auto;"></div>
         </div>
       </div>
 
@@ -238,6 +238,21 @@
           <div class="layer-dropdown-menu" id="zone-switcher-menu" style="display:none; width:260px; right:0; left:auto;"></div>
         </div>
 
+
+        <!-- Live Weather & Sync Pill -->
+        <div class="officer-weather-pill" id="officer-weather-pill" title="Live Meteorological Station (10m auto-sync)">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#ea580c" stroke-width="2.2">
+            <circle cx="12" cy="12" r="4"/>
+            <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2"/>
+          </svg>
+          <span id="officer-weather-text">--°C</span>
+          <button class="officer-weather-sync-btn" id="btn-officer-weather-sync" title="Sync live weather and hourly forecast">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/>
+              <path d="M21 3v5h-5"/>
+            </svg>
+          </button>
+        </div>
 
         <!-- Export Dataset -->
         <button id="export-btn" class="btn btn-primary" title="Export full GeoJSON dataset">
@@ -886,7 +901,9 @@
           <span class="zone-modal-title" id="contact-facility-name">Facility Contact</span>
           <div id="contact-facility-cat" style="font-size:11px; color:#64748b; margin-top:2px;"></div>
         </div>
-        <button class="icon-btn" id="btn-close-contact-modal" title="Close">✕</button>
+        <button class="icon-btn" id="btn-close-contact-modal" title="Close">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
       </div>
 
       <div class="zone-modal-section">
@@ -923,7 +940,9 @@
           </div>
           <div style="font-size:11px; color:#047857; margin-top:2px;">Logged to SQLite persistent audit log</div>
         </div>
-        <button class="icon-btn" id="btn-close-result-modal" title="Close">✕</button>
+        <button class="icon-btn" id="btn-close-result-modal" title="Close">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
       </div>
 
       <div class="zone-modal-section">

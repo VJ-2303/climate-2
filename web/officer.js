@@ -52,10 +52,14 @@
     return null;
   };
 
-  async function initOfficer() {
+  async function initOfficer(force = false) {
     patchForecastColors();
+    const syncBtn = document.getElementById("btn-officer-weather-sync");
+    if (syncBtn) syncBtn.classList.add("spinning");
+
     try {
-      const res = await fetch("/api/forecast/days");
+      const url = force ? "/api/forecast/days?force=true" : "/api/forecast/days";
+      const res = await fetch(url);
       if (!res.ok) return;
       const data = await res.json();
       forecastDays = data.days || [];
@@ -73,9 +77,20 @@
         }
       }
 
-      // Update live ambient temperature global for tooltips
+      // Update live ambient temperature global for tooltips and topbar pill
       if (data.current && data.current.temperature_celsius !== undefined) {
-        window.currentAirTemp = data.current.temperature_celsius.toFixed(1);
+        const airT = Number(data.current.temperature_celsius);
+        window.currentAirTemp = airT.toFixed(1);
+        const weatherPillText = document.getElementById("officer-weather-text");
+        if (weatherPillText) {
+          weatherPillText.textContent = `${airT.toFixed(1)}°C`;
+        }
+        const weatherPill = document.getElementById("officer-weather-pill");
+        if (weatherPill) {
+          const feels = data.current.wbgt_celsius || data.current.apparent_temperature_celsius;
+          const rh = data.current.relative_humidity_pct;
+          weatherPill.title = `Live Station: ${airT.toFixed(1)}°C · WBGT: ${feels ? feels.toFixed(1) : '--'}°C · Humidity: ${rh != null ? Math.round(rh) : '--'}% (10m auto-sync)`;
+        }
       }
 
       const menu = document.getElementById("forecast-menu");
@@ -101,6 +116,27 @@
         resetForecastView();
         closeForecastMenu();
       });
+
+      // Rolling 24-hour strip inside dropdown
+      if (Array.isArray(data.hourly) && data.hourly.length > 0) {
+        addHeader("Live 24h Hourly Forecast");
+        const hourlyStrip = document.createElement("div");
+        hourlyStrip.style.cssText = "display:flex; gap:6px; overflow-x:auto; padding:8px 10px; background:#f8fafc; border-bottom:1px solid #e2e8f0;";
+        data.hourly.slice(0, 12).forEach((h) => {
+          const hCard = document.createElement("div");
+          const isDanger = h.is_danger;
+          const borderCol = isDanger ? "#dc2626" : "#cbd5e1";
+          const bgCol = isDanger ? "#fef2f2" : "#ffffff";
+          hCard.style.cssText = `flex: 0 0 68px; text-align:center; padding:5px 4px; border-radius:6px; font-size:10.5px; border:1px solid ${borderCol}; background:${bgCol};`;
+          hCard.innerHTML = `
+            <div style="font-weight:700; color:#475569; font-size:9.5px; margin-bottom:2px;">${h.hour_str}</div>
+            <div style="font-weight:800; font-size:12px; color:#0f172a; font-family:var(--font-mono);">${Math.round(h.temperature_celsius)}°C</div>
+            <div style="font-size:9px; color:${isDanger ? '#b91c1c' : '#d97706'}; font-weight:700; margin-top:2px;">${Math.round(h.wbgt_celsius)}° WBGT</div>
+          `;
+          hourlyStrip.appendChild(hCard);
+        });
+        menu.appendChild(hourlyStrip);
+      }
 
       const pastItems = allTimeline.filter((d) => d.phase === "historical" || d.day < 1);
       if (pastItems.length > 0) {
@@ -139,6 +175,10 @@
       });
     } catch (err) {
       console.warn("Officer forecast dropdown init failed:", err);
+    } finally {
+      if (syncBtn) {
+        setTimeout(() => syncBtn.classList.remove("spinning"), 400);
+      }
     }
   }
 
@@ -508,6 +548,15 @@
         if (e.target === modal) closeSmsModal();
       });
     }
+
+    // Weather sync button
+    const syncBtn = document.getElementById("btn-officer-weather-sync");
+    if (syncBtn) {
+      syncBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        initOfficer(true);
+      });
+    }
   }
 
   function initAuditModal() {
@@ -571,6 +620,8 @@
     setupOfficerEvents();
     initAuditModal();
     initOfficer();
+    // 10-minute automated background sync
+    setInterval(() => initOfficer(false), 10 * 60 * 1000);
   }
 
   if (document.readyState === "loading") {
