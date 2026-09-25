@@ -274,13 +274,14 @@
       const catColor = CATEGORY_COLORS[f.category] || "#475569";
       const statusBadge = isVerified
         ? '<span class="status-pill status-ready"><span class="status-dot"></span>Ready</span>'
-        : '<span class="status-pill status-unregistered"><span class="status-dot"></span>Unregistered</span>';
+        : '<span class="status-pill status-unregistered"><span class="status-dot"></span>No Phone</span>';
 
       const contactDisplay = isVerified
         ? `<div class="facility-contact-row">
-             <span class="facility-contact-person">${f.contact_person || "Designated In-Charge"}</span>
-             <span class="facility-contact-sep">&bull;</span>
+             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
              <span class="facility-contact-phone">${f.phone}</span>
+             <span class="facility-contact-sep">&bull;</span>
+             <span class="facility-contact-person">${f.contact_person || "Designated In-Charge"}</span>
            </div>`
         : "";
 
@@ -289,14 +290,14 @@
         : "";
 
       html += `
-        <div class="facility-card" data-id="${f.id}">
+        <div class="facility-card ${isVerified ? 'is-verified' : 'is-unverified'}" data-id="${f.id}">
           <div class="facility-card-header">
             <div class="facility-card-info">
               <div class="facility-card-title-row">
                 <span class="facility-category-icon" style="color:${catColor};">${svgIcon}</span>
                 <span class="facility-name">${f.name}</span>
               </div>
-              <div class="facility-meta" style="color:${catColor};">
+              <div class="facility-meta">
                 ${f.category} <span class="facility-address">&bull; ${f.address || "Madurai"}</span>
               </div>
               ${contactDisplay}
@@ -306,17 +307,17 @@
           </div>
 
           <div class="facility-card-actions">
-            <button class="btn btn-outline btn-edit-contact" data-id="${f.id}">
+            <button class="btn btn-outline btn-locate-facility" data-lat="${f.latitude}" data-lon="${f.longitude}" data-name="${f.name}" title="Locate on map">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
+              <span>Locate</span>
+            </button>
+            <button class="btn btn-outline btn-edit-contact" data-id="${f.id}" title="Edit contact phone">
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
               <span>${isVerified ? "Edit Phone" : "Add Phone"}</span>
             </button>
-            <button class="btn btn-outline btn-locate-facility" data-lat="${f.latitude}" data-lon="${f.longitude}" data-name="${f.name}">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
-              <span>Focus</span>
-            </button>
             <button class="btn btn-primary btn-alert-facility" data-id="${f.id}" data-name="${f.name}" ${!isVerified ? 'disabled title="Add contact phone first"' : ''}>
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-              <span>Dispatch Alert</span>
+              <span>Alert Site</span>
             </button>
           </div>
         </div>

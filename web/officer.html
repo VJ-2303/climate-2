@@ -327,55 +327,68 @@
 
     <!-- Administrative Command & Facilities Directory Sidebar Drawer -->
     <aside class="admin-directory-panel" id="admin-directory-panel" style="display:none;" aria-label="Administrative Facilities Command">
-      <div class="admin-panel-header">
-        <div class="admin-panel-title-group">
-          <span class="admin-panel-badge">MUNICIPAL COMMAND</span>
-          <h2 class="admin-panel-title">Sensitive Facilities Directory</h2>
+      <div class="drawer-top">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
+            <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+          </svg>
+          <span class="drawer-heading">Sensitive Facilities Directory</span>
         </div>
-        <button class="icon-btn" id="btn-admin-panel-close" title="Close Panel">✕</button>
+        <button class="icon-btn close-sidebar-btn" id="btn-admin-panel-close" title="Close Panel (Esc)">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
       </div>
 
       <div class="admin-panel-body">
-        <!-- Facilities Stats Summary Strip -->
-        <div class="admin-stats-strip">
-          <div class="admin-stat-item">
-            <span class="admin-stat-val" id="stat-total-facilities">0</span>
-            <span class="admin-stat-lbl">Institutions</span>
+        <!-- Zonal Assets KPI Strip -->
+        <div class="sector-hero-card" style="margin-bottom: 12px; padding: 10px 12px;">
+          <div class="sector-meta-row" style="margin-bottom: 8px;">
+            <div class="sector-id-group">
+              <span class="sector-prefix">ZONAL ASSETS</span>
+              <span class="sector-id-val" id="admin-zone-name-card" style="font-size: 13px;">Madurai</span>
+            </div>
+            <span class="risk-badge" id="admin-verified-count-badge" style="background:rgba(255,255,255,0.12); color:#e2e8f0; border:1px solid rgba(255,255,255,0.2); font-weight:700;">0/0 Ready</span>
           </div>
-          <div class="admin-stat-item verified">
-            <span class="admin-stat-val" id="stat-verified-facilities">0</span>
-            <span class="admin-stat-lbl">Contacts Ready</span>
-          </div>
-          <div class="admin-stat-item missing">
-            <span class="admin-stat-val" id="stat-missing-facilities">0</span>
-            <span class="admin-stat-lbl">Need Phone</span>
+
+          <div class="sector-kpi-row">
+            <div class="sector-kpi-item">
+              <span class="kpi-label">Total Sites</span>
+              <span class="kpi-val" id="stat-total-facilities" style="font-size: 1.15rem;">0</span>
+            </div>
+            <div class="sector-kpi-divider"></div>
+            <div class="sector-kpi-item">
+              <span class="kpi-label">Ready (SMS)</span>
+              <span class="kpi-val" id="stat-verified-facilities" style="font-size: 1.15rem; color: #4ade80;">0</span>
+            </div>
+            <div class="sector-kpi-divider"></div>
+            <div class="sector-kpi-item">
+              <span class="kpi-label">Needs Phone</span>
+              <span class="kpi-val" id="stat-missing-facilities" style="font-size: 1.15rem; color: #f87171;">0</span>
+            </div>
           </div>
         </div>
 
-        <!-- Emergency Broadcast Actions -->
-        <div class="admin-section-box">
-          <div class="admin-section-title">Emergency Broadcast Dispatch</div>
-          <div class="admin-broadcast-actions">
-            <button class="btn btn-broadcast btn-broadcast-schools" id="btn-bulk-alert-schools">
-              <span class="broadcast-label">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
-                <span>Alert Schools</span>
-              </span>
-              <span class="broadcast-count" id="bulk-count-schools">(0 ready)</span>
+        <!-- Emergency Broadcast Dispatch -->
+        <div class="profile-card" style="margin-bottom: 12px; padding: 10px 12px;">
+          <div class="card-section-label" style="margin-bottom: 8px;">One-Click Emergency Broadcast</div>
+          <div class="admin-broadcast-row">
+            <button class="broadcast-chip" id="btn-bulk-alert-schools" title="Alert all verified schools">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+              <span>Schools</span>
+              <span class="chip-count" id="bulk-count-schools">0</span>
             </button>
-            <button class="btn btn-broadcast btn-broadcast-hospitals" id="btn-bulk-alert-hospitals">
-              <span class="broadcast-label">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
-                <span>Alert Hospitals</span>
-              </span>
-              <span class="broadcast-count" id="bulk-count-hospitals">(0 ready)</span>
+            <button class="broadcast-chip" id="btn-bulk-alert-hospitals" title="Alert all verified hospitals">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+              <span>Hospitals</span>
+              <span class="chip-count" id="bulk-count-hospitals">0</span>
             </button>
-            <button class="btn btn-broadcast btn-broadcast-colleges" id="btn-bulk-alert-colleges">
-              <span class="broadcast-label">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c0 2 3 3 6 3s6-1 6-3v-5"/></svg>
-                <span>Alert Colleges</span>
-              </span>
-              <span class="broadcast-count" id="bulk-count-colleges">(0 ready)</span>
+            <button class="broadcast-chip" id="btn-bulk-alert-colleges" title="Alert all verified colleges">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c0 2 3 3 6 3s6-1 6-3v-5"/></svg>
+              <span>Colleges</span>
+              <span class="chip-count" id="bulk-count-colleges">0</span>
             </button>
           </div>
         </div>
